@@ -1,0 +1,711 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 63;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		026C738CEFE74BB2817CB847 /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C3888277E836B839C08367 /* AvatarView.swift */; };
+		0AF1927D88516256A32BF735 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408951620414BC917FCC70C9 /* ContactPicker.swift */; };
+		0E93BE27539569EED1341ABB /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E914C292260F8359C5889DB /* Color+Extensions.swift */; };
+		0FA956CC549F19F6523D8B16 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */; };
+		107A6B70222A3D1BE553052F /* WeekAgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E031139A6648AB3E4A78588 /* WeekAgendaView.swift */; };
+		12082EF6F3812CB4E5F50C04 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5037D63E0DB017064738F342 /* MainTabView.swift */; };
+		1C6F58A722AC3CEE4EB69BEF /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9332644D3BF9E303DFC2078A /* KeychainManager.swift */; };
+		2055D1CCCE49F467FD89E5DA /* OverlapLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */; };
+		29395804B6E90539A7716659 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54061472237F6D9424DD0542 /* ToastView.swift */; };
+		303A15293BDBCDCAEF40C95C /* PatientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7406443AB8C320235B1C62E /* PatientDetailView.swift */; };
+		35A55CDEEACE12CF2E76DE75 /* CalendarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E7F5ABE818869F37223CFA /* CalendarConstants.swift */; };
+		39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */; };
+		41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEC53DCF046BB187ADD590 /* AgendaView.swift */; };
+		4272363A0DCDC51F85AAA211 /* ProfessionalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */; };
+		4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = "TEMP_C336612F-F832-4058-8D26-0617954A1D7A" /* AgendaHofApp.swift */; };
+		4F5D0E913C1EDB35FE49F44A /* Preview Content in Resources */ = {isa = PBXBuildFile; fileRef = 76D5B2BF913EBCB78104AF6F /* Preview Content */; };
+		4F8D1A8BA4126DE3BEF469C1 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F2EAD7F123902D0DE3295E /* LoginView.swift */; };
+		5052B4BD009E1C85CF156A1E /* FinancialReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35DF113DD693A03116E3FE0 /* FinancialReportView.swift */; };
+		6336057BC0596F3C49C36457 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = F7350B170287A696432256E7 /* Supabase */; };
+		6E5B26532AC48D60E080DBC4 /* Professional.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0002888366C41F016FED872 /* Professional.swift */; };
+		75126AC242B53D136DEA6B55 /* AppointmentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D9E437779D23BE28815BFB /* AppointmentService.swift */; };
+		7AD35C4769FDEE0FEE0A0A8D /* Procedure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F9F07845B377E75DFC08BB /* Procedure.swift */; };
+		80A385F9E09D56B5AA16F4D5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE7668D92C2F35C312AC4FD /* SettingsView.swift */; };
+		81254EF39B930733F018D114 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C2E355EEFE92729F914185D /* SupabaseManager.swift */; };
+		8458E20E7F3F8FB2D54292EE /* NewAppointmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73DC13BE1A07029C8F512DB5 /* NewAppointmentView.swift */; };
+		8ABA32F23ADFCFB9303BC1F9 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A435D7ADF1CAFE4AFBE9B842 /* Date+Extensions.swift */; };
+		8EF66DD97C195BB932E61B59 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E78DF2B4D2F78372F2CA2DBF /* AuthViewModel.swift */; };
+		90D7407F5C4BDA7064D667D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1E37F46729096E1602A7925 /* Assets.xcassets */; };
+		97FF6BEB36DCCCDF6C8E09C7 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1B1D057F2F11AE1D01E7E4 /* Formatters.swift */; };
+		9A9874A607927BE82A2DDDDB /* CalendarTimeGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */; };
+		AC6993E4617F6987EFEBBFDF /* settings.local.json in Resources */ = {isa = PBXBuildFile; fileRef = F8516784C7585E5246F8AF13 /* settings.local.json */; };
+		AD98E0D63C5E4E9D90865A28 /* CalendarWeekView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E546A0D1B8FB5318925D17 /* CalendarWeekView.swift */; };
+		AF321D2AD8BA4D8A5032DBB5 /* NewRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C31345C39AE1C255BF35A4E /* NewRecurringBlockView.swift */; };
+		B1934A7E0EE19F95013EB77B /* DayAgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6517641A4BB66289277ACEA0 /* DayAgendaView.swift */; };
+		B7596A6A9E8F895B8EAAA2A3 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD88A37337109F45CC1D4C1 /* Constants.swift */; };
+		BB361370EAD56AFAA2F30D55 /* String+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */; };
+		BF1465FA8211532924A6BCB3 /* CalendarPagingContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */; };
+		C01E4912987BA492D13CE0CD /* Patient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6697A0C1C5AEDADB2A92428E /* Patient.swift */; };
+		C1B7BBE6A1D8D5FF0DF0A29E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */; };
+		C55B97A05494D0577100E443 /* CalendarDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE779576690594C23259C5B5 /* CalendarDayView.swift */; };
+		C77E83CEEBC7D29EB0DB2D0C /* RecurringBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F865118D2BD455D5EA77BA9C /* RecurringBlock.swift */; };
+		CB375CBE1F467AC4B0B7791A /* AgendaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */; };
+		CE75F12CB7BE479B00373B86 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D5F7B7E6BE3B1EEE2228758 /* LoadingView.swift */; };
+		D473BCBEBFD8BA8BBB17E6F1 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFC09AC53EA56DBFFF534B38 /* NotificationManager.swift */; };
+		DE3867D9978171FC693F9AFE /* PatientService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 026AA8C980FB171DB10133FE /* PatientService.swift */; };
+		E677FE4EFF44745E171E4F39 /* PatientsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DE7788A04ECF72A76DF52F /* PatientsListView.swift */; };
+		F180A3996C2B2D590DC8869C /* Appointment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1888739FF31F7D87DAD2178F /* Appointment.swift */; };
+		F2206DC6A7BBC77AE9EAE2A5 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0B0641E4E52A846742DCF9 /* SignUpView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		026AA8C980FB171DB10133FE /* PatientService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientService.swift; sourceTree = "<group>"; };
+		03D9E437779D23BE28815BFB /* AppointmentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppointmentService.swift; sourceTree = "<group>"; };
+		0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Extensions.swift"; sourceTree = "<group>"; };
+		127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		1888739FF31F7D87DAD2178F /* Appointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Appointment.swift; sourceTree = "<group>"; };
+		27E7F5ABE818869F37223CFA /* CalendarConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarConstants.swift; sourceTree = "<group>"; };
+		2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
+		3BAEC53DCF046BB187ADD590 /* AgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaView.swift; sourceTree = "<group>"; };
+		3DE7668D92C2F35C312AC4FD /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		408951620414BC917FCC70C9 /* ContactPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPicker.swift; sourceTree = "<group>"; };
+		4E031139A6648AB3E4A78588 /* WeekAgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekAgendaView.swift; sourceTree = "<group>"; };
+		4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionalService.swift; sourceTree = "<group>"; };
+		5037D63E0DB017064738F342 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		54061472237F6D9424DD0542 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
+		59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTimeGrid.swift; sourceTree = "<group>"; };
+		59E546A0D1B8FB5318925D17 /* CalendarWeekView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarWeekView.swift; sourceTree = "<group>"; };
+		5D5F7B7E6BE3B1EEE2228758 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
+		5E914C292260F8359C5889DB /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
+		6517641A4BB66289277ACEA0 /* DayAgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayAgendaView.swift; sourceTree = "<group>"; };
+		6697A0C1C5AEDADB2A92428E /* Patient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patient.swift; sourceTree = "<group>"; };
+		6CD88A37337109F45CC1D4C1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPagingContainer.swift; sourceTree = "<group>"; };
+		73DC13BE1A07029C8F512DB5 /* NewAppointmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewAppointmentView.swift; sourceTree = "<group>"; };
+		76D5B2BF913EBCB78104AF6F /* Preview Content */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Preview Content"; sourceTree = SOURCE_ROOT; };
+		77DE7788A04ECF72A76DF52F /* PatientsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientsListView.swift; sourceTree = "<group>"; };
+		7C31345C39AE1C255BF35A4E /* NewRecurringBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewRecurringBlockView.swift; sourceTree = "<group>"; };
+		9332644D3BF9E303DFC2078A /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		95F9F07845B377E75DFC08BB /* Procedure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Procedure.swift; sourceTree = "<group>"; };
+		9C2E355EEFE92729F914185D /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		A35DF113DD693A03116E3FE0 /* FinancialReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialReportView.swift; sourceTree = "<group>"; };
+		A435D7ADF1CAFE4AFBE9B842 /* Date+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Extensions.swift"; sourceTree = "<group>"; };
+		B1E37F46729096E1602A7925 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Assets.xcassets; sourceTree = SOURCE_ROOT; };
+		B7406443AB8C320235B1C62E /* PatientDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientDetailView.swift; sourceTree = "<group>"; };
+		BFC09AC53EA56DBFFF534B38 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaViewModel.swift; sourceTree = "<group>"; };
+		CE779576690594C23259C5B5 /* CalendarDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayView.swift; sourceTree = "<group>"; };
+		CF0B0641E4E52A846742DCF9 /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
+		D0C3888277E836B839C08367 /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
+		E0002888366C41F016FED872 /* Professional.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Professional.swift; sourceTree = "<group>"; };
+		E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRecurringBlockView.swift; sourceTree = "<group>"; };
+		E78DF2B4D2F78372F2CA2DBF /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		EE98D42CD5D39012AAADBC2D /* AgendaHOF.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgendaHOF.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8516784C7585E5246F8AF13 /* settings.local.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = settings.local.json; sourceTree = "<group>"; };
+		F865118D2BD455D5EA77BA9C /* RecurringBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringBlock.swift; sourceTree = "<group>"; };
+		F8F2EAD7F123902D0DE3295E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapLayoutEngine.swift; sourceTree = "<group>"; };
+		FF1B1D057F2F11AE1D01E7E4 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
+		"TEMP_C336612F-F832-4058-8D26-0617954A1D7A" /* AgendaHofApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaHofApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		11B609B8C0D0E6FAC97EBAFD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6336057BC0596F3C49C36457 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		07B29D44A103FACA5A6BF3D1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				EE98D42CD5D39012AAADBC2D /* AgendaHOF.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		09DFF4DB16074952FD6C7EE9 = {
+			isa = PBXGroup;
+			children = (
+				B57D765B7F969D1CED05F391 /* .claude */,
+				F42C4F15605B342A2F9822A2 /* Core */,
+				F1B043F92785BA77F3459575 /* Database */,
+				1AC4B301EBD8ED90A9CC037B /* Models */,
+				9014FBD5FF50FFFA43A15BC5 /* Services */,
+				CBD5BF13F334320B8F722585 /* Utilities */,
+				55B33A05DF3036E3D8A18BD5 /* ViewModels */,
+				8DC265CBFF686E1FEDC6803D /* Views */,
+				B1E37F46729096E1602A7925 /* Assets.xcassets */,
+				76D5B2BF913EBCB78104AF6F /* Preview Content */,
+				07B29D44A103FACA5A6BF3D1 /* Products */,
+				46FBAE6C2EF7892400B61C41 /* Recovered References */,
+			);
+			sourceTree = "<group>";
+		};
+		1AC4B301EBD8ED90A9CC037B /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				1888739FF31F7D87DAD2178F /* Appointment.swift */,
+				6697A0C1C5AEDADB2A92428E /* Patient.swift */,
+				95F9F07845B377E75DFC08BB /* Procedure.swift */,
+				E0002888366C41F016FED872 /* Professional.swift */,
+				F865118D2BD455D5EA77BA9C /* RecurringBlock.swift */,
+				2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		30BE18EB054211A069D1B2B6 /* Financial */ = {
+			isa = PBXGroup;
+			children = (
+				A35DF113DD693A03116E3FE0 /* FinancialReportView.swift */,
+			);
+			path = Financial;
+			sourceTree = "<group>";
+		};
+		36D5D9E6E069879DE75D85D2 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				5E914C292260F8359C5889DB /* Color+Extensions.swift */,
+				A435D7ADF1CAFE4AFBE9B842 /* Date+Extensions.swift */,
+				0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		46FBAE6C2EF7892400B61C41 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_C336612F-F832-4058-8D26-0617954A1D7A" /* AgendaHofApp.swift */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
+		55B33A05DF3036E3D8A18BD5 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */,
+				E78DF2B4D2F78372F2CA2DBF /* AuthViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		57B42A3ADC7AC365E4D5DBD1 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				F8F2EAD7F123902D0DE3295E /* LoginView.swift */,
+				CF0B0641E4E52A846742DCF9 /* SignUpView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		6CDF55EC742AE16281287E63 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				27E7F5ABE818869F37223CFA /* CalendarConstants.swift */,
+				CE779576690594C23259C5B5 /* CalendarDayView.swift */,
+				72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */,
+				59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */,
+				59E546A0D1B8FB5318925D17 /* CalendarWeekView.swift */,
+				FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
+		837E70A0996B4275891887D1 /* Agenda */ = {
+			isa = PBXGroup;
+			children = (
+				3BAEC53DCF046BB187ADD590 /* AgendaView.swift */,
+				6517641A4BB66289277ACEA0 /* DayAgendaView.swift */,
+				E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */,
+				73DC13BE1A07029C8F512DB5 /* NewAppointmentView.swift */,
+				7C31345C39AE1C255BF35A4E /* NewRecurringBlockView.swift */,
+				4E031139A6648AB3E4A78588 /* WeekAgendaView.swift */,
+			);
+			path = Agenda;
+			sourceTree = "<group>";
+		};
+		8C9CBB942D8F807747495BB7 /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				9C2E355EEFE92729F914185D /* SupabaseManager.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		8DC265CBFF686E1FEDC6803D /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				837E70A0996B4275891887D1 /* Agenda */,
+				57B42A3ADC7AC365E4D5DBD1 /* Auth */,
+				6CDF55EC742AE16281287E63 /* Calendar */,
+				9B0411BEB392E1F72436F7AF /* Components */,
+				30BE18EB054211A069D1B2B6 /* Financial */,
+				F3D5BAE0D98E32C8301D5F53 /* Patients */,
+				CC016246921ADBDBB5897FD3 /* Settings */,
+				5037D63E0DB017064738F342 /* MainTabView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		9014FBD5FF50FFFA43A15BC5 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				03D9E437779D23BE28815BFB /* AppointmentService.swift */,
+				BFC09AC53EA56DBFFF534B38 /* NotificationManager.swift */,
+				026AA8C980FB171DB10133FE /* PatientService.swift */,
+				4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		9B0411BEB392E1F72436F7AF /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				D0C3888277E836B839C08367 /* AvatarView.swift */,
+				127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */,
+				5D5F7B7E6BE3B1EEE2228758 /* LoadingView.swift */,
+				54061472237F6D9424DD0542 /* ToastView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		B57D765B7F969D1CED05F391 /* .claude */ = {
+			isa = PBXGroup;
+			children = (
+				F8516784C7585E5246F8AF13 /* settings.local.json */,
+			);
+			path = .claude;
+			sourceTree = "<group>";
+		};
+		CBD5BF13F334320B8F722585 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				FF1B1D057F2F11AE1D01E7E4 /* Formatters.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		CC016246921ADBDBB5897FD3 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				3DE7668D92C2F35C312AC4FD /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		D50AD71A67FEB360E75A61A6 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				9332644D3BF9E303DFC2078A /* KeychainManager.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		E40B80352BFC39CA505560D6 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				6CD88A37337109F45CC1D4C1 /* Constants.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		F1B043F92785BA77F3459575 /* Database */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Database;
+			sourceTree = "<group>";
+		};
+		F3D5BAE0D98E32C8301D5F53 /* Patients */ = {
+			isa = PBXGroup;
+			children = (
+				B7406443AB8C320235B1C62E /* PatientDetailView.swift */,
+				77DE7788A04ECF72A76DF52F /* PatientsListView.swift */,
+			);
+			path = Patients;
+			sourceTree = "<group>";
+		};
+		F42C4F15605B342A2F9822A2 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				36D5D9E6E069879DE75D85D2 /* Extensions */,
+				8C9CBB942D8F807747495BB7 /* Network */,
+				D50AD71A67FEB360E75A61A6 /* Storage */,
+				E40B80352BFC39CA505560D6 /* Utils */,
+				408951620414BC917FCC70C9 /* ContactPicker.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C2A61E63F29CD27EBC196561 /* AgendaHOF */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 985D9DAFD975E461A835F616 /* Build configuration list for PBXNativeTarget "AgendaHOF" */;
+			buildPhases = (
+				8E4988DB1D66C83107176207 /* Sources */,
+				0418957F5FF90DFE62270F71 /* Resources */,
+				11B609B8C0D0E6FAC97EBAFD /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AgendaHOF;
+			packageProductDependencies = (
+				F7350B170287A696432256E7 /* Supabase */,
+			);
+			productName = AgendaHOF;
+			productReference = EE98D42CD5D39012AAADBC2D /* AgendaHOF.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		600313160D02A48F7E84B9CA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					C2A61E63F29CD27EBC196561 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = DE6F8CAC39BF5F455E671F20 /* Build configuration list for PBXProject "AgendaHOF" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 09DFF4DB16074952FD6C7EE9;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3290B1222D3CF943CFEE2119 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C2A61E63F29CD27EBC196561 /* AgendaHOF */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0418957F5FF90DFE62270F71 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				90D7407F5C4BDA7064D667D7 /* Assets.xcassets in Resources */,
+				4F5D0E913C1EDB35FE49F44A /* Preview Content in Resources */,
+				AC6993E4617F6987EFEBBFDF /* settings.local.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8E4988DB1D66C83107176207 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */,
+				41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */,
+				CB375CBE1F467AC4B0B7791A /* AgendaViewModel.swift in Sources */,
+				F180A3996C2B2D590DC8869C /* Appointment.swift in Sources */,
+				75126AC242B53D136DEA6B55 /* AppointmentService.swift in Sources */,
+				8EF66DD97C195BB932E61B59 /* AuthViewModel.swift in Sources */,
+				026C738CEFE74BB2817CB847 /* AvatarView.swift in Sources */,
+				35A55CDEEACE12CF2E76DE75 /* CalendarConstants.swift in Sources */,
+				C55B97A05494D0577100E443 /* CalendarDayView.swift in Sources */,
+				BF1465FA8211532924A6BCB3 /* CalendarPagingContainer.swift in Sources */,
+				9A9874A607927BE82A2DDDDB /* CalendarTimeGrid.swift in Sources */,
+				AD98E0D63C5E4E9D90865A28 /* CalendarWeekView.swift in Sources */,
+				0E93BE27539569EED1341ABB /* Color+Extensions.swift in Sources */,
+				B7596A6A9E8F895B8EAAA2A3 /* Constants.swift in Sources */,
+				0AF1927D88516256A32BF735 /* ContactPicker.swift in Sources */,
+				8ABA32F23ADFCFB9303BC1F9 /* Date+Extensions.swift in Sources */,
+				B1934A7E0EE19F95013EB77B /* DayAgendaView.swift in Sources */,
+				39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */,
+				0FA956CC549F19F6523D8B16 /* EmptyStateView.swift in Sources */,
+				5052B4BD009E1C85CF156A1E /* FinancialReportView.swift in Sources */,
+				97FF6BEB36DCCCDF6C8E09C7 /* Formatters.swift in Sources */,
+				1C6F58A722AC3CEE4EB69BEF /* KeychainManager.swift in Sources */,
+				CE75F12CB7BE479B00373B86 /* LoadingView.swift in Sources */,
+				4F8D1A8BA4126DE3BEF469C1 /* LoginView.swift in Sources */,
+				12082EF6F3812CB4E5F50C04 /* MainTabView.swift in Sources */,
+				8458E20E7F3F8FB2D54292EE /* NewAppointmentView.swift in Sources */,
+				AF321D2AD8BA4D8A5032DBB5 /* NewRecurringBlockView.swift in Sources */,
+				D473BCBEBFD8BA8BBB17E6F1 /* NotificationManager.swift in Sources */,
+				2055D1CCCE49F467FD89E5DA /* OverlapLayoutEngine.swift in Sources */,
+				C01E4912987BA492D13CE0CD /* Patient.swift in Sources */,
+				303A15293BDBCDCAEF40C95C /* PatientDetailView.swift in Sources */,
+				DE3867D9978171FC693F9AFE /* PatientService.swift in Sources */,
+				E677FE4EFF44745E171E4F39 /* PatientsListView.swift in Sources */,
+				7AD35C4769FDEE0FEE0A0A8D /* Procedure.swift in Sources */,
+				6E5B26532AC48D60E080DBC4 /* Professional.swift in Sources */,
+				4272363A0DCDC51F85AAA211 /* ProfessionalService.swift in Sources */,
+				C77E83CEEBC7D29EB0DB2D0C /* RecurringBlock.swift in Sources */,
+				80A385F9E09D56B5AA16F4D5 /* SettingsView.swift in Sources */,
+				F2206DC6A7BBC77AE9EAE2A5 /* SignUpView.swift in Sources */,
+				BB361370EAD56AFAA2F30D55 /* String+Extensions.swift in Sources */,
+				81254EF39B930733F018D114 /* SupabaseManager.swift in Sources */,
+				29395804B6E90539A7716659 /* ToastView.swift in Sources */,
+				C1B7BBE6A1D8D5FF0DF0A29E /* UserProfile.swift in Sources */,
+				107A6B70222A3D1BE553052F /* WeekAgendaView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		21A520008B795EF15517E7BC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agendahof.swift;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		420CB7D880664FA61CAF494B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = J5YU2V26FV;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Agenda HOF";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.agendahof.swift;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C287A293D46A589AAF58FF28 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = J5YU2V26FV;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Agenda HOF";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.agendahof.swift;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CAC6A0E77A511420E8176F3C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agendahof.swift;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		985D9DAFD975E461A835F616 /* Build configuration list for PBXNativeTarget "AgendaHOF" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C287A293D46A589AAF58FF28 /* Debug */,
+				420CB7D880664FA61CAF494B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DE6F8CAC39BF5F455E671F20 /* Build configuration list for PBXProject "AgendaHOF" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				21A520008B795EF15517E7BC /* Debug */,
+				CAC6A0E77A511420E8176F3C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3290B1222D3CF943CFEE2119 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F7350B170287A696432256E7 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3290B1222D3CF943CFEE2119 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 600313160D02A48F7E84B9CA /* Project object */;
+}
