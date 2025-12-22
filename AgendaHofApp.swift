@@ -5,11 +5,82 @@ import UserNotifications
 struct AgendaHofApp: App {
     @StateObject private var supabase = SupabaseManager.shared
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var showResetPassword = false
+    @State private var resetToken: String?
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(supabase)
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
+                .sheet(isPresented: $showResetPassword) {
+                    if let token = resetToken {
+                        ResetPasswordView(token: token)
+                    }
+                }
+        }
+    }
+
+    // MARK: - Deep Link Handler
+    private func handleDeepLink(_ url: URL) {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
+
+        #if DEBUG
+        print("🔗 [Deep Link] Received URL: \(url.absoluteString)")
+        print("🔗 [Deep Link] Path: \(components.path)")
+        print("🔗 [Deep Link] Query Items: \(components.queryItems ?? [])")
+        #endif
+
+        // Suporta tanto Custom URL Scheme quanto Universal Links:
+        // - agendahof://reset-password?access_token=xxxxx&type=recovery
+        // - https://agendahof.com/reset-password#access_token=xxxxx&type=recovery
+        // - https://agendahof.com/auth/callback#access_token=xxxxx&type=recovery
+
+        let isResetPasswordPath = components.path.contains("reset-password") ||
+                                  components.path.contains("auth/callback") ||
+                                  components.host == "reset-password"
+
+        if isResetPasswordPath {
+            // Supabase envia tokens no fragment (#) ou query (?)
+            var accessToken: String?
+            var tokenType: String?
+
+            // 1. Tentar extrair do fragment (mais comum no Supabase)
+            if let fragment = url.fragment {
+                let fragmentComponents = URLComponents(string: "?\(fragment)")
+                accessToken = fragmentComponents?.queryItems?.first(where: { $0.name == "access_token" })?.value
+                tokenType = fragmentComponents?.queryItems?.first(where: { $0.name == "type" })?.value
+            }
+
+            // 2. Fallback: tentar extrair da query string
+            if accessToken == nil {
+                accessToken = components.queryItems?.first(where: { $0.name == "access_token" })?.value
+                tokenType = components.queryItems?.first(where: { $0.name == "type" })?.value
+            }
+
+            // 3. Fallback antigo: token simples
+            if accessToken == nil {
+                accessToken = components.queryItems?.first(where: { $0.name == "token" })?.value
+            }
+
+            guard let token = accessToken else {
+                #if DEBUG
+                print("❌ [Deep Link] Token não encontrado na URL")
+                #endif
+                return
+            }
+
+            #if DEBUG
+            print("✅ [Deep Link] Token extraído com sucesso (type: \(tokenType ?? "unknown"))")
+            #endif
+
+            // Verificar se é um token de recuperação
+            if tokenType == "recovery" || tokenType == nil {
+                resetToken = token
+                showResetPassword = true
+            }
         }
     }
 }
@@ -22,6 +93,31 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         UNUserNotificationCenter.current().delegate = self
         return true
     }
+
+    // MARK: - Universal Links
+
+    /// Chamado quando o app é aberto via Universal Link (https://agendahof.com/...)
+    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        #if DEBUG
+        print("🌐 [Universal Link] userActivity.activityType: \(userActivity.activityType)")
+        #endif
+
+        // Verificar se é um Universal Link
+        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+              let url = userActivity.webpageURL else {
+            return false
+        }
+
+        #if DEBUG
+        print("🌐 [Universal Link] URL recebida: \(url.absoluteString)")
+        #endif
+
+        // O sistema irá chamar .onOpenURL() automaticamente
+        // Não precisamos fazer nada aqui, apenas retornar true
+        return true
+    }
+
+    // MARK: - Notificações
 
     // Mostrar notificação mesmo quando o app está em foreground
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
