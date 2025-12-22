@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "J5YU2V26FV.com.agendahof.swift",
+        "paths": [
+          "/reset-password",
+          "/reset-password/*",
+          "/auth/callback",
+          "/auth/callback/*"
+        ]
+      }
+    ]
+  }
+}

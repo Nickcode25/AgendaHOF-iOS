@@ -29,9 +29,9 @@ https://agendahof.com
 
 ### 2. Apple App Site Association (AASA)
 
-**Passo 1:** Encontre seu Apple Team ID no [Apple Developer Portal](https://developer.apple.com/account/)
+**Arquivo já criado:** `apple-app-site-association` (na raiz do projeto)
 
-**Passo 2:** Crie o arquivo JSON substituindo `TEAM_ID` pelo seu Team ID real:
+**Conteúdo do arquivo:**
 
 ```json
 {
@@ -39,7 +39,7 @@ https://agendahof.com
     "apps": [],
     "details": [
       {
-        "appID": "TEAM_ID.com.agendahof.app",
+        "appID": "J5YU2V26FV.com.agendahof.swift",
         "paths": [
           "/reset-password",
           "/reset-password/*",
@@ -226,6 +226,7 @@ curl https://agendahof.com/.well-known/apple-app-site-association
 
 ---
 
-**Bundle ID:** `com.agendahof.app`
+**Bundle ID:** `com.agendahof.swift`
+**Team ID:** `J5YU2V26FV`
 **Domain:** `agendahof.com`
 **Custom Scheme:** `agendahof://`
