@@ -34,7 +34,6 @@ class AppointmentService: ObservableObject {
                     .eq("professional", value: professional)
                     .gte("start", value: startString)
                     .lte("start", value: endString)
-                    .neq("status", value: "cancelled")
                     .order("start", ascending: true)
                     .execute()
                     .value
@@ -45,7 +44,6 @@ class AppointmentService: ObservableObject {
                     .eq("user_id", value: userId)
                     .gte("start", value: startString)
                     .lte("start", value: endString)
-                    .neq("status", value: "cancelled")
                     .order("start", ascending: true)
                     .execute()
                     .value
@@ -105,6 +103,10 @@ class AppointmentService: ObservableObject {
     // MARK: - Create
 
     func createAppointment(_ appointment: Appointment.Insert) async throws -> Appointment {
+        #if DEBUG
+        print("🆕 [Create Appointment] Creating with status: \(appointment.status.rawValue)")
+        #endif
+
         let result: Appointment = try await supabase.client
             .from("appointments")
             .insert(appointment)
@@ -112,6 +114,10 @@ class AppointmentService: ObservableObject {
             .single()
             .execute()
             .value
+
+        #if DEBUG
+        print("✅ [Create Appointment] Created with ID: \(result.id), status from DB: \(result.status.rawValue)")
+        #endif
 
         return result
     }

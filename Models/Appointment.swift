@@ -53,7 +53,7 @@ struct Appointment: Identifiable, Codable, Hashable {
 
         var color: String {
             switch self {
-            case .scheduled: return "blue"
+            case .scheduled: return "orange"
             case .confirmed: return "green"
             case .completed: return "purple"
             case .cancelled: return "red"

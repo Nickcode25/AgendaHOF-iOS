@@ -145,24 +145,24 @@ struct AppointmentCard: View {
     }
 
     private var statusColor: Color {
+        // Compromissos pessoais = AZUL
+        if appointment.isPersonalAppointment {
+            return .blue
+        }
+
+        // Agendamentos de pacientes - cor por status
         switch appointment.status {
-        case .scheduled: return .blue
-        case .confirmed: return .green
-        case .completed, .done: return .appPrimary
-        case .cancelled: return .red
+        case .confirmed:
+            return .green
+        case .cancelled:
+            return .red
+        case .scheduled, .completed, .done:
+            return .orange
         }
     }
 
     private var cardBackground: Color {
-        if appointment.isPersonalAppointment {
-            return Color.orange.opacity(0.1)
-        }
-        switch appointment.status {
-        case .confirmed: return Color.green.opacity(0.1)
-        case .completed, .done: return Color.appPrimary.opacity(0.1)
-        case .cancelled: return Color.red.opacity(0.1)
-        default: return Color(.systemBackground)
-        }
+        return statusColor.opacity(0.1)
     }
 }
 
@@ -373,11 +373,19 @@ struct AppointmentDetailSheet: View {
     }
 
     private var statusColor: Color {
+        // Compromissos pessoais = AZUL
+        if appointment.isPersonalAppointment {
+            return .blue
+        }
+
+        // Agendamentos de pacientes - cor por status
         switch appointment.status {
-        case .scheduled: return .blue
-        case .confirmed: return .green
-        case .completed, .done: return .appPrimary
-        case .cancelled: return .red
+        case .confirmed:
+            return .green
+        case .cancelled:
+            return .red
+        case .scheduled, .completed, .done:
+            return .orange
         }
     }
 

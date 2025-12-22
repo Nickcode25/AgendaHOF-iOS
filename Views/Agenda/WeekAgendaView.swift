@@ -205,11 +205,19 @@ struct CompactAppointmentRow: View {
     }
 
     private var statusColor: Color {
+        // Compromissos pessoais = AZUL
+        if appointment.isPersonalAppointment {
+            return .blue
+        }
+
+        // Agendamentos de pacientes - cor por status
         switch appointment.status {
-        case .scheduled: return .blue
-        case .confirmed: return .green
-        case .completed, .done: return .appPrimary
-        case .cancelled: return .red
+        case .confirmed:
+            return .green
+        case .cancelled:
+            return .red
+        case .scheduled, .completed, .done:
+            return .orange
         }
     }
 }
