@@ -392,7 +392,16 @@ struct FinancialReportView: View {
         #if DEBUG
         print("📊 [Financial Report] Loading data for period: \(selectedPeriod.displayName)")
         print("📊 [Financial Report] Date range: \(startDate) to \(endDate)")
+        print("📊 [Financial Report] Date range (ISO): \(startStr) to \(endStr)")
         print("📊 [Financial Report] User ID: \(userId)")
+
+        // Debug: mostrar data/hora local
+        let localFormatter = DateFormatter()
+        localFormatter.dateStyle = .medium
+        localFormatter.timeStyle = .medium
+        localFormatter.locale = Locale(identifier: "pt_BR")
+        localFormatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+        print("📊 [Financial Report] Local time range: \(localFormatter.string(from: startDate)) to \(localFormatter.string(from: endDate))")
         #endif
 
         // 1. Buscar procedimentos de pacientes
@@ -456,15 +465,19 @@ struct FinancialReportView: View {
             var total = Decimal(0)
             var count = 0
 
-            // ✅ Formatters para diferentes formatos de data
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-            let isoBasicFormatter = ISO8601DateFormatter()
-
+            // ✅ Criar formatter para comparação (YYYY-MM-DD)
             let dateOnlyFormatter = DateFormatter()
             dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
-            dateOnlyFormatter.timeZone = TimeZone(identifier: "UTC")
+            dateOnlyFormatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+            dateOnlyFormatter.locale = Locale(identifier: "pt_BR")
+
+            // ✅ Converter período para strings YYYY-MM-DD para comparação
+            let startDateStr = dateOnlyFormatter.string(from: startDate)
+            let endDateStr = dateOnlyFormatter.string(from: endDate)
+
+            #if DEBUG
+            print("📊 [Procedures] Period (YYYY-MM-DD): \(startDateStr) to \(endDateStr)")
+            #endif
 
             for patient in patients {
                 guard let procedures = patient.plannedProcedures else { continue }
@@ -477,33 +490,36 @@ struct FinancialReportView: View {
                     let dateString = procedure.performedAt ?? procedure.completedAt
                     guard let dateStr = dateString else { continue }
 
-                    // ✅ Parse da data com múltiplos formatters
-                    let performedDate = isoFormatter.date(from: dateStr)
-                        ?? isoBasicFormatter.date(from: dateStr)
-                        ?? dateOnlyFormatter.date(from: dateStr)
+                    // ✅ REGRA 3: Extrair apenas YYYY-MM-DD do dateStr (ignora hora e timezone)
+                    // Suporta formatos: "2025-12-22", "2025-12-22T14:30:00Z", "2025-12-22T14:30:00.000Z"
+                    let dateOnly = String(dateStr.prefix(10))  // Pega apenas YYYY-MM-DD
 
-                    guard let performedDate = performedDate else {
+                    // ✅ Validar formato YYYY-MM-DD
+                    guard dateOnly.count == 10, dateOnly.contains("-") else {
                         #if DEBUG
-                        print("⚠️ [Procedures] Failed to parse date: \(dateStr)")
+                        print("⚠️ [Procedures] Invalid date format: \(dateStr)")
                         #endif
                         continue
                     }
 
-                    // ✅ REGRA 3: Data dentro do período selecionado
-                    if performedDate >= startDate && performedDate <= endDate {
-                        // ✅ REGRA 4: Considerar paymentSplits se disponível
+                    // ✅ REGRA 4: Comparação de strings (igual ao web)
+                    // dateOnly >= startDateStr && dateOnly <= endDateStr
+                    if dateOnly >= startDateStr && dateOnly <= endDateStr {
+                        // ✅ REGRA 5: Considerar paymentSplits se disponível
                         if let splits = procedure.paymentSplits, !splits.isEmpty {
                             let splitTotal = splits.reduce(Decimal(0)) { $0 + Decimal($1.amount ?? 0) }
                             total += splitTotal
                             #if DEBUG
-                            print("📊 [Procedures] Patient: \(patient.name), Procedure: \(procedure.displayName), Split Total: \(splitTotal)")
+                            print("✅ [Procedures] \(patient.name) - \(procedure.displayName)")
+                            print("   Date: \(dateOnly) | Split Total: R$ \(splitTotal)")
                             #endif
                         } else {
-                            // ✅ REGRA 5: Somar totalValue
+                            // ✅ REGRA 6: Somar totalValue
                             let value = Decimal(procedure.totalValue ?? 0)
                             total += value
                             #if DEBUG
-                            print("📊 [Procedures] Patient: \(patient.name), Procedure: \(procedure.displayName), Value: \(value)")
+                            print("✅ [Procedures] \(patient.name) - \(procedure.displayName)")
+                            print("   Date: \(dateOnly) | Value: R$ \(value)")
                             #endif
                         }
                         count += 1
@@ -512,7 +528,9 @@ struct FinancialReportView: View {
             }
 
             #if DEBUG
-            print("📊 [Procedures] Found \(count) completed procedures, total: \(total)")
+            print("📊 [Procedures] Period: \(startDateStr) to \(endDateStr)")
+            print("📊 [Procedures] Found \(count) completed procedures")
+            print("📊 [Procedures] Total: R$ \(total)")
             #endif
 
             return total
@@ -719,30 +737,36 @@ struct FinancialReportView: View {
     // MARK: - Date Range Helper
 
     private func getDateRange(for period: PeriodFilter) -> (Date, Date) {
-        let calendar = Calendar.current
+        // ✅ CRÍTICO: Usar timezone de São Paulo para coincidir com o web
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
         let now = Date()
 
         switch period {
         case .day:
+            // ✅ CORREÇÃO: Usar 23:59:59.999 do dia atual para incluir todo o dia
             let startOfDay = calendar.startOfDay(for: now)
-            let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+            let endOfDay = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: startOfDay)!
             return (startOfDay, endOfDay)
 
         case .week:
+            // ✅ Semana começa na Segunda-feira (weekday 2)
             let weekday = calendar.component(.weekday, from: now)
-            let daysToSubtract = (weekday == 1) ? 6 : (weekday - 2)
+            let daysToSubtract = (weekday == 1) ? 6 : (weekday - 2)  // 1 = Domingo
             let startOfWeek = calendar.date(byAdding: .day, value: -daysToSubtract, to: calendar.startOfDay(for: now))!
-            let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfWeek)!
+            let endOfWeek = calendar.date(byAdding: DateComponents(day: 7, second: -1), to: startOfWeek)!
             return (startOfWeek, endOfWeek)
 
         case .month:
+            // ✅ Primeiro dia do mês até último dia do mês
             let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
-            let endOfMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth)!
+            let endOfMonth = calendar.date(byAdding: DateComponents(month: 1, second: -1), to: startOfMonth)!
             return (startOfMonth, endOfMonth)
 
         case .year:
+            // ✅ 1º de Janeiro até 31 de Dezembro
             let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now))!
-            let endOfYear = calendar.date(byAdding: .year, value: 1, to: startOfYear)!
+            let endOfYear = calendar.date(byAdding: DateComponents(year: 1, second: -1), to: startOfYear)!
             return (startOfYear, endOfYear)
         }
     }
