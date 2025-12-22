@@ -541,35 +541,67 @@ struct FinancialReportView: View {
         }
     }
 
-    // MARK: - Fetch Sales Revenue (CORRIGIDO v5.0 - implementação completa)
+    // MARK: - Fetch Sales Revenue (CORRIGIDO v6.0 - filtro no código)
 
     private func fetchSalesRevenue(userId: String, startStr: String, endStr: String) async -> Decimal {
         do {
-            // ✅ REGRAS:
-            // - payment_status === 'paid'
-            // - sold_at dentro do período
-            // - Somar total_amount
-            let sales: [ProductSaleRecord] = try await supabase.client
+            // ✅ BUSCAR TODAS as vendas pagas (filtrar por data no código)
+            let allSales: [ProductSaleRecord] = try await supabase.client
                 .from("sales")
-                .select("total_amount, sold_at, payment_status")
-                .eq("user_id", value: userId)  // ✅ RLS: Filtrar por owner
-                .eq("payment_status", value: "paid")  // ✅ REGRA 1: Apenas vendas pagas
-                .gte("sold_at", value: startStr)  // ✅ REGRA 2: Início do período
-                .lte("sold_at", value: endStr)  // ✅ REGRA 3: Fim do período (inclusivo)
+                .select("total_amount, sold_at, created_at")
+                .eq("user_id", value: userId)
+                .eq("payment_status", value: "paid")
                 .execute()
                 .value
 
-            // ✅ REGRA 4: Somar total_amount
-            let total = sales.reduce(Decimal(0)) { $0 + ($1.totalAmount ?? 0) }
+            // ✅ Converter período para strings YYYY-MM-DD para comparação
+            let startDateOnly = String(startStr.prefix(10))
+            let endDateOnly = String(endStr.prefix(10))
 
             #if DEBUG
-            print("📊 [Sales] User: \(userId)")
-            print("📊 [Sales] Period: \(startStr) to \(endStr)")
-            print("📊 [Sales] Found \(sales.count) paid sales")
-            print("📊 [Sales] Total: \(total)")
-            if sales.count > 0 {
-                print("📊 [Sales] Sample sales: \(sales.prefix(3).map { "R$ \($0.totalAmount ?? 0)" }.joined(separator: ", "))")
+            print("📊 [Sales] Period (YYYY-MM-DD): \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Sales] Found \(allSales.count) total paid sales")
+            #endif
+
+            var total = Decimal(0)
+            var count = 0
+
+            for sale in allSales {
+                // ✅ REGRA: Usar sold_at se disponível, senão created_at
+                guard let dateStr = sale.soldAt ?? sale.createdAt else {
+                    #if DEBUG
+                    print("⚠️ [Sales] No date found for sale")
+                    #endif
+                    continue
+                }
+
+                // ✅ Extrair apenas YYYY-MM-DD
+                let dateOnly = String(dateStr.prefix(10))
+
+                // ✅ Validar formato
+                guard dateOnly.count == 10, dateOnly.contains("-") else {
+                    #if DEBUG
+                    print("⚠️ [Sales] Invalid date format: \(dateStr)")
+                    #endif
+                    continue
+                }
+
+                // ✅ Comparação de strings (igual ao web)
+                if dateOnly >= startDateOnly && dateOnly <= endDateOnly {
+                    let amount = sale.totalAmount ?? 0
+                    total += amount
+                    count += 1
+
+                    #if DEBUG
+                    print("✅ [Sales] Date: \(dateOnly) | R$ \(amount)")
+                    #endif
+                }
             }
+
+            #if DEBUG
+            print("📊 [Sales] Period: \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Sales] Found \(count) sales in period")
+            print("📊 [Sales] Total: R$ \(total)")
             #endif
 
             return total
@@ -614,32 +646,62 @@ struct FinancialReportView: View {
             print("📊 [Subscriptions] Found \(subscriptions.count) patient subscriptions")
             #endif
 
-            // ✅ PASSO 2: Buscar pagamentos dessas assinaturas
-            // REGRAS:
-            // - status === 'paid'
-            // - paid_at dentro do período
-            // - Somar amount
-            let payments: [SubscriptionPaymentRecord] = try await supabase.client
+            // ✅ PASSO 2: Buscar TODOS os pagamentos pagos (filtrar por data no código)
+            let allPayments: [SubscriptionPaymentRecord] = try await supabase.client
                 .from("subscription_payments")
                 .select("amount, paid_at, subscription_id")
                 .in("subscription_id", values: subscriptionIds)
-                .eq("status", value: "paid")  // ✅ REGRA 1: Apenas pagamentos confirmados
-                .gte("paid_at", value: startStr)  // ✅ REGRA 2: Início do período
-                .lte("paid_at", value: endStr)  // ✅ REGRA 3: Fim do período (inclusivo)
+                .eq("status", value: "paid")
                 .execute()
                 .value
 
-            // ✅ REGRA 4: Somar amount
-            let total = payments.reduce(Decimal(0)) { $0 + ($1.amount ?? 0) }
+            // ✅ Converter período para strings YYYY-MM-DD para comparação
+            let startDateOnly = String(startStr.prefix(10))
+            let endDateOnly = String(endStr.prefix(10))
 
             #if DEBUG
-            print("📊 [Subscriptions] User: \(userId)")
-            print("📊 [Subscriptions] Period: \(startStr) to \(endStr)")
-            print("📊 [Subscriptions] Found \(payments.count) paid payments in period")
-            print("📊 [Subscriptions] Total: \(total)")
-            if payments.count > 0 {
-                print("📊 [Subscriptions] Sample payments: \(payments.prefix(3).map { "R$ \($0.amount ?? 0)" }.joined(separator: ", "))")
+            print("📊 [Subscriptions] Period (YYYY-MM-DD): \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Subscriptions] Found \(allPayments.count) total paid payments")
+            #endif
+
+            var total = Decimal(0)
+            var count = 0
+
+            for payment in allPayments {
+                guard let dateStr = payment.paidAt else {
+                    #if DEBUG
+                    print("⚠️ [Subscriptions] No paid_at found for payment")
+                    #endif
+                    continue
+                }
+
+                // ✅ Extrair apenas YYYY-MM-DD
+                let dateOnly = String(dateStr.prefix(10))
+
+                // ✅ Validar formato
+                guard dateOnly.count == 10, dateOnly.contains("-") else {
+                    #if DEBUG
+                    print("⚠️ [Subscriptions] Invalid date format: \(dateStr)")
+                    #endif
+                    continue
+                }
+
+                // ✅ Comparação de strings (igual ao web)
+                if dateOnly >= startDateOnly && dateOnly <= endDateOnly {
+                    let amount = payment.amount ?? 0
+                    total += amount
+                    count += 1
+
+                    #if DEBUG
+                    print("✅ [Subscriptions] Date: \(dateOnly) | R$ \(amount)")
+                    #endif
+                }
             }
+
+            #if DEBUG
+            print("📊 [Subscriptions] Period: \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Subscriptions] Found \(count) payments in period")
+            print("📊 [Subscriptions] Total: R$ \(total)")
             #endif
 
             return total
@@ -650,32 +712,66 @@ struct FinancialReportView: View {
         }
     }
 
-    // MARK: - Fetch Courses Revenue (CORRIGIDO v2.0)
+    // MARK: - Fetch Courses Revenue (CORRIGIDO v3.0 - filtro no código)
 
     private func fetchCoursesRevenue(userId: String, startStr: String, endStr: String) async -> Decimal {
         do {
-            // ✅ REGRAS:
-            // - amount_paid > 0
-            // - enrollment_date dentro do período
-            // - Somar amount_paid
-            let enrollments: [EnrollmentRecord] = try await supabase.client
+            // ✅ BUSCAR TODAS as matrículas pagas (filtrar por data no código)
+            let allEnrollments: [EnrollmentRecord] = try await supabase.client
                 .from("enrollments")
                 .select("amount_paid, enrollment_date")
-                .eq("user_id", value: userId)  // ✅ RLS: Filtrar por owner
-                .gt("amount_paid", value: 0)  // ✅ REGRA 1: Apenas matrículas pagas
-                .gte("enrollment_date", value: startStr)  // ✅ REGRA 2: Início do período
-                .lte("enrollment_date", value: endStr)  // ✅ REGRA 3: Fim do período (inclusivo)
+                .eq("user_id", value: userId)
+                .gt("amount_paid", value: 0)
                 .execute()
                 .value
 
-            // ✅ REGRA 4: Somar amount_paid
-            let total = enrollments.reduce(Decimal(0)) { $0 + ($1.amountPaid ?? 0) }
+            // ✅ Converter período para strings YYYY-MM-DD para comparação
+            let startDateOnly = String(startStr.prefix(10))
+            let endDateOnly = String(endStr.prefix(10))
 
             #if DEBUG
-            print("📊 [Courses] User: \(userId)")
-            print("📊 [Courses] Period: \(startStr) to \(endStr)")
-            print("📊 [Courses] Found \(enrollments.count) paid enrollments")
-            print("📊 [Courses] Total: \(total)")
+            print("📊 [Courses] Period (YYYY-MM-DD): \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Courses] Found \(allEnrollments.count) total paid enrollments")
+            #endif
+
+            var total = Decimal(0)
+            var count = 0
+
+            for enrollment in allEnrollments {
+                guard let dateStr = enrollment.enrollmentDate else {
+                    #if DEBUG
+                    print("⚠️ [Courses] No enrollment_date found")
+                    #endif
+                    continue
+                }
+
+                // ✅ Extrair apenas YYYY-MM-DD
+                let dateOnly = String(dateStr.prefix(10))
+
+                // ✅ Validar formato
+                guard dateOnly.count == 10, dateOnly.contains("-") else {
+                    #if DEBUG
+                    print("⚠️ [Courses] Invalid date format: \(dateStr)")
+                    #endif
+                    continue
+                }
+
+                // ✅ Comparação de strings (igual ao web)
+                if dateOnly >= startDateOnly && dateOnly <= endDateOnly {
+                    let amount = enrollment.amountPaid ?? 0
+                    total += amount
+                    count += 1
+
+                    #if DEBUG
+                    print("✅ [Courses] Date: \(dateOnly) | R$ \(amount)")
+                    #endif
+                }
+            }
+
+            #if DEBUG
+            print("📊 [Courses] Period: \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Courses] Found \(count) enrollments in period")
+            print("📊 [Courses] Total: R$ \(total)")
             #endif
 
             return total
@@ -965,17 +1061,20 @@ private struct SimplifiedPatient: Codable {
 private struct ProductSaleRecord: Codable {
     let totalAmount: Decimal?
     let soldAt: String?
+    let createdAt: String?
     let paymentStatus: String?
 
     enum CodingKeys: String, CodingKey {
         case totalAmount = "total_amount"
         case soldAt = "sold_at"
+        case createdAt = "created_at"
         case paymentStatus = "payment_status"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         soldAt = try container.decodeIfPresent(String.self, forKey: .soldAt)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
         paymentStatus = try container.decodeIfPresent(String.self, forKey: .paymentStatus)
 
         if let value = try container.decodeIfPresent(Double.self, forKey: .totalAmount) {
