@@ -223,6 +223,10 @@ class NotificationManager: ObservableObject {
         let now = Date()
         let today = calendar.startOfDay(for: now)  // ✅ Usar início do dia para comparação correta
 
+        #if DEBUG
+        print("🎂 [Birthday] Total de pacientes com data de aniversário: \(patients.count)")
+        #endif
+
         for patient in patients {
             guard let birthDate = patient.birthDate else { continue }
 
@@ -241,7 +245,12 @@ class NotificationManager: ObservableObject {
 
             // Só agendar se for nos próximos 30 dias (incluindo hoje)
             let daysUntilBirthday = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: nextBirthday)).day ?? 0
-            guard daysUntilBirthday <= 30 && daysUntilBirthday >= 0 else { continue }
+            guard daysUntilBirthday <= 30 && daysUntilBirthday >= 0 else {
+                #if DEBUG
+                print("🎂 [Birthday] Ignorado (fora do período): \(patient.name) - em \(daysUntilBirthday) dias")
+                #endif
+                continue
+            }
 
             // Calcular idade
             let age = calendar.dateComponents([.year], from: birthDate, to: nextBirthday).year ?? 0
@@ -277,7 +286,7 @@ class NotificationManager: ObservableObject {
                 #if DEBUG
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "dd/MM/yyyy HH:mm"
-                print("🎂 [Birthday] Agendado: \(patient.name) - \(age) anos - em \(daysUntilBirthday) dias (\(dateFormatter.string(from: nextBirthday)))")
+                print("🎂 [Birthday] ✅ Agendado: \(patient.name) (ID: \(patient.id)) - \(age) anos - em \(daysUntilBirthday) dias (\(dateFormatter.string(from: nextBirthday)))")
                 #endif
             } catch {
                 print("❌ [Birthday] Erro ao agendar \(patient.name): \(error)")
@@ -285,7 +294,13 @@ class NotificationManager: ObservableObject {
         }
 
         #if DEBUG
-        print("🎂 [Birthday] Total de notificações agendadas: \(patients.count)")
+        // Contar quantas notificações foram realmente agendadas
+        let requests = await center.pendingNotificationRequests()
+        let birthdayRequests = requests.filter { $0.identifier.hasPrefix(NotificationID.birthdayPrefix) }
+        print("🎂 [Birthday] Total de notificações de aniversário agendadas: \(birthdayRequests.count)")
+        for request in birthdayRequests {
+            print("   - \(request.identifier): \(request.content.body)")
+        }
         #endif
     }
 
