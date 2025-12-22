@@ -184,7 +184,7 @@ struct LoginView: View {
                 .foregroundColor(.white)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(.label))
+                        .fill(.black)
                 )
             }
             .disabled(!isFormValid || viewModel.isLoading)
@@ -299,7 +299,7 @@ struct ForgotPasswordView: View {
                             .foregroundColor(.white)
                             .background(
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(Color(.label))
+                                    .fill(.black)
                             )
                         }
                         .disabled(email.isEmpty || viewModel.isLoading)

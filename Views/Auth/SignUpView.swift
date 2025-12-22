@@ -329,8 +329,8 @@ struct SignUpView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(Color(.label))
-                .foregroundColor(Color(.systemBackground))
+                .background(.black)
+                .foregroundColor(.white)
                 .cornerRadius(12)
             }
             .disabled(viewModel.isLoading || !isFormValid)
