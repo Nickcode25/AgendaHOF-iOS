@@ -259,9 +259,9 @@ class NotificationManager: ObservableObject {
             }
             content.sound = .default
 
-            // Agendar para 10h da manhã de domingo (para teste)
+            // Agendar para 08h da manhã (horário de São Paulo)
             var triggerComponents = calendar.dateComponents([.year, .month, .day], from: nextBirthday)
-            triggerComponents.hour = 10
+            triggerComponents.hour = 8
             triggerComponents.minute = 0
 
             let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
