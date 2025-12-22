@@ -686,44 +686,76 @@ struct FinancialReportView: View {
         }
     }
 
-    // MARK: - Fetch Expenses (CORRIGIDO v2.0)
+    // MARK: - Fetch Expenses (CORRIGIDO v3.0 - filtro no código)
 
     private func fetchExpenses(userId: String, startStr: String, endStr: String) async -> (Decimal, [ExpenseCategory]) {
         do {
-            // ✅ REGRAS:
-            // - payment_status === 'paid'
-            // - paid_at ou due_date dentro do período
-            // - Somar amount
-            let expenses: [ExpenseRecord] = try await supabase.client
+            // ✅ BUSCAR TODAS as despesas pagas (filtrar por data no código)
+            let allExpenses: [ExpenseRecord] = try await supabase.client
                 .from("expenses")
-                .select("amount, category_name, paid_at")
-                .eq("user_id", value: userId)  // ✅ RLS: Filtrar por owner
-                .eq("payment_status", value: "paid")  // ✅ REGRA 1: Apenas despesas pagas
-                .gte("paid_at", value: startStr)  // ✅ REGRA 2: Início do período
-                .lte("paid_at", value: endStr)  // ✅ REGRA 3: Fim do período (inclusivo)
+                .select("amount, category_name, paid_at, due_date")
+                .eq("user_id", value: userId)
+                .eq("payment_status", value: "paid")
                 .execute()
                 .value
 
-            // ✅ Agrupar por categoria
+            // ✅ Converter período para strings YYYY-MM-DD para comparação
+            let startDateOnly = String(startStr.prefix(10))  // "2025-12-22"
+            let endDateOnly = String(endStr.prefix(10))      // "2025-12-22"
+
+            #if DEBUG
+            print("📊 [Expenses] Period (YYYY-MM-DD): \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Expenses] Found \(allExpenses.count) total paid expenses")
+            #endif
+
+            // ✅ Filtrar despesas por período usando comparação de strings
             var categoryTotals: [String: Decimal] = [:]
             var total = Decimal(0)
+            var count = 0
 
-            for expense in expenses {
-                let amount = expense.amount ?? 0
-                total += amount
-                let category = expense.categoryName ?? "Outros"
-                categoryTotals[category, default: 0] += amount
+            for expense in allExpenses {
+                // ✅ REGRA: Usar paid_at se disponível, senão due_date
+                guard let dateStr = expense.paidAt ?? expense.dueDate else {
+                    #if DEBUG
+                    print("⚠️ [Expenses] No date found for expense: \(expense.categoryName ?? "Unknown")")
+                    #endif
+                    continue
+                }
+
+                // ✅ Extrair apenas YYYY-MM-DD
+                let dateOnly = String(dateStr.prefix(10))
+
+                // ✅ Validar formato
+                guard dateOnly.count == 10, dateOnly.contains("-") else {
+                    #if DEBUG
+                    print("⚠️ [Expenses] Invalid date format: \(dateStr)")
+                    #endif
+                    continue
+                }
+
+                // ✅ Comparação de strings (igual ao web)
+                if dateOnly >= startDateOnly && dateOnly <= endDateOnly {
+                    let amount = expense.amount ?? 0
+                    total += amount
+                    count += 1
+
+                    let category = expense.categoryName ?? "Outros"
+                    categoryTotals[category, default: 0] += amount
+
+                    #if DEBUG
+                    print("✅ [Expenses] \(category) - Date: \(dateOnly) | R$ \(amount)")
+                    #endif
+                }
             }
 
             let categories = categoryTotals.map { ExpenseCategory(category: $0.key, amount: $0.value) }
                 .sorted { $0.amount > $1.amount }
 
             #if DEBUG
-            print("📊 [Expenses] User: \(userId)")
-            print("📊 [Expenses] Period: \(startStr) to \(endStr)")
-            print("📊 [Expenses] Found \(expenses.count) paid expenses")
-            print("📊 [Expenses] Total: \(total)")
-            print("📊 [Expenses] Categories: \(categories.map { "\($0.category): \($0.amount)" }.joined(separator: ", "))")
+            print("📊 [Expenses] Period: \(startDateOnly) to \(endDateOnly)")
+            print("📊 [Expenses] Found \(count) expenses in period")
+            print("📊 [Expenses] Total: R$ \(total)")
+            print("📊 [Expenses] Categories: \(categories.map { "\($0.category): R$ \($0.amount)" }.joined(separator: ", "))")
             #endif
 
             return (total, categories)
@@ -1015,17 +1047,20 @@ private struct ExpenseRecord: Codable {
     let amount: Decimal?
     let categoryName: String?
     let paidAt: String?
+    let dueDate: String?
 
     enum CodingKeys: String, CodingKey {
         case amount
         case categoryName = "category_name"
         case paidAt = "paid_at"
+        case dueDate = "due_date"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         categoryName = try container.decodeIfPresent(String.self, forKey: .categoryName)
         paidAt = try container.decodeIfPresent(String.self, forKey: .paidAt)
+        dueDate = try container.decodeIfPresent(String.self, forKey: .dueDate)
 
         if let value = try container.decodeIfPresent(Double.self, forKey: .amount) {
             amount = Decimal(value)
