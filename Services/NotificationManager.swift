@@ -145,19 +145,48 @@ class NotificationManager: ObservableObject {
         } else {
             content.body = "Você tem \(count) agendamento\(count == 1 ? "" : "s") esta semana."
 
-            // Contar por dia
-            var daysCounts: [String: Int] = [:]
-            let dayFormatter = DateFormatter()
-            dayFormatter.locale = Locale(identifier: "pt_BR")
-            dayFormatter.dateFormat = "EEEE"
+            // Contar por dia e ordenar na ordem correta da semana
+            var daysCounts: [Int: (name: String, count: Int)] = [:]  // [weekday: (name, count)]
+            let calendar = Calendar.current
 
             for appointment in appointments {
-                let dayName = dayFormatter.string(from: appointment.start).capitalized
-                daysCounts[dayName, default: 0] += 1
+                let weekday = calendar.component(.weekday, from: appointment.start)
+                let dayName: String
+
+                // Mapear weekday para nome do dia (2=Segunda...7=Sábado, 1=Domingo)
+                switch weekday {
+                case 2: dayName = "Segunda-Feira"
+                case 3: dayName = "Terça-Feira"
+                case 4: dayName = "Quarta-Feira"
+                case 5: dayName = "Quinta-Feira"
+                case 6: dayName = "Sexta-Feira"
+                case 7: dayName = "Sábado"
+                case 1: dayName = "Domingo"
+                default: dayName = "Desconhecido"
+                }
+
+                if var existing = daysCounts[weekday] {
+                    existing.count += 1
+                    daysCounts[weekday] = existing
+                } else {
+                    daysCounts[weekday] = (name: dayName, count: 1)
+                }
             }
 
             if !daysCounts.isEmpty {
-                let summary = daysCounts.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+                // Ordenar por weekday (Segunda=2, Terça=3... Domingo=1)
+                let sortedDays = daysCounts.keys.sorted { first, second in
+                    // Segunda a Sábado vêm antes de Domingo
+                    if first == 1 { return false }  // Domingo por último
+                    if second == 1 { return true }
+                    return first < second
+                }
+
+                let summary = sortedDays.map { weekday in
+                    let day = daysCounts[weekday]!
+                    return "\(day.name): \(day.count)"
+                }.joined(separator: ", ")
+
                 content.body += " (\(summary))"
             }
         }
@@ -302,11 +331,13 @@ class NotificationManager: ObservableObject {
                 .gte("start", value: formatter.string(from: today))
                 .lt("start", value: formatter.string(from: tomorrow))
                 .neq("status", value: "cancelled")
+                .is("is_personal", value: "null")  // ✅ Excluir compromissos pessoais
                 .order("start", ascending: true)
                 .execute()
                 .value
 
-            return result
+            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais)
+            return result.filter { !$0.isPersonalAppointment && $0.patientId != nil }
         } catch {
             print("Erro ao buscar agendamentos do dia: \(error)")
             return []
@@ -339,11 +370,13 @@ class NotificationManager: ObservableObject {
                 .gte("start", value: formatter.string(from: nextSunday))
                 .lt("start", value: formatter.string(from: nextSaturday))
                 .neq("status", value: "cancelled")
+                .is("is_personal", value: "null")  // ✅ Excluir compromissos pessoais (is_personal = false ou null)
                 .order("start", ascending: true)
                 .execute()
                 .value
 
-            return result
+            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais)
+            return result.filter { !$0.isPersonalAppointment && $0.patientId != nil }
         } catch {
             print("Erro ao buscar agendamentos da semana: \(error)")
             return []
