@@ -62,7 +62,7 @@ class NotificationManager: ObservableObject {
         if defaults.bool(forKey: "daily_summary_enabled") {
             let hour = defaults.integer(forKey: "daily_summary_hour")
             let minute = defaults.integer(forKey: "daily_summary_minute")
-            await scheduleDailySummary(hour: hour == 0 ? 7 : hour, minute: minute)
+            await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
         }
 
         if defaults.bool(forKey: "weekly_summary_enabled") {

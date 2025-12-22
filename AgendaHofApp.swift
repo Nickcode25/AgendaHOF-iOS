@@ -60,6 +60,12 @@ struct ContentView: View {
 
             // Reagendar notificações quando o usuário estiver autenticado
             if supabase.isAuthenticated {
+                // Atualizar horário padrão para usuários existentes (migração para 08:00)
+                let defaults = UserDefaults.standard
+                if defaults.bool(forKey: "daily_summary_enabled") && defaults.integer(forKey: "daily_summary_hour") == 7 {
+                    defaults.set(8, forKey: "daily_summary_hour")  // Migrar de 07:00 para 08:00
+                }
+
                 await NotificationManager.shared.scheduleAllNotifications()
             }
         }
@@ -71,6 +77,8 @@ struct ContentView: View {
                     if granted {
                         // Ativar todas as notificações automaticamente
                         UserDefaults.standard.set(true, forKey: "daily_summary_enabled")
+                        UserDefaults.standard.set(8, forKey: "daily_summary_hour")  // 08:00 horário de São Paulo
+                        UserDefaults.standard.set(0, forKey: "daily_summary_minute")
                         UserDefaults.standard.set(true, forKey: "weekly_summary_enabled")
                         UserDefaults.standard.set(true, forKey: "birthday_notifications_enabled")
 
