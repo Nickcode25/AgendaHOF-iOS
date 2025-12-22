@@ -331,13 +331,18 @@ class NotificationManager: ObservableObject {
                 .gte("start", value: formatter.string(from: today))
                 .lt("start", value: formatter.string(from: tomorrow))
                 .neq("status", value: "cancelled")
-                .is("is_personal", value: "null")  // ✅ Excluir compromissos pessoais
                 .order("start", ascending: true)
                 .execute()
                 .value
 
-            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais)
-            return result.filter { !$0.isPersonalAppointment && $0.patientId != nil }
+            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais e bloqueios)
+            return result.filter { appointment in
+                // Excluir apenas se for explicitamente marcado como compromisso pessoal
+                if let isPersonal = appointment.isPersonal, isPersonal {
+                    return false  // Excluir compromissos pessoais
+                }
+                return appointment.patientId != nil  // Incluir apenas com paciente
+            }
         } catch {
             print("Erro ao buscar agendamentos do dia: \(error)")
             return []
@@ -370,13 +375,18 @@ class NotificationManager: ObservableObject {
                 .gte("start", value: formatter.string(from: nextSunday))
                 .lt("start", value: formatter.string(from: nextSaturday))
                 .neq("status", value: "cancelled")
-                .is("is_personal", value: "null")  // ✅ Excluir compromissos pessoais (is_personal = false ou null)
                 .order("start", ascending: true)
                 .execute()
                 .value
 
-            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais)
-            return result.filter { !$0.isPersonalAppointment && $0.patientId != nil }
+            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais e bloqueios)
+            return result.filter { appointment in
+                // Excluir apenas se for explicitamente marcado como compromisso pessoal
+                if let isPersonal = appointment.isPersonal, isPersonal {
+                    return false  // Excluir compromissos pessoais
+                }
+                return appointment.patientId != nil  // Incluir apenas com paciente
+            }
         } catch {
             print("Erro ao buscar agendamentos da semana: \(error)")
             return []
