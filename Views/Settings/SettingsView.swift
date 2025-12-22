@@ -473,7 +473,7 @@ struct NotificationsSettingsView: View {
                 } header: {
                     Label("Resumo Diário", systemImage: "sun.max.fill")
                 } footer: {
-                    Text("Um resumo dos seus agendamentos, entregue todas as manhãs às 07:00.")
+                    Text("Um resumo dos seus agendamentos, entregue todas as manhãs às 08:00.")
                 }
 
                 // Resumo Semanal
