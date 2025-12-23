@@ -198,6 +198,10 @@ struct LoginView: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(.black)
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
             }
             .disabled(!isFormValid || viewModel.isLoading)
             .opacity(isFormValid ? 1 : 0.5)

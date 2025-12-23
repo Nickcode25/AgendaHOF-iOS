@@ -22,7 +22,7 @@ class PatientService: ObservableObject {
         do {
             let result: [Patient] = try await supabase.client
                 .from("patients")
-                .select()
+                .select("*, planned_procedures")
                 .eq("user_id", value: userId)
                 .eq("is_active", value: true)
                 .order("name", ascending: true)
@@ -44,7 +44,7 @@ class PatientService: ObservableObject {
         do {
             let patient: Patient = try await supabase.client
                 .from("patients")
-                .select()
+                .select("*, planned_procedures")
                 .eq("id", value: id)
                 .single()
                 .execute()
@@ -65,7 +65,7 @@ class PatientService: ObservableObject {
         do {
             let result: [Patient] = try await supabase.client
                 .from("patients")
-                .select()
+                .select("*, planned_procedures")
                 .eq("user_id", value: userId)
                 .eq("is_active", value: true)
                 .ilike("name", pattern: "%\(query)%")

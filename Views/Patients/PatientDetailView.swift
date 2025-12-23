@@ -26,11 +26,25 @@ struct PatientDetailView: View {
                 // Header com avatar e nome
                 Section {
                     HStack(spacing: 16) {
-                        AvatarView(
-                            name: displayPatient.name,
-                            imageUrl: displayPatient.photoUrl,
-                            size: 70
-                        )
+                        // Avatar clínico (mesmo estilo da lista)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(hex: "ff6b00").opacity(0.15),
+                                            Color(hex: "ff6b00").opacity(0.08)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 70, height: 70)
+
+                            Image(systemName: "person.fill.viewfinder")
+                                .font(.system(size: 32, weight: .regular))
+                                .foregroundStyle(Color(hex: "ff6b00"))
+                        }
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(displayPatient.name)
@@ -85,39 +99,45 @@ struct PatientDetailView: View {
                     }
                 }
 
-                // Histórico de Procedimentos
+                // Histórico de Procedimentos Realizados
                 Section("Últimos Procedimentos") {
-                    if isLoadingAppointments {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                            Spacer()
-                        }
-                    } else if patientAppointments.isEmpty {
-                        Text("Nenhum procedimento registrado")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        ForEach(patientAppointments) { appointment in
+                    if let procedures = displayPatient.plannedProcedures?.filter({ proc in
+                        // Mostrar apenas procedimentos que foram realizados (performedAt preenchido)
+                        proc.performedAt != nil
+                    }).sorted(by: { proc1, proc2 in
+                        // Ordenar por data de realização (mais recente primeiro)
+                        let date1 = proc1.performedAt ?? ""
+                        let date2 = proc2.performedAt ?? ""
+                        return date1 > date2
+                    }).prefix(5), !procedures.isEmpty {
+                        ForEach(procedures, id: \.id) { procedure in
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(appointment.procedure ?? "Procedimento")
+                                    Text(procedure.displayName)
                                         .font(.body)
                                         .fontWeight(.medium)
 
-                                    Text(appointment.start.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    if let performedAt = procedure.performedAt {
+                                        Text(formatProcedureDate(performedAt))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
 
                                 Spacer()
 
-                                Text(appointment.professional)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                if let professionalName = procedure.professionalName {
+                                    Text(professionalName)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                             .padding(.vertical, 2)
                         }
+                    } else {
+                        Text("Nenhum procedimento realizado")
+                            .foregroundColor(.secondary)
+                            .font(.subheadline)
                     }
                 }
 
@@ -205,6 +225,50 @@ struct PatientDetailView: View {
         isLoadingAppointments = true
         patientAppointments = await appointmentService.fetchAppointmentsByPatient(patientId: patient.id)
         isLoadingAppointments = false
+    }
+
+    // Formatar data do procedimento para padrão brasileiro dd/MM/yyyy HH:mm
+    private func formatProcedureDate(_ dateString: String) -> String {
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "dd/MM/yyyy HH:mm"
+        displayFormatter.locale = Locale(identifier: "pt_BR")
+        displayFormatter.timeZone = TimeZone.current
+
+        // Tentar ISO8601 com milissegundos primeiro (2025-12-08T15:00:00.000Z)
+        let iso8601WithMillis = ISO8601DateFormatter()
+        iso8601WithMillis.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso8601WithMillis.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar ISO8601 padrão (2025-12-08T15:00:00Z)
+        let iso8601Formatter = ISO8601DateFormatter()
+        if let date = iso8601Formatter.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar formato yyyy-MM-dd HH:mm:ss
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        if let date = inputFormatter.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar formato yyyy-MM-dd (sem hora - usar apenas data)
+        inputFormatter.dateFormat = "yyyy-MM-dd"
+        if let date = inputFormatter.date(from: dateString) {
+            displayFormatter.dateFormat = "dd/MM/yyyy"
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar formato yyyy/MM/dd
+        inputFormatter.dateFormat = "yyyy/MM/dd"
+        if let date = inputFormatter.date(from: dateString) {
+            displayFormatter.dateFormat = "dd/MM/yyyy"
+            return displayFormatter.string(from: date)
+        }
+
+        return dateString
     }
 
     // ✅ Recarregar dados do paciente após edição

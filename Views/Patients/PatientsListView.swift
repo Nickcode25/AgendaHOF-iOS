@@ -7,24 +7,27 @@ struct PatientsListView: View {
     @State private var showContactPicker = false
     @State private var selectedPatient: Patient?
     @State private var importedContact: ContactInfo?
+    @State private var showMenu = false
 
     var filteredPatients: [Patient] {
         if searchText.isEmpty {
             return patientService.patients
         }
-        return patientService.patients.filter {
-            $0.name.localizedCaseInsensitiveContains(searchText) ||
-            ($0.phone?.contains(searchText) ?? false) ||
-            ($0.email?.localizedCaseInsensitiveContains(searchText) ?? false)
-        }
-    }
 
-    // Agrupar por letra inicial
-    var groupedPatients: [(String, [Patient])] {
-        let grouped = Dictionary(grouping: filteredPatients) { patient in
-            String(patient.name.prefix(1)).uppercased()
+        // Normalizar texto de busca (remover acentos e converter para minúsculas)
+        let normalizedSearch = searchText.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+
+        return patientService.patients.filter { patient in
+            // Normalizar nome do paciente
+            let normalizedName = patient.name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+
+            // Normalizar email se existir
+            let normalizedEmail = patient.email?.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+
+            return normalizedName.contains(normalizedSearch) ||
+                   (patient.phone?.contains(searchText) ?? false) ||
+                   (normalizedEmail?.contains(normalizedSearch) ?? false)
         }
-        return grouped.sorted { $0.key < $1.key }
     }
 
     var body: some View {
@@ -40,25 +43,34 @@ struct PatientsListView: View {
             }
         }
         .navigationTitle("Pacientes")
-        .searchable(text: $searchText, prompt: "Buscar paciente...")
+        .searchable(text: $searchText, prompt: "Buscar paciente pelo nome")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 16) {
-                    // Botão importar contatos
-                    Button {
-                        showContactPicker = true
-                    } label: {
-                        Image(systemName: "person.crop.circle.badge.plus")
-                    }
-
-                    // Botão novo paciente
-                    Button {
-                        showNewPatient = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
+                Button {
+                    showMenu = true
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 32, height: 32)
+                        .background(Color(.systemGray5))
+                        .clipShape(Circle())
                 }
             }
+        }
+        .actionSheet(isPresented: $showMenu) {
+            ActionSheet(
+                title: Text("Opções"),
+                buttons: [
+                    .default(Text("Novo Paciente")) {
+                        showNewPatient = true
+                    },
+                    .default(Text("Importar Contatos")) {
+                        showContactPicker = true
+                    },
+                    .cancel(Text("Cancelar"))
+                ]
+            )
         }
         .sheet(isPresented: $showContactPicker) {
             ContactPicker { contact in
@@ -77,6 +89,10 @@ struct PatientsListView: View {
             PatientDetailView(patient: patient) {
                 Task { await patientService.fetchPatients() }
             }
+            .onAppear {
+                // Limpar busca e remover foco do teclado ao abrir o sheet
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
         }
         .task {
             await patientService.fetchPatients()
@@ -88,19 +104,17 @@ struct PatientsListView: View {
 
     private var patientsList: some View {
         List {
-            ForEach(groupedPatients, id: \.0) { letter, patients in
-                Section(header: Text(letter)) {
-                    ForEach(patients) { patient in
-                        PatientRow(patient: patient)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedPatient = patient
-                            }
+            ForEach(filteredPatients) { patient in
+                PatientRowClinical(patient: patient)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .onTapGesture {
+                        selectedPatient = patient
                     }
-                }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .overlay {
             if !searchText.isEmpty && filteredPatients.isEmpty {
                 EmptyStateView.noResults(query: searchText)
@@ -109,46 +123,142 @@ struct PatientsListView: View {
     }
 }
 
-// MARK: - Patient Row
+// MARK: - Patient Row Clinical (Design Único)
 
-struct PatientRow: View {
+struct PatientRowClinical: View {
     let patient: Patient
 
+    // Formatar data do último procedimento REALIZADO
+    private var lastProcedureDate: String? {
+        guard let procedures = patient.plannedProcedures,
+              !procedures.isEmpty else {
+            return nil
+        }
+
+        // Filtrar apenas procedimentos REALIZADOS (com performedAt preenchido)
+        let performedProcedures = procedures.filter { $0.performedAt != nil }
+
+        guard !performedProcedures.isEmpty else {
+            return nil
+        }
+
+        // Pegar o procedimento mais recente
+        let sortedProcedures = performedProcedures.sorted { proc1, proc2 in
+            let date1 = proc1.performedAt ?? ""
+            let date2 = proc2.performedAt ?? ""
+            return date1 > date2
+        }
+
+        if let mostRecent = sortedProcedures.first,
+           let dateString = mostRecent.performedAt {
+            return formatDateString(dateString)
+        }
+
+        return nil
+    }
+
+    // Converter data de múltiplos formatos para padrão brasileiro dd/MM/yyyy
+    private func formatDateString(_ dateString: String) -> String? {
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "dd/MM/yyyy"
+        displayFormatter.locale = Locale(identifier: "pt_BR")
+
+        // Tentar ISO8601 com milissegundos primeiro (2025-12-08T15:00:00.000Z)
+        let iso8601WithMillis = ISO8601DateFormatter()
+        iso8601WithMillis.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso8601WithMillis.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar ISO8601 padrão (2025-12-08T15:00:00Z)
+        let iso8601Formatter = ISO8601DateFormatter()
+        if let date = iso8601Formatter.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar formato yyyy-MM-dd HH:mm:ss
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        if let date = inputFormatter.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar formato yyyy-MM-dd
+        inputFormatter.dateFormat = "yyyy-MM-dd"
+        if let date = inputFormatter.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        // Tentar formato yyyy/MM/dd
+        inputFormatter.dateFormat = "yyyy/MM/dd"
+        if let date = inputFormatter.date(from: dateString) {
+            return displayFormatter.string(from: date)
+        }
+
+        return nil
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            AvatarView(
-                name: patient.name,
-                imageUrl: patient.photoUrl,
-                size: 44
-            )
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                // Avatar clínico quadrado (SEM iniciais)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: "ff6b00").opacity(0.15),
+                                    Color(hex: "ff6b00").opacity(0.08)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 50, height: 50)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(patient.name)
-                    .font(.body)
-                    .fontWeight(.medium)
+                    Image(systemName: "person.fill.viewfinder")
+                        .font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(Color(hex: "ff6b00"))
+                }
 
-                HStack(spacing: 8) {
-                    if let phone = patient.phone, !phone.isEmpty {
-                        Label(phone, systemImage: "phone")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                // Informações do paciente
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(patient.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
 
-                    if let age = patient.age {
-                        Text("\(age) anos")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    if let lastDate = lastProcedureDate {
+                        Text("Último Procedimento - \(lastDate)")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Nenhum procedimento registrado")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.tertiary)
                     }
                 }
+
+                Spacer()
+
+                // Indicador visual
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.quaternary)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
 
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Separador personalizado
+            Rectangle()
+                .fill(Color(.systemGray5))
+                .frame(height: 1)
+                .padding(.leading, 78)
+                .padding(.top, 8)
         }
-        .padding(.vertical, 4)
     }
 }
 
@@ -163,8 +273,8 @@ struct NewPatientView: View {
 
     @State private var name = ""
     @State private var phone = ""
-    @State private var birthDate: Date?  // ✅ Tornar opcional
-    @State private var hasBirthDate: Bool  // ✅ Controlar se tem data de nascimento
+    @State private var birthDate: Date?
+    @State private var hasBirthDate: Bool
     @State private var showContactPicker = false
 
     @State private var isLoading = false
@@ -183,7 +293,7 @@ struct NewPatientView: View {
             _phone = State(initialValue: contact.phone ?? "")
             if let birthday = contact.birthday {
                 _birthDate = State(initialValue: birthday)
-                _hasBirthDate = State(initialValue: true)  // ✅ Ativar toggle se vier do contato
+                _hasBirthDate = State(initialValue: true)
             } else {
                 _birthDate = State(initialValue: nil)
                 _hasBirthDate = State(initialValue: false)
@@ -270,7 +380,7 @@ struct NewPatientView: View {
                     }
                     if let birthday = contact.birthday {
                         birthDate = birthday
-                        hasBirthDate = true  // ✅ Ativar toggle se importar data
+                        hasBirthDate = true
                     }
                     showContactPicker = false
                 }
@@ -312,7 +422,7 @@ struct NewPatientView: View {
             let patient = Patient.Insert(
                 userId: userId,
                 name: name.trimmingCharacters(in: .whitespaces),
-                birthDate: hasBirthDate ? birthDate : nil,  // ✅ Salvar nil se toggle estiver desativado
+                birthDate: hasBirthDate ? birthDate : nil,
                 phone: phone.isEmpty ? nil : phone
             )
 
