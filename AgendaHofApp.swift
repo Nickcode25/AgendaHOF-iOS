@@ -10,16 +10,14 @@ struct AgendaHofApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(supabase)
-                .onOpenURL { url in
-                    handleDeepLink(url)
-                }
-                .sheet(isPresented: $showResetPassword) {
-                    if let token = resetToken {
-                        ResetPasswordView(token: token)
-                    }
-                }
+            ContentView(
+                showResetPassword: $showResetPassword,
+                resetToken: $resetToken
+            )
+            .environmentObject(supabase)
+            .onOpenURL { url in
+                handleDeepLink(url)
+            }
         }
     }
 
@@ -29,57 +27,131 @@ struct AgendaHofApp: App {
 
         #if DEBUG
         print("🔗 [Deep Link] Received URL: \(url.absoluteString)")
+        print("🔗 [Deep Link] Scheme: \(url.scheme ?? "nil")")
+        print("🔗 [Deep Link] Host: \(url.host ?? "nil")")
         print("🔗 [Deep Link] Path: \(components.path)")
         print("🔗 [Deep Link] Query Items: \(components.queryItems ?? [])")
+        print("🔗 [Deep Link] Fragment: \(url.fragment ?? "nil")")
         #endif
 
-        // Suporta tanto Custom URL Scheme quanto Universal Links:
-        // - agendahof://reset-password?access_token=xxxxx&type=recovery
-        // - https://agendahof.com/reset-password#access_token=xxxxx&type=recovery
-        // - https://agendahof.com/auth/callback#access_token=xxxxx&type=recovery
+        // Suporta múltiplos formatos:
+        // 1. Custom URL Scheme: agendahof://reset-password?access_token=xxx&type=recovery
+        // 2. Custom URL Scheme (fragment): agendahof://reset-password#access_token=xxx&type=recovery
+        // 3. Universal Link: https://agendahof.com/reset-password#access_token=xxx&type=recovery
+        // 4. Universal Link (callback): https://agendahof.com/auth/callback#access_token=xxx&type=recovery
 
         let isResetPasswordPath = components.path.contains("reset-password") ||
                                   components.path.contains("auth/callback") ||
-                                  components.host == "reset-password"
+                                  components.host == "reset-password" ||
+                                  url.host == "reset-password"
 
         if isResetPasswordPath {
             // Supabase envia tokens no fragment (#) ou query (?)
             var accessToken: String?
             var tokenType: String?
+            var error: String?
+            var errorCode: String?
+            var errorDescription: String?
 
             // 1. Tentar extrair do fragment (mais comum no Supabase)
             if let fragment = url.fragment {
+                #if DEBUG
+                print("🔍 [Deep Link] Tentando extrair do fragment: \(fragment)")
+                #endif
+
                 let fragmentComponents = URLComponents(string: "?\(fragment)")
                 accessToken = fragmentComponents?.queryItems?.first(where: { $0.name == "access_token" })?.value
                 tokenType = fragmentComponents?.queryItems?.first(where: { $0.name == "type" })?.value
+
+                // Verificar se há erros
+                error = fragmentComponents?.queryItems?.first(where: { $0.name == "error" })?.value
+                errorCode = fragmentComponents?.queryItems?.first(where: { $0.name == "error_code" })?.value
+                errorDescription = fragmentComponents?.queryItems?.first(where: { $0.name == "error_description" })?.value
             }
 
             // 2. Fallback: tentar extrair da query string
             if accessToken == nil {
+                #if DEBUG
+                print("🔍 [Deep Link] Fragment não encontrado, tentando query string")
+                #endif
+
                 accessToken = components.queryItems?.first(where: { $0.name == "access_token" })?.value
                 tokenType = components.queryItems?.first(where: { $0.name == "type" })?.value
             }
 
-            // 3. Fallback antigo: token simples
+            // 3. Fallback antigo: token simples (para compatibilidade)
             if accessToken == nil {
+                #if DEBUG
+                print("🔍 [Deep Link] access_token não encontrado, tentando 'token'")
+                #endif
+
                 accessToken = components.queryItems?.first(where: { $0.name == "token" })?.value
+            }
+
+            // Verificar se houve erro do Supabase
+            if let errorCode = errorCode {
+                #if DEBUG
+                print("❌ [Deep Link] Erro do Supabase detectado!")
+                print("   - Error: \(error ?? "unknown")")
+                print("   - Error Code: \(errorCode)")
+                print("   - Description: \(errorDescription?.replacingOccurrences(of: "+", with: " ") ?? "unknown")")
+                #endif
+
+                // Mostrar mensagem de erro para o usuário
+                if errorCode == "otp_expired" {
+                    // TODO: Mostrar alert dizendo que o link expirou
+                    print("⏰ Link de recuperação expirou. Solicite um novo link.")
+                }
+                return
             }
 
             guard let token = accessToken else {
                 #if DEBUG
                 print("❌ [Deep Link] Token não encontrado na URL")
+                print("💡 [Deep Link] Dica: O Supabase envia o token assim:")
+                print("   - Fragment: https://agendahof.com/reset-password#access_token=XXX&type=recovery")
+                print("   - Query: https://agendahof.com/reset-password?access_token=XXX&type=recovery")
                 #endif
                 return
             }
 
             #if DEBUG
-            print("✅ [Deep Link] Token extraído com sucesso (type: \(tokenType ?? "unknown"))")
+            print("✅ [Deep Link] Token extraído com sucesso!")
+            print("   - Token: \(token.prefix(20))...")
+            print("   - Type: \(tokenType ?? "unknown")")
             #endif
 
             // Verificar se é um token de recuperação
             if tokenType == "recovery" || tokenType == nil {
-                resetToken = token
-                showResetPassword = true
+                #if DEBUG
+                print("📋 [Deep Link] Enviando notificação para fechar sheets...")
+                #endif
+
+                // Primeiro, notificar para fechar qualquer sheet aberta (ex: ForgotPasswordView)
+                NotificationCenter.default.post(name: .dismissAllSheets, object: nil)
+
+                // Aguardar um momento para garantir que sheets foram fechadas e ContentView carregou
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    #if DEBUG
+                    print("🎯 [Deep Link] Tentando abrir ResetPasswordView...")
+                    print("   - Token: \(token.prefix(20))...")
+                    print("   - showResetPassword antes: \(self.showResetPassword)")
+                    print("   - resetToken antes: \(self.resetToken ?? "nil")")
+                    #endif
+
+                    // IMPORTANTE: Definir token ANTES de ativar a sheet
+                    self.resetToken = token
+
+                    // Aguardar um frame para garantir que resetToken foi atualizado
+                    DispatchQueue.main.async {
+                        self.showResetPassword = true
+
+                        #if DEBUG
+                        print("   - showResetPassword depois: \(self.showResetPassword)")
+                        print("   - resetToken depois: \(self.resetToken?.prefix(20) ?? "nil")...")
+                        #endif
+                    }
+                }
             }
         }
     }
@@ -136,6 +208,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 struct ContentView: View {
     @EnvironmentObject var supabase: SupabaseManager
     @State private var isCheckingAuth = true
+    @Binding var showResetPassword: Bool
+    @Binding var resetToken: String?
+    @State private var isReadyToShowSheet = false
 
     var body: some View {
         Group {
@@ -150,6 +225,33 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: supabase.isAuthenticated)
+        .sheet(isPresented: $showResetPassword) {
+            // Usar um valor padrão vazio se resetToken for nil (não deveria acontecer)
+            ResetPasswordView(token: resetToken ?? "")
+                .onAppear {
+                    #if DEBUG
+                    print("🎬 [ContentView] Sheet ResetPasswordView apareceu!")
+                    #endif
+                }
+        }
+        .onChange(of: showResetPassword) { _, newValue in
+            #if DEBUG
+            print("🔄 [ContentView] showResetPassword mudou para: \(newValue)")
+            if newValue {
+                print("   - resetToken atual: \(resetToken?.prefix(20) ?? "nil")...")
+            }
+            #endif
+        }
+        .onChange(of: isCheckingAuth) { _, newValue in
+            if !newValue {
+                // ContentView terminou de carregar, agora é seguro mostrar sheets
+                isReadyToShowSheet = true
+
+                #if DEBUG
+                print("✅ [ContentView] Pronto para mostrar sheets")
+                #endif
+            }
+        }
         .task {
             await supabase.checkSession()
             isCheckingAuth = false
@@ -187,6 +289,15 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
-        .environmentObject(SupabaseManager.shared)
+    ContentView(
+        showResetPassword: .constant(false),
+        resetToken: .constant(nil)
+    )
+    .environmentObject(SupabaseManager.shared)
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let dismissAllSheets = Notification.Name("dismissAllSheets")
 }

@@ -435,6 +435,8 @@ struct NotificationsSettingsView: View {
     @AppStorage("daily_summary_enabled") private var dailySummaryEnabled = false
     @AppStorage("weekly_summary_enabled") private var weeklySummaryEnabled = false
     @AppStorage("birthday_notifications_enabled") private var birthdayNotificationsEnabled = false
+    @AppStorage("appointment_reminder_enabled") private var appointmentReminderEnabled = false
+    @AppStorage("appointment_reminder_minutes") private var appointmentReminderMinutes = 30
 
     @State private var showPermissionAlert = false
 
@@ -498,6 +500,32 @@ struct NotificationsSettingsView: View {
                     Label("Aniversários", systemImage: "gift.fill")
                 } footer: {
                     Text("Lembretes automáticos dos aniversários dos seus pacientes, às 08:00.")
+                }
+
+                // Lembretes de Agendamentos
+                Section {
+                    Toggle("Lembretes de Agendamentos", isOn: $appointmentReminderEnabled)
+                        .onChange(of: appointmentReminderEnabled) { _, _ in
+                            scheduleNotifications()
+                        }
+
+                    if appointmentReminderEnabled {
+                        Picker("Tempo de Antecedência", selection: $appointmentReminderMinutes) {
+                            Text("30 minutos antes").tag(30)
+                            Text("1 hora antes").tag(60)
+                        }
+                        .onChange(of: appointmentReminderMinutes) { _, _ in
+                            scheduleNotifications()
+                        }
+                    }
+                } header: {
+                    Label("Lembretes de Agendamentos", systemImage: "clock.badge.fill")
+                } footer: {
+                    if appointmentReminderEnabled {
+                        Text("Você receberá notificações \(appointmentReminderMinutes == 30 ? "30 minutos" : "1 hora") antes de cada agendamento.")
+                    } else {
+                        Text("Receba lembretes antes dos seus agendamentos do dia.")
+                    }
                 }
             }
             .navigationTitle("Notificações")

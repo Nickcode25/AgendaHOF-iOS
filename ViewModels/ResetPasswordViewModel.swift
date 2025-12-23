@@ -52,50 +52,126 @@ class ResetPasswordViewModel: ObservableObject {
         isLoading = true
 
         do {
-            // 1. Validar senha duplicada (se conseguir pegar o userId)
-            if let userId = await getCurrentUserId() {
-                let isDuplicate = await checkPasswordDuplicate(userId: userId, password: password)
+            #if DEBUG
+            print("🔐 [ResetPassword] Iniciando reset de senha...")
+            print("   - Token: \(token.prefix(20))...")
+            print("   - Logout todos dispositivos: \(logoutAllDevices)")
+            #endif
 
-                if isDuplicate {
-                    errorMessage = "Esta senha já foi utilizada recentemente. Escolha uma senha diferente."
-                    showError = true
-                    isLoading = false
-                    return
-                }
+            // 1. O token que recebemos já é um access_token JWT do Supabase
+            // Vamos usar setSession para criar a sessão temporária
+            #if DEBUG
+            print("🔐 [ResetPassword] Passo 1: Criando sessão temporária com access_token...")
+            #endif
+
+            // Criar sessão temporária com o access_token que veio do deep link
+            // Nota: refreshToken vazio porque essa é uma sessão temporária apenas para resetar a senha
+            try await supabase.client.auth.setSession(accessToken: token, refreshToken: "")
+
+            // Obter o usuário da sessão atual
+            let user = try await supabase.client.auth.session.user
+
+            #if DEBUG
+            print("✅ [ResetPassword] Passo 1: Sessão criada com sucesso!")
+            print("   - User ID: \(user.id.uuidString)")
+            print("   - Email: \(user.email ?? "nil")")
+            #endif
+
+            // Agora que temos uma sessão válida, podemos validar a senha duplicada
+            let userId = user.id.uuidString
+
+            #if DEBUG
+            print("🔐 [ResetPassword] Passo 2: Verificando senha duplicada...")
+            #endif
+
+            let isDuplicate = await checkPasswordDuplicate(userId: userId, password: password)
+
+            #if DEBUG
+            print("   - Senha duplicada: \(isDuplicate)")
+            #endif
+
+            if isDuplicate {
+                errorMessage = "Esta senha já foi utilizada recentemente. Escolha uma senha diferente."
+                showError = true
+                isLoading = false
+
+                // Fazer logout pois criamos uma sessão mas não vamos continuar
+                try? await supabase.client.auth.signOut()
+                return
             }
 
-            // 2. Atualizar senha via Supabase usando o token de recuperação
-            // O token vem do link do email
-            try await supabase.client.auth.verifyOTP(
-                phone: nil,
-                email: nil,
-                token: token,
-                type: .recovery
-            )
+            // 2. Atualizar a senha usando o método correto
+            #if DEBUG
+            print("🔐 [ResetPassword] Passo 3: Atualizando senha...")
+            #endif
 
-            // 3. Atualizar a senha
-            try await supabase.client.auth.updateUser(
-                attributes: UserAttributes(password: password)
-            )
+            let userAttributes = UserAttributes(password: password)
+            _ = try await supabase.client.auth.update(user: userAttributes)
 
-            // 4. Adicionar ao histórico de senhas
-            if let userId = await getCurrentUserId() {
-                await addPasswordToHistory(userId: userId, password: password)
+            #if DEBUG
+            print("✅ [ResetPassword] Passo 3: Senha atualizada com sucesso!")
+            #endif
+
+            // 3. Adicionar ao histórico de senhas
+            #if DEBUG
+            print("🔐 [ResetPassword] Passo 4: Adicionando ao histórico...")
+            #endif
+
+            await addPasswordToHistory(userId: userId, password: password)
+
+            #if DEBUG
+            print("✅ [ResetPassword] Passo 4: Histórico atualizado!")
+            #endif
+
+            // 4. Enviar email de notificação
+            if let userEmail = user.email {
+                #if DEBUG
+                print("🔐 [ResetPassword] Passo 5: Enviando email de notificação...")
+                #endif
+
+                await sendPasswordChangedNotification(email: userEmail, userId: userId)
+
+                #if DEBUG
+                print("✅ [ResetPassword] Passo 5: Email enviado!")
+                #endif
             }
 
-            // 5. Enviar email de notificação
-            if let userEmail = await getCurrentUserEmail() {
-                await sendPasswordChangedNotification(email: userEmail)
-            }
-
-            // 6. Invalidar sessões antigas (logout global)
+            // 5. Fazer logout da sessão atual (usuário precisará fazer login novamente)
             if logoutAllDevices {
-                try await supabase.client.auth.refreshSession()
+                #if DEBUG
+                print("🔐 [ResetPassword] Passo 6: Fazendo logout da sessão atual...")
+                #endif
+
+                // Fazer logout da sessão que criamos
+                try? await supabase.client.auth.signOut()
+
+                #if DEBUG
+                print("✅ [ResetPassword] Passo 6: Logout concluído!")
+                #endif
             }
+
+            #if DEBUG
+            print("🎉 [ResetPassword] Reset de senha concluído com sucesso!")
+            #endif
 
             success = true
 
         } catch {
+            #if DEBUG
+            print("❌ [ResetPassword] ERRO ao resetar senha:")
+            print("   - Tipo: \(type(of: error))")
+            print("   - Descrição: \(error)")
+            print("   - LocalizedDescription: \(error.localizedDescription)")
+
+            // Se for um erro do Supabase, tentar extrair mais detalhes
+            if let authError = error as? AuthError {
+                print("   - AuthError específico: \(authError)")
+            }
+
+            // Tentar imprimir a representação completa do erro
+            dump(error)
+            #endif
+
             errorMessage = "Erro ao redefinir senha. O link pode ter expirado."
             showError = true
         }
@@ -158,9 +234,12 @@ class ResetPasswordViewModel: ObservableObject {
     }
 
     // MARK: - Send Notification Email
-    private func sendPasswordChangedNotification(email: String) async {
+    private func sendPasswordChangedNotification(email: String, userId: String) async {
         do {
             guard let url = URL(string: "\(backendURL)/api/auth/password-changed-notification") else {
+                #if DEBUG
+                print("❌ [Email Notificação] URL inválida")
+                #endif
                 return
             }
 
@@ -170,15 +249,32 @@ class ResetPasswordViewModel: ObservableObject {
 
             let body = [
                 "email": email,
-                "userId": await getCurrentUserId() ?? "",
+                "userId": userId,
                 "timestamp": ISO8601DateFormatter().string(from: Date())
             ]
             request.httpBody = try JSONEncoder().encode(body)
 
-            let (_, _) = try await URLSession.shared.data(for: request)
+            #if DEBUG
+            print("📧 [Email Notificação] Enviando para: \(email)")
+            print("   - URL: \(url)")
+            print("   - User ID: \(userId)")
+            #endif
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            #if DEBUG
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📧 [Email Notificação] Status: \(httpResponse.statusCode)")
+            }
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📧 [Email Notificação] Resposta: \(responseString)")
+            }
+            #endif
 
         } catch {
-            print("Erro ao enviar notificação: \(error)")
+            #if DEBUG
+            print("❌ [Email Notificação] Erro ao enviar: \(error)")
+            #endif
         }
     }
 

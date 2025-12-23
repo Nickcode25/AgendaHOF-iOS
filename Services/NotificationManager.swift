@@ -17,6 +17,7 @@ class NotificationManager: ObservableObject {
         static let dailySummary = "daily_summary"
         static let weeklySummary = "weekly_summary"
         static let birthdayPrefix = "birthday_"
+        static let appointmentReminderPrefix = "appointment_reminder_"
     }
 
     // MARK: - Initialization
@@ -72,6 +73,11 @@ class NotificationManager: ObservableObject {
 
         if defaults.bool(forKey: "birthday_notifications_enabled") {
             await scheduleBirthdayNotifications()
+        }
+
+        if defaults.bool(forKey: "appointment_reminder_enabled") {
+            let reminderMinutes = defaults.integer(forKey: "appointment_reminder_minutes")
+            await scheduleAppointmentReminders(minutesBefore: reminderMinutes == 0 ? 30 : reminderMinutes)
         }
     }
 
@@ -304,6 +310,73 @@ class NotificationManager: ObservableObject {
         #endif
     }
 
+    // MARK: - Appointment Reminders
+
+    /// Agenda notificações de lembrete para agendamentos do dia
+    /// - Parameter minutesBefore: Minutos de antecedência (30 ou 60)
+    func scheduleAppointmentReminders(minutesBefore: Int) async {
+        let appointments = await fetchTodayAppointmentsForReminders()
+        let calendar = Calendar.current
+        let now = Date()
+
+        #if DEBUG
+        print("⏰ [Reminders] Total de agendamentos para hoje: \(appointments.count)")
+        print("⏰ [Reminders] Configuração: \(minutesBefore) minutos antes")
+        #endif
+
+        for appointment in appointments {
+            // Calcular horário da notificação
+            guard let reminderTime = calendar.date(byAdding: .minute, value: -minutesBefore, to: appointment.start) else {
+                continue
+            }
+
+            // Só agendar se a notificação for no futuro
+            guard reminderTime > now else {
+                #if DEBUG
+                print("⏰ [Reminders] Ignorado (já passou): \(appointment.displayTitle) - \(appointment.start.hourMinuteString)")
+                #endif
+                continue
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = "Próximo Atendimento"
+            content.body = "\(appointment.displayTitle) • \(appointment.start.hourMinuteString)"
+            content.sound = .default
+            content.categoryIdentifier = "APPOINTMENT_REMINDER"
+
+            // Criar trigger para o horário específico
+            let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: reminderTime)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+
+            let request = UNNotificationRequest(
+                identifier: "\(NotificationID.appointmentReminderPrefix)\(appointment.id)",
+                content: content,
+                trigger: trigger
+            )
+
+            do {
+                try await center.add(request)
+                #if DEBUG
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "dd/MM/yyyy HH:mm"
+                print("⏰ [Reminders] ✅ Agendado: \(appointment.displayTitle) - Lembrete em \(dateFormatter.string(from: reminderTime))")
+                #endif
+            } catch {
+                print("❌ [Reminders] Erro ao agendar \(appointment.displayTitle): \(error)")
+            }
+        }
+
+        #if DEBUG
+        // Contar quantas notificações foram realmente agendadas
+        let requests = await center.pendingNotificationRequests()
+        let reminderRequests = requests.filter { $0.identifier.hasPrefix(NotificationID.appointmentReminderPrefix) }
+        print("⏰ [Reminders] Total de lembretes agendados: \(reminderRequests.count)")
+        for request in reminderRequests {
+            print("   - \(request.identifier): \(request.content.body)")
+        }
+        #endif
+    }
+
     // MARK: - Cancel Notifications
 
     func cancelAllScheduledNotifications() async {
@@ -325,6 +398,14 @@ class NotificationManager: ObservableObject {
             .filter { $0.identifier.hasPrefix(NotificationID.birthdayPrefix) }
             .map { $0.identifier }
         center.removePendingNotificationRequests(withIdentifiers: birthdayIds)
+    }
+
+    func cancelAppointmentReminders() async {
+        let requests = await center.pendingNotificationRequests()
+        let reminderIds = requests
+            .filter { $0.identifier.hasPrefix(NotificationID.appointmentReminderPrefix) }
+            .map { $0.identifier }
+        center.removePendingNotificationRequests(withIdentifiers: reminderIds)
     }
 
     // MARK: - Data Fetching
@@ -424,6 +505,41 @@ class NotificationManager: ObservableObject {
             return result
         } catch {
             print("Erro ao buscar pacientes com aniversário: \(error)")
+            return []
+        }
+    }
+
+    private func fetchTodayAppointmentsForReminders() async -> [Appointment] {
+        guard let userId = supabase.effectiveUserId else { return [] }
+
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+
+        let formatter = ISO8601DateFormatter()
+
+        do {
+            let result: [Appointment] = try await supabase.client
+                .from("appointments")
+                .select()
+                .eq("user_id", value: userId)
+                .gte("start", value: formatter.string(from: now)) // Apenas futuros
+                .lt("start", value: formatter.string(from: tomorrow))
+                .neq("status", value: "cancelled")
+                .order("start", ascending: true)
+                .execute()
+                .value
+
+            // Filtrar apenas agendamentos com pacientes
+            return result.filter { appointment in
+                if let isPersonal = appointment.isPersonal, isPersonal {
+                    return false
+                }
+                return appointment.patientId != nil
+            }
+        } catch {
+            print("Erro ao buscar agendamentos para lembretes: \(error)")
             return []
         }
     }

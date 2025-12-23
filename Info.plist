@@ -18,20 +18,74 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.agendahof.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>agendahof</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>supabase.co</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSCalendarsUsageDescription</key>
+	<string>O AgendaHOF precisa acessar seu calendário para sincronizar agendamentos.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>O AgendaHOF precisa acessar a câmera para tirar fotos de perfil.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>O AgendaHOF precisa acessar seus contatos para importar informações de pacientes.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>O AgendaHOF usa Face ID para autenticação segura.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>O AgendaHOF precisa salvar fotos na sua galeria.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O AgendaHOF precisa acessar sua galeria de fotos para selecionar fotos de perfil.</string>
+	<key>NSUserNotificationAlertStyle</key>
+	<string>alert</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UIFileSharingEnabled</key>
+	<false/>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIImageName</key>
 		<string>LaunchScreen</string>
 	</dict>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDefault</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -43,70 +97,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-
-	<!-- Permissões -->
-
-	<!-- Notificações -->
-	<key>NSUserNotificationAlertStyle</key>
-	<string>alert</string>
-
-	<!-- Contatos (para importar informações de pacientes) -->
-	<key>NSContactsUsageDescription</key>
-	<string>O AgendaHOF precisa acessar seus contatos para importar informações de pacientes.</string>
-
-	<!-- Calendário (para sincronizar agendamentos) -->
-	<key>NSCalendarsUsageDescription</key>
-	<string>O AgendaHOF precisa acessar seu calendário para sincronizar agendamentos.</string>
-
-	<!-- Câmera (para fotos de perfil) -->
-	<key>NSCameraUsageDescription</key>
-	<string>O AgendaHOF precisa acessar a câmera para tirar fotos de perfil.</string>
-
-	<!-- Galeria de fotos -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>O AgendaHOF precisa acessar sua galeria de fotos para selecionar fotos de perfil.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>O AgendaHOF precisa salvar fotos na sua galeria.</string>
-
-	<!-- Face ID / Touch ID -->
-	<key>NSFaceIDUsageDescription</key>
-	<string>O AgendaHOF usa Face ID para autenticação segura.</string>
-
-	<!-- Configurações de App -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
-
-	<!-- App Transport Security -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>supabase.co</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
-		</dict>
-	</dict>
-
-	<!-- Configurações de UI -->
 	<key>UIUserInterfaceStyle</key>
 	<string>Automatic</string>
-	<key>UIStatusBarStyle</key>
-	<string>UIStatusBarStyleDefault</string>
-
-	<!-- Arquivos do App -->
-	<key>UIFileSharingEnabled</key>
-	<false/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<false/>
 </dict>
 </plist>

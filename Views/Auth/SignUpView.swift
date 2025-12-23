@@ -130,8 +130,14 @@ struct SignUpView: View {
                     .tint(Color(hex: "ff6b00"))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(.systemGray4), lineWidth: 1)
+                            )
+                    )
             }
 
             // Campo Email
@@ -150,8 +156,14 @@ struct SignUpView: View {
                     .tint(Color(hex: "ff6b00"))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(.systemGray4), lineWidth: 1)
+                            )
+                    )
             }
 
             // Campo Telefone
@@ -168,8 +180,14 @@ struct SignUpView: View {
                     .tint(Color(hex: "ff6b00"))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(.systemGray4), lineWidth: 1)
+                            )
+                    )
                     .onChange(of: viewModel.phone) { _, newValue in
                         viewModel.phone = formatPhoneBrazil(newValue)
                     }
@@ -205,8 +223,14 @@ struct SignUpView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.systemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(.systemGray4), lineWidth: 1)
+                        )
+                )
 
                 // Requisitos da senha
                 VStack(alignment: .leading, spacing: 4) {
@@ -275,8 +299,14 @@ struct SignUpView: View {
                     .tint(Color(hex: "ff6b00"))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(.systemGray4), lineWidth: 1)
+                            )
+                    )
 
                 // Indicador de senhas iguais
                 if !viewModel.confirmPassword.isEmpty {

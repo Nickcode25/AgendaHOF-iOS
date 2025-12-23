@@ -21,6 +21,10 @@
 		39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */; };
 		41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEC53DCF046BB187ADD590 /* AgendaView.swift */; };
 		4272363A0DCDC51F85AAA211 /* ProfessionalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */; };
+		46F449B92EF9ADFF004E29FC /* PasswordStrengthIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449B72EF9ADFF004E29FC /* PasswordStrengthIndicator.swift */; };
+		46F449BA2EF9ADFF004E29FC /* ResetPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449B82EF9ADFF004E29FC /* ResetPasswordView.swift */; };
+		46F449BD2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */; };
+		46F449BE2EF9AE2E004E29FC /* ResetPasswordViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */; };
 		4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = "TEMP_C336612F-F832-4058-8D26-0617954A1D7A" /* AgendaHofApp.swift */; };
 		4F5D0E913C1EDB35FE49F44A /* Preview Content in Resources */ = {isa = PBXBuildFile; fileRef = 76D5B2BF913EBCB78104AF6F /* Preview Content */; };
 		4F8D1A8BA4126DE3BEF469C1 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F2EAD7F123902D0DE3295E /* LoginView.swift */; };
@@ -68,6 +72,11 @@
 		3BAEC53DCF046BB187ADD590 /* AgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaView.swift; sourceTree = "<group>"; };
 		3DE7668D92C2F35C312AC4FD /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		408951620414BC917FCC70C9 /* ContactPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPicker.swift; sourceTree = "<group>"; };
+		461DE4BA2EFA10F80067E5D9 /* AgendaHOF.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AgendaHOF.entitlements; sourceTree = "<group>"; };
+		46F449B72EF9ADFF004E29FC /* PasswordStrengthIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordStrengthIndicator.swift; sourceTree = "<group>"; };
+		46F449B82EF9ADFF004E29FC /* ResetPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetPasswordView.swift; sourceTree = "<group>"; };
+		46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgotPasswordViewModel.swift; sourceTree = "<group>"; };
+		46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetPasswordViewModel.swift; sourceTree = "<group>"; };
 		4E031139A6648AB3E4A78588 /* WeekAgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekAgendaView.swift; sourceTree = "<group>"; };
 		4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionalService.swift; sourceTree = "<group>"; };
 		5037D63E0DB017064738F342 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -131,6 +140,7 @@
 		09DFF4DB16074952FD6C7EE9 = {
 			isa = PBXGroup;
 			children = (
+				461DE4BA2EFA10F80067E5D9 /* AgendaHOF.entitlements */,
 				B57D765B7F969D1CED05F391 /* .claude */,
 				F42C4F15605B342A2F9822A2 /* Core */,
 				F1B043F92785BA77F3459575 /* Database */,
@@ -188,6 +198,8 @@
 		55B33A05DF3036E3D8A18BD5 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */,
+				46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */,
 				CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */,
 				E78DF2B4D2F78372F2CA2DBF /* AuthViewModel.swift */,
 			);
@@ -197,6 +209,8 @@
 		57B42A3ADC7AC365E4D5DBD1 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
+				46F449B72EF9ADFF004E29FC /* PasswordStrengthIndicator.swift */,
+				46F449B82EF9ADFF004E29FC /* ResetPasswordView.swift */,
 				F8F2EAD7F123902D0DE3295E /* LoginView.swift */,
 				CF0B0641E4E52A846742DCF9 /* SignUpView.swift */,
 			);
@@ -418,6 +432,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				46F449BD2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift in Sources */,
+				46F449BE2EF9AE2E004E29FC /* ResetPasswordViewModel.swift in Sources */,
 				4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */,
 				41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */,
 				CB375CBE1F467AC4B0B7791A /* AgendaViewModel.swift in Sources */,
@@ -460,6 +476,8 @@
 				BB361370EAD56AFAA2F30D55 /* String+Extensions.swift in Sources */,
 				81254EF39B930733F018D114 /* SupabaseManager.swift in Sources */,
 				29395804B6E90539A7716659 /* ToastView.swift in Sources */,
+				46F449B92EF9ADFF004E29FC /* PasswordStrengthIndicator.swift in Sources */,
+				46F449BA2EF9ADFF004E29FC /* ResetPasswordView.swift in Sources */,
 				C1B7BBE6A1D8D5FF0DF0A29E /* UserProfile.swift in Sources */,
 				107A6B70222A3D1BE553052F /* WeekAgendaView.swift in Sources */,
 			);
@@ -505,7 +523,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
 				DEVELOPMENT_TEAM = "";
@@ -553,7 +571,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agenda HOF";
@@ -566,6 +586,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.agendahof.swift;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -575,7 +596,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agenda HOF";
@@ -588,6 +611,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.agendahof.swift;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -629,7 +653,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
 				DEVELOPMENT_TEAM = "";
