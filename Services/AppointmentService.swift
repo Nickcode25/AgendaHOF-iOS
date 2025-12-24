@@ -50,6 +50,9 @@ class AppointmentService: ObservableObject {
             }
 
             appointments = result
+
+            // ✅ WIDGET: Salvar agendamentos futuros para os widgets
+            await updateWidgetData()
         } catch is CancellationError {
             // Ignorar erros de cancelamento (pull-to-refresh interrompido)
             print("Busca de agendamentos cancelada")
@@ -59,6 +62,29 @@ class AppointmentService: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    // MARK: - Widget Integration
+
+    /// Atualizar dados dos widgets com agendamentos futuros
+    private func updateWidgetData() async {
+        let now = Date()
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: now)
+        let twoWeeksLater = calendar.date(byAdding: .day, value: 14, to: todayStart)!
+
+        // Filtrar apenas agendamentos futuros (hoje em diante) e não cancelados
+        let upcomingAppointments = appointments.filter { appointment in
+            appointment.start >= todayStart &&
+            appointment.start <= twoWeeksLater &&
+            appointment.status != .cancelled
+        }.sorted { $0.start < $1.start }
+
+        // Limitar a 20 agendamentos (suficiente para widgets)
+        let limitedAppointments = Array(upcomingAppointments.prefix(20))
+
+        // Salvar para os widgets
+        WidgetDataManager.shared.saveAppointments(limitedAppointments)
     }
 
     // MARK: - Fetch for Day
