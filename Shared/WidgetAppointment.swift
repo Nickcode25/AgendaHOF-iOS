@@ -1,5 +1,16 @@
 import Foundation
 
+// Protocolo para compatibilidade entre Appointment e WidgetAppointment
+protocol AppointmentConvertible {
+    var id: String { get }
+    var patientName: String? { get }
+    var procedure: String? { get }
+    var start: Date { get }
+    var end: Date { get }
+    var isPersonal: Bool? { get }
+    var title: String? { get }
+}
+
 /// Modelo simplificado de agendamento para widgets
 /// Codable para serialização JSON e compartilhamento via App Group
 struct WidgetAppointment: Codable, Identifiable {

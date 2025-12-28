@@ -53,7 +53,7 @@ class AuthViewModel: ObservableObject {
             return
         }
 
-        guard isValidEmail(email) else {
+        guard email.isValidEmail else {
             showError(message: "Digite um email válido")
             return
         }
@@ -92,7 +92,7 @@ class AuthViewModel: ObservableObject {
             return
         }
 
-        guard isValidEmail(email) else {
+        guard email.isValidEmail else {
             showError(message: "Digite um email válido")
             return
         }
@@ -102,8 +102,8 @@ class AuthViewModel: ObservableObject {
             return
         }
 
-        guard isValidPhone(phone) else {
-            showError(message: "Digite um telefone válido")
+        guard phone.isValidPhone else {
+            showError(message: "Digite um telefone válido com DDD")
             return
         }
 
@@ -112,7 +112,7 @@ class AuthViewModel: ObservableObject {
             return
         }
 
-        guard isValidPassword(password) else {
+        guard password.isValidPassword else {
             showError(message: "A senha deve ter:\n• Mínimo 8 caracteres\n• Letra maiúscula (A-Z)\n• Letra minúscula (a-z)\n• Número (0-9)\n• Caractere especial (!@#$...)")
             return
         }
@@ -158,7 +158,7 @@ class AuthViewModel: ObservableObject {
             return
         }
 
-        guard isValidEmail(email) else {
+        guard email.isValidEmail else {
             showError(message: "Digite um email válido")
             return
         }
@@ -208,36 +208,8 @@ class AuthViewModel: ObservableObject {
         self.showSuccess = true
     }
 
-    private func isValidEmail(_ email: String) -> Bool {
-        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
-        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
-        return emailPredicate.evaluate(with: email)
-    }
-
-    private func isValidPhone(_ phone: String) -> Bool {
-        let numbers = phone.filter { $0.isNumber }
-        // Aceita telefones com 10 dígitos (fixo) ou 11 dígitos (celular)
-        return numbers.count == 10 || numbers.count == 11
-    }
-
-    private func isValidPassword(_ password: String) -> Bool {
-        // Mínimo 8 caracteres
-        guard password.count >= 8 else { return false }
-
-        // Pelo menos uma letra maiúscula
-        guard password.range(of: "[A-Z]", options: .regularExpression) != nil else { return false }
-
-        // Pelo menos uma letra minúscula
-        guard password.range(of: "[a-z]", options: .regularExpression) != nil else { return false }
-
-        // Pelo menos um número
-        guard password.range(of: "[0-9]", options: .regularExpression) != nil else { return false }
-
-        // Pelo menos um caractere especial
-        guard password.range(of: "[!@#$%^&*(),.?\":{}|<>]", options: .regularExpression) != nil else { return false }
-
-        return true
-    }
+    // MARK: - Validation (using String extensions)
+    // Validações agora são feitas via String+Extensions para evitar duplicação
 
     // MARK: - Clear Form
 

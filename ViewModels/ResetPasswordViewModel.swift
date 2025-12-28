@@ -16,7 +16,6 @@ class ResetPasswordViewModel: ObservableObject {
     @Published var errorMessage: String = ""
 
     private let token: String
-    private let backendURL = "https://agenda-hof-production.up.railway.app"
     private let supabase = SupabaseManager.shared
 
     var isFormValid: Bool {
@@ -182,7 +181,7 @@ class ResetPasswordViewModel: ObservableObject {
     // MARK: - Check Password Duplicate
     private func checkPasswordDuplicate(userId: String, password: String) async -> Bool {
         do {
-            guard let url = URL(string: "\(backendURL)/api/auth/validate-password-change") else {
+            guard let url = URL(string: "\(Constants.backendURL)/api/auth/validate-password-change") else {
                 return false
             }
 
@@ -212,7 +211,7 @@ class ResetPasswordViewModel: ObservableObject {
     // MARK: - Add Password to History
     private func addPasswordToHistory(userId: String, password: String) async {
         do {
-            guard let url = URL(string: "\(backendURL)/api/auth/add-password-to-history") else {
+            guard let url = URL(string: "\(Constants.backendURL)/api/auth/add-password-to-history") else {
                 return
             }
 
@@ -236,7 +235,7 @@ class ResetPasswordViewModel: ObservableObject {
     // MARK: - Send Notification Email
     private func sendPasswordChangedNotification(email: String, userId: String) async {
         do {
-            guard let url = URL(string: "\(backendURL)/api/auth/password-changed-notification") else {
+            guard let url = URL(string: "\(Constants.backendURL)/api/auth/password-changed-notification") else {
                 #if DEBUG
                 print("❌ [Email Notificação] URL inválida")
                 #endif
@@ -297,27 +296,10 @@ class ResetPasswordViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Password Validation
+    // Utiliza validação centralizada em String+Extensions
     private func isPasswordStrong(_ password: String) -> Bool {
-        // Mínimo 8 caracteres
-        guard password.count >= 8 else { return false }
-
-        // Pelo menos uma letra maiúscula
-        let uppercaseLetterRegex = ".*[A-Z]+.*"
-        guard password.range(of: uppercaseLetterRegex, options: .regularExpression) != nil else { return false }
-
-        // Pelo menos uma letra minúscula
-        let lowercaseLetterRegex = ".*[a-z]+.*"
-        guard password.range(of: lowercaseLetterRegex, options: .regularExpression) != nil else { return false }
-
-        // Pelo menos um número
-        let numberRegex = ".*[0-9]+.*"
-        guard password.range(of: numberRegex, options: .regularExpression) != nil else { return false }
-
-        // Pelo menos um caractere especial
-        let specialCharacterRegex = ".*[!@#$%^&*(),.?\":{}|<>]+.*"
-        guard password.range(of: specialCharacterRegex, options: .regularExpression) != nil else { return false }
-
-        return true
+        return password.isValidPassword
     }
 }
 

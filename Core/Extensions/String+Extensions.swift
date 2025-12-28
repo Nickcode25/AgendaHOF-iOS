@@ -1,14 +1,64 @@
 import Foundation
 
 extension String {
-    // MARK: - Validação
+    // MARK: - Validação de Email
 
-    /// Verifica se é um email válido
+    /// Verifica se é um email válido usando regex RFC 5322 simplificado
     var isValidEmail: Bool {
         let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
         let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
         return emailPredicate.evaluate(with: self)
     }
+
+    // MARK: - Validação de Senha
+
+    /// Verifica se a senha atende aos requisitos mínimos de segurança
+    /// - Mínimo 8 caracteres
+    /// - Pelo menos 1 letra maiúscula
+    /// - Pelo menos 1 letra minúscula
+    /// - Pelo menos 1 número
+    /// - Pelo menos 1 caractere especial
+    var isValidPassword: Bool {
+        guard count >= 8 else { return false }
+
+        let uppercaseRegex = ".*[A-Z]+.*"
+        let lowercaseRegex = ".*[a-z]+.*"
+        let numberRegex = ".*[0-9]+.*"
+        let specialCharRegex = ".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?]+.*"
+
+        let hasUppercase = NSPredicate(format: "SELF MATCHES %@", uppercaseRegex).evaluate(with: self)
+        let hasLowercase = NSPredicate(format: "SELF MATCHES %@", lowercaseRegex).evaluate(with: self)
+        let hasNumber = NSPredicate(format: "SELF MATCHES %@", numberRegex).evaluate(with: self)
+        let hasSpecialChar = NSPredicate(format: "SELF MATCHES %@", specialCharRegex).evaluate(with: self)
+
+        return hasUppercase && hasLowercase && hasNumber && hasSpecialChar
+    }
+
+    /// Retorna a força da senha (0.0 a 1.0)
+    var passwordStrength: Double {
+        var strength = 0.0
+
+        // Comprimento
+        if count >= 8 { strength += 0.2 }
+        if count >= 12 { strength += 0.1 }
+
+        // Maiúscula
+        if contains(where: { $0.isUppercase }) { strength += 0.2 }
+
+        // Minúscula
+        if contains(where: { $0.isLowercase }) { strength += 0.2 }
+
+        // Número
+        if contains(where: { $0.isNumber }) { strength += 0.2 }
+
+        // Caractere especial
+        let specialChars = CharacterSet(charactersIn: "!@#$%^&*()_+-=[]{}';:\"\\|,.<>/?")
+        if rangeOfCharacter(from: specialChars) != nil { strength += 0.1 }
+
+        return min(strength, 1.0)
+    }
+
+    // MARK: - Validação de CPF
 
     /// Verifica se é um CPF válido
     var isValidCPF: Bool {
@@ -45,10 +95,45 @@ extension String {
         return digits[10] == secondDigit
     }
 
-    /// Verifica se é um telefone válido
+    // MARK: - Validação de Telefone
+
+    /// Verifica se é um telefone brasileiro válido
+    /// - Valida DDD (11-99)
+    /// - Aceita 10 dígitos (fixo) ou 11 dígitos (celular)
     var isValidPhone: Bool {
-        let phone = self.onlyNumbers
-        return phone.count >= 10 && phone.count <= 11
+        let numbers = self.onlyNumbers
+
+        guard numbers.count == 10 || numbers.count == 11 else { return false }
+
+        // Validar DDD (11-99)
+        let ddd = Int(numbers.prefix(2)) ?? 0
+        guard ddd >= 11 && ddd <= 99 else { return false }
+
+        return true
+    }
+
+    /// Retorna mensagem de erro de validação de telefone, ou nil se válido
+    var phoneValidationError: String? {
+        let numbers = self.onlyNumbers
+
+        if numbers.isEmpty {
+            return nil // Campo vazio é permitido
+        }
+
+        if numbers.count < 10 {
+            return "Telefone incompleto. Digite DDD + número"
+        }
+
+        if numbers.count > 11 {
+            return "Telefone inválido. Máximo 11 dígitos"
+        }
+
+        let ddd = Int(numbers.prefix(2)) ?? 0
+        if ddd < 11 || ddd > 99 {
+            return "DDD inválido"
+        }
+
+        return nil
     }
 
     // MARK: - Formatação

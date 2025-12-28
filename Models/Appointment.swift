@@ -34,6 +34,83 @@ struct Appointment: Identifiable, Codable, Hashable {
         case title
     }
 
+    // Memberwise initializer
+    init(
+        id: String,
+        createdAt: Date,
+        updatedAt: Date,
+        userId: String,
+        patientId: String? = nil,
+        patientName: String? = nil,
+        procedure: String? = nil,
+        procedureId: String? = nil,
+        selectedProducts: String? = nil,
+        professional: String,
+        room: String? = nil,
+        start: Date,
+        end: Date,
+        notes: String? = nil,
+        status: AppointmentStatus,
+        isPersonal: Bool? = nil,
+        title: String? = nil
+    ) {
+        self.id = id
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.userId = userId
+        self.patientId = patientId
+        self.patientName = patientName
+        self.procedure = procedure
+        self.procedureId = procedureId
+        self.selectedProducts = selectedProducts
+        self.professional = professional
+        self.room = room
+        self.start = start
+        self.end = end
+        self.notes = notes
+        self.status = status
+        self.isPersonal = isPersonal
+        self.title = title
+    }
+
+    // Custom decoder to handle selected_products as both String and Array
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(String.self, forKey: .id)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        userId = try container.decode(String.self, forKey: .userId)
+        patientId = try container.decodeIfPresent(String.self, forKey: .patientId)
+        patientName = try container.decodeIfPresent(String.self, forKey: .patientName)
+        procedure = try container.decodeIfPresent(String.self, forKey: .procedure)
+        procedureId = try container.decodeIfPresent(String.self, forKey: .procedureId)
+
+        // Handle selected_products as String or Array
+        if let productsString = try? container.decodeIfPresent(String.self, forKey: .selectedProducts) {
+            selectedProducts = productsString
+        } else if let productsArray = try? container.decodeIfPresent([String].self, forKey: .selectedProducts) {
+            // Convert array to JSON string
+            if let jsonData = try? JSONEncoder().encode(productsArray),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                selectedProducts = jsonString
+            } else {
+                selectedProducts = nil
+            }
+        } else {
+            selectedProducts = nil
+        }
+
+        professional = try container.decode(String.self, forKey: .professional)
+        room = try container.decodeIfPresent(String.self, forKey: .room)
+        start = try container.decode(Date.self, forKey: .start)
+        end = try container.decode(Date.self, forKey: .end)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        status = try container.decode(AppointmentStatus.self, forKey: .status)
+        isPersonal = try container.decodeIfPresent(Bool.self, forKey: .isPersonal)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+    }
+
     enum AppointmentStatus: String, Codable, CaseIterable {
         case scheduled
         case confirmed

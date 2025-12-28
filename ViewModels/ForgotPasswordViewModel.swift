@@ -12,7 +12,6 @@ class ForgotPasswordViewModel: ObservableObject {
     @Published var isResending: Bool = false
 
     private var timerCancellable: AnyCancellable?
-    private let backendURL = "https://agenda-hof-production.up.railway.app"
 
     // MARK: - Send Reset Email
     func sendResetEmail() async {
@@ -25,8 +24,8 @@ class ForgotPasswordViewModel: ObservableObject {
         isLoading = true
 
         do {
-            // Chamar endpoint do backend
-            guard let url = URL(string: "\(backendURL)/api/auth/request-password-reset") else {
+            // Chamar endpoint do backend usando constante centralizada
+            guard let url = URL(string: Constants.forgotPasswordEndpoint) else {
                 throw URLError(.badURL)
             }
 
@@ -76,7 +75,7 @@ class ForgotPasswordViewModel: ObservableObject {
         isResending = true
 
         do {
-            guard let url = URL(string: "\(backendURL)/api/auth/request-password-reset") else {
+            guard let url = URL(string: Constants.forgotPasswordEndpoint) else {
                 throw URLError(.badURL)
             }
 

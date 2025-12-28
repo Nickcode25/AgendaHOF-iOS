@@ -14,8 +14,12 @@ class SupabaseManager: ObservableObject {
     @Published var isLoading = false
 
     private init() {
+        guard let url = URL(string: Constants.supabaseURL) else {
+            fatalError("❌ CRITICAL: Invalid Supabase URL in Constants. Check your configuration.")
+        }
+        
         client = SupabaseClient(
-            supabaseURL: URL(string: Constants.supabaseURL)!,
+            supabaseURL: url,
             supabaseKey: Constants.supabaseAnonKey,
             options: SupabaseClientOptions(
                 auth: .init(

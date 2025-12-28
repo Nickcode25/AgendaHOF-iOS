@@ -5,84 +5,88 @@ import UserNotifications
 @MainActor
 class NotificationManager: ObservableObject {
     static let shared = NotificationManager()
-
+    
     @Published var isAuthorized = false
-
+    
+    // Dependências
     private let center = UNUserNotificationCenter.current()
     private let supabase = SupabaseManager.shared
-
+    
     // MARK: - Notification Identifiers
-
+    
     private enum NotificationID {
         static let dailySummary = "daily_summary"
         static let weeklySummary = "weekly_summary"
         static let birthdayPrefix = "birthday_"
         static let appointmentReminderPrefix = "appointment_reminder_"
     }
-
+    
     // MARK: - Initialization
-
+    
     private init() {
         Task {
             await checkAuthorizationStatus()
         }
     }
-
+    
     // MARK: - Authorization
-
+    
+    /// Solicita permissão paara enviar notificações
     func requestAuthorization() async -> Bool {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
             isAuthorized = granted
             return granted
         } catch {
-            print("Erro ao solicitar permissão de notificações: \(error)")
+            AppLogger.error("Erro ao solicitar permissão de notificações", error: error)
             return false
         }
     }
-
+    
+    /// Verifica o status atual de autorização
     func checkAuthorizationStatus() async {
         let settings = await center.notificationSettings()
         isAuthorized = settings.authorizationStatus == .authorized
     }
-
+    
     // MARK: - Schedule All Notifications
-
+    
+    /// Reagenda todas as notificações com base nas configurações do usuário
     func scheduleAllNotifications() async {
         guard isAuthorized else {
-            print("Notificações não autorizadas")
+            AppLogger.log("⚠️ Notificações não autorizadas. Ignorando agendamento.", category: .notification)
             return
         }
-
-        // Cancelar notificações antigas
+        
+        // 1. Cancelar notificações antigas
         await cancelAllScheduledNotifications()
-
-        // Agendar novas notificações baseado nas preferências
+        
+        // 2. Agendar novas notificações baseado nas preferências
         let defaults = UserDefaults.standard
-
+        
         if defaults.bool(forKey: "daily_summary_enabled") {
             let hour = defaults.integer(forKey: "daily_summary_hour")
             let minute = defaults.integer(forKey: "daily_summary_minute")
             await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
         }
-
+        
         if defaults.bool(forKey: "weekly_summary_enabled") {
             // Domingo às 20:00 (horário de Brasília)
             await scheduleWeeklySummary(dayOfWeek: 1, hour: 20)
         }
-
+        
         if defaults.bool(forKey: "birthday_notifications_enabled") {
             await scheduleBirthdayNotifications()
         }
-
+        
         if defaults.bool(forKey: "appointment_reminder_enabled") {
             let reminderMinutes = defaults.integer(forKey: "appointment_reminder_minutes")
             await scheduleAppointmentReminders(minutesBefore: reminderMinutes == 0 ? 30 : reminderMinutes)
         }
     }
-
+    
     // MARK: - Daily Summary
-
+    
     /// Agenda notificação de resumo diário
     /// - Parameters:
     ///   - hour: Hora do dia (0-23)
@@ -91,11 +95,16 @@ class NotificationManager: ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = "📅 Resumo do Dia"
         content.sound = .default
-
-        // Buscar agendamentos do dia
-        let appointments = await fetchTodayAppointments()
+        
+        // Buscar agendamentos do dia (hoje até amanhã)
+        let now = Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return }
+        
+        let appointments = await fetchAppointments(from: today, to: tomorrow)
         let count = appointments.count
-
+        
         if count == 0 {
             content.body = "Você não tem agendamentos para hoje. Aproveite o dia!"
         } else if count == 1 {
@@ -109,30 +118,20 @@ class NotificationManager: ObservableObject {
                 content.body += " Primeiro: \(first.displayTitle) às \(first.start.hourMinuteString)"
             }
         }
-
+        
         // Configurar trigger para repetir diariamente
         var dateComponents = DateComponents()
         dateComponents.hour = hour
         dateComponents.minute = minute
-
+        
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-
-        let request = UNNotificationRequest(
-            identifier: NotificationID.dailySummary,
-            content: content,
-            trigger: trigger
-        )
-
-        do {
-            try await center.add(request)
-            print("Resumo diário agendado para \(hour):\(String(format: "%02d", minute))")
-        } catch {
-            print("Erro ao agendar resumo diário: \(error)")
-        }
+        let request = UNNotificationRequest(identifier: NotificationID.dailySummary, content: content, trigger: trigger)
+        
+        addRequest(request, description: "Resumo diário (\(hour):\(String(format: "%02d", minute)))")
     }
-
+    
     // MARK: - Weekly Summary
-
+    
     /// Agenda notificação de resumo semanal
     /// - Parameters:
     ///   - dayOfWeek: Dia da semana (1=Domingo, 2=Segunda, ..., 7=Sábado)
@@ -141,130 +140,122 @@ class NotificationManager: ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = "📊 Resumo da Semana"
         content.sound = .default
-
-        // Buscar agendamentos da semana
-        let appointments = await fetchWeekAppointments()
+        
+        // Calcular intervalo da próxima semana
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        calendar.firstWeekday = 1 // Domingo
+        
+        let now = Date()
+        let weekday = calendar.component(.weekday, from: now)
+        let daysUntilSunday = weekday == 1 ? 0 : (8 - weekday)
+        
+        guard let nextSunday = calendar.date(byAdding: .day, value: daysUntilSunday, to: calendar.startOfDay(for: now)),
+              let nextSaturday = calendar.date(byAdding: .day, value: 7, to: nextSunday) else {
+            return
+        }
+        
+        // Buscar agendamentos
+        let appointments = await fetchAppointments(from: nextSunday, to: nextSaturday)
         let count = appointments.count
-
+        
         if count == 0 {
             content.body = "Você não tem agendamentos esta semana."
         } else {
             content.body = "Você tem \(count) agendamento\(count == 1 ? "" : "s") esta semana."
-
-            // Contar por dia e ordenar na ordem correta da semana
-            var daysCounts: [Int: (name: String, count: Int)] = [:]  // [weekday: (name, count)]
-            let calendar = Calendar.current
-
-            for appointment in appointments {
-                let weekday = calendar.component(.weekday, from: appointment.start)
-                let dayName: String
-
-                // Mapear weekday para nome do dia (2=Segunda...7=Sábado, 1=Domingo)
-                switch weekday {
-                case 2: dayName = "Segunda-Feira"
-                case 3: dayName = "Terça-Feira"
-                case 4: dayName = "Quarta-Feira"
-                case 5: dayName = "Quinta-Feira"
-                case 6: dayName = "Sexta-Feira"
-                case 7: dayName = "Sábado"
-                case 1: dayName = "Domingo"
-                default: dayName = "Desconhecido"
-                }
-
-                if var existing = daysCounts[weekday] {
-                    existing.count += 1
-                    daysCounts[weekday] = existing
-                } else {
-                    daysCounts[weekday] = (name: dayName, count: 1)
-                }
-            }
-
-            if !daysCounts.isEmpty {
-                // Ordenar por weekday (Segunda=2, Terça=3... Domingo=1)
-                let sortedDays = daysCounts.keys.sorted { first, second in
-                    // Segunda a Sábado vêm antes de Domingo
-                    if first == 1 { return false }  // Domingo por último
-                    if second == 1 { return true }
-                    return first < second
-                }
-
-                let summary = sortedDays.map { weekday in
-                    let day = daysCounts[weekday]!
-                    return "\(day.name): \(day.count)"
-                }.joined(separator: ", ")
-
+            
+            // Resumo por dia
+            let summary = generateWeeklySummaryText(appointments: appointments, calendar: calendar)
+            if !summary.isEmpty {
                 content.body += " (\(summary))"
             }
         }
-
-        // Configurar trigger para repetir semanalmente
+        
         var dateComponents = DateComponents()
         dateComponents.weekday = dayOfWeek
         dateComponents.hour = hour
         dateComponents.minute = 0
-
+        
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-
-        let request = UNNotificationRequest(
-            identifier: NotificationID.weeklySummary,
-            content: content,
-            trigger: trigger
-        )
-
-        do {
-            try await center.add(request)
-            let dayNames = ["", "Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
-            print("Resumo semanal agendado para \(dayNames[dayOfWeek]) às \(hour):00")
-        } catch {
-            print("Erro ao agendar resumo semanal: \(error)")
-        }
+        let request = UNNotificationRequest(identifier: NotificationID.weeklySummary, content: content, trigger: trigger)
+        
+        addRequest(request, description: "Resumo semanal")
     }
-
+    
+    private func generateWeeklySummaryText(appointments: [Appointment], calendar: Calendar) -> String {
+        var daysCounts: [Int: (name: String, count: Int)] = [:]
+        
+        for appointment in appointments {
+            let weekday = calendar.component(.weekday, from: appointment.start)
+            let dayName: String
+            
+            switch weekday {
+            case 2: dayName = "Segunda-Feira"
+            case 3: dayName = "Terça-Feira"
+            case 4: dayName = "Quarta-Feira"
+            case 5: dayName = "Quinta-Feira"
+            case 6: dayName = "Sexta-Feira"
+            case 7: dayName = "Sábado"
+            case 1: dayName = "Domingo"
+            default: dayName = "Desconhecido"
+            }
+            
+            if var existing = daysCounts[weekday] {
+                existing.count += 1
+                daysCounts[weekday] = existing
+            } else {
+                daysCounts[weekday] = (name: dayName, count: 1)
+            }
+        }
+        
+        let sortedDays = daysCounts.keys.sorted { first, second in
+            if first == 1 { return false } // Domingo no fim
+            if second == 1 { return true }
+            return first < second
+        }
+        
+        return sortedDays.map { weekday in
+            let day = daysCounts[weekday]!
+            return "\(day.name): \(day.count)"
+        }.joined(separator: ", ")
+    }
+    
     // MARK: - Birthday Notifications
-
-    /// Agenda notificações de aniversário para os próximos 30 dias
+    
     func scheduleBirthdayNotifications() async {
         let patients = await fetchPatientsWithBirthdays()
         let calendar = Calendar.current
         let now = Date()
-        let today = calendar.startOfDay(for: now)  // ✅ Usar início do dia para comparação correta
-
-        #if DEBUG
-        print("🎂 [Birthday] Total de pacientes com data de aniversário: \(patients.count)")
-        #endif
-
+        let today = calendar.startOfDay(for: now)
+        
         for patient in patients {
             guard let birthDate = patient.birthDate else { continue }
-
+            
             // Calcular próximo aniversário
             var birthdayComponents = calendar.dateComponents([.month, .day], from: birthDate)
             birthdayComponents.year = calendar.component(.year, from: now)
-
+            
             guard var nextBirthday = calendar.date(from: birthdayComponents) else { continue }
-
-            // Se já passou este ano, pegar do próximo ano (comparar apenas datas)
+            
+            // Ajustar para próximo ano se já passou
             let nextBirthdayStart = calendar.startOfDay(for: nextBirthday)
             if nextBirthdayStart < today {
                 birthdayComponents.year = (birthdayComponents.year ?? 0) + 1
                 nextBirthday = calendar.date(from: birthdayComponents) ?? nextBirthday
             }
-
-            // Só agendar se for nos próximos 30 dias (incluindo hoje)
-            let daysUntilBirthday = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: nextBirthday)).day ?? 0
-            guard daysUntilBirthday <= 30 && daysUntilBirthday >= 0 else {
-                #if DEBUG
-                print("🎂 [Birthday] Ignorado (fora do período): \(patient.name) - em \(daysUntilBirthday) dias")
-                #endif
+            
+            // Verificar intervalo (30 dias)
+            guard let daysUntilBirthday = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: nextBirthday)).day,
+                  daysUntilBirthday >= 0 && daysUntilBirthday <= 30 else {
                 continue
             }
-
+            
             // Calcular idade
             let age = calendar.dateComponents([.year], from: birthDate, to: nextBirthday).year ?? 0
-
+            
             let content = UNMutableNotificationContent()
             content.title = "🎂 Aniversário!"
-
-            // ✅ Mensagem diferente se for hoje
+            
             if daysUntilBirthday == 0 {
                 content.body = "\(patient.name) faz \(age) anos HOJE! 🎉 Não esqueça de parabenizar."
             } else if daysUntilBirthday == 1 {
@@ -273,225 +264,94 @@ class NotificationManager: ObservableObject {
                 content.body = "\(patient.name) fará \(age) anos em \(daysUntilBirthday) dias!"
             }
             content.sound = .default
-
-            // Agendar para 08h da manhã (horário de São Paulo)
+            
             var triggerComponents = calendar.dateComponents([.year, .month, .day], from: nextBirthday)
-            triggerComponents.hour = 8
+            triggerComponents.hour = 8 // Fixo às 08:00
             triggerComponents.minute = 0
-
+            
             let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
-
-            let request = UNNotificationRequest(
-                identifier: "\(NotificationID.birthdayPrefix)\(patient.id)",
-                content: content,
-                trigger: trigger
-            )
-
-            do {
-                try await center.add(request)
-                #if DEBUG
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "dd/MM/yyyy HH:mm"
-                print("🎂 [Birthday] ✅ Agendado: \(patient.name) (ID: \(patient.id)) - \(age) anos - em \(daysUntilBirthday) dias (\(dateFormatter.string(from: nextBirthday)))")
-                #endif
-            } catch {
-                print("❌ [Birthday] Erro ao agendar \(patient.name): \(error)")
-            }
+            let request = UNNotificationRequest(identifier: "\(NotificationID.birthdayPrefix)\(patient.id)", content: content, trigger: trigger)
+            
+            addRequest(request, description: "Aniversário \(patient.name)")
         }
-
-        #if DEBUG
-        // Contar quantas notificações foram realmente agendadas
-        let requests = await center.pendingNotificationRequests()
-        let birthdayRequests = requests.filter { $0.identifier.hasPrefix(NotificationID.birthdayPrefix) }
-        print("🎂 [Birthday] Total de notificações de aniversário agendadas: \(birthdayRequests.count)")
-        for request in birthdayRequests {
-            print("   - \(request.identifier): \(request.content.body)")
-        }
-        #endif
     }
-
+    
     // MARK: - Appointment Reminders
-
-    /// Agenda notificações de lembrete para agendamentos do dia
-    /// - Parameter minutesBefore: Minutos de antecedência (30 ou 60)
+    
     func scheduleAppointmentReminders(minutesBefore: Int) async {
-        let appointments = await fetchTodayAppointmentsForReminders()
-        let calendar = Calendar.current
         let now = Date()
-
-        #if DEBUG
-        print("⏰ [Reminders] Total de agendamentos para hoje: \(appointments.count)")
-        print("⏰ [Reminders] Configuração: \(minutesBefore) minutos antes")
-        #endif
-
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return }
+        
+        // Buscar agendamentos apenas futuros de hoje
+        let appointments = await fetchAppointments(from: now, to: tomorrow)
+        
         for appointment in appointments {
-            // Calcular horário da notificação
-            guard let reminderTime = calendar.date(byAdding: .minute, value: -minutesBefore, to: appointment.start) else {
-                continue
-            }
-
-            // Só agendar se a notificação for no futuro
-            guard reminderTime > now else {
-                #if DEBUG
-                print("⏰ [Reminders] Ignorado (já passou): \(appointment.displayTitle) - \(appointment.start.hourMinuteString)")
-                #endif
-                continue
-            }
-
+            guard let reminderTime = calendar.date(byAdding: .minute, value: -minutesBefore, to: appointment.start) else { continue }
+            
+            guard reminderTime > now else { continue }
+            
             let content = UNMutableNotificationContent()
             content.title = "Próximo Atendimento"
             content.body = "\(appointment.displayTitle) • \(appointment.start.hourMinuteString)"
             content.sound = .default
             content.categoryIdentifier = "APPOINTMENT_REMINDER"
-
-            // Criar trigger para o horário específico
+            
             let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: reminderTime)
             let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
-
-            let request = UNNotificationRequest(
-                identifier: "\(NotificationID.appointmentReminderPrefix)\(appointment.id)",
-                content: content,
-                trigger: trigger
-            )
-
-            do {
-                try await center.add(request)
-                #if DEBUG
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "dd/MM/yyyy HH:mm"
-                print("⏰ [Reminders] ✅ Agendado: \(appointment.displayTitle) - Lembrete em \(dateFormatter.string(from: reminderTime))")
-                #endif
-            } catch {
-                print("❌ [Reminders] Erro ao agendar \(appointment.displayTitle): \(error)")
-            }
+            
+            let request = UNNotificationRequest(identifier: "\(NotificationID.appointmentReminderPrefix)\(appointment.id)", content: content, trigger: trigger)
+            
+            addRequest(request, description: "Lembrete para \(appointment.displayTitle)")
         }
-
-        #if DEBUG
-        // Contar quantas notificações foram realmente agendadas
-        let requests = await center.pendingNotificationRequests()
-        let reminderRequests = requests.filter { $0.identifier.hasPrefix(NotificationID.appointmentReminderPrefix) }
-        print("⏰ [Reminders] Total de lembretes agendados: \(reminderRequests.count)")
-        for request in reminderRequests {
-            print("   - \(request.identifier): \(request.content.body)")
-        }
-        #endif
     }
-
-    // MARK: - Cancel Notifications
-
+    
+    // MARK: - Cancel Helpers
+    
     func cancelAllScheduledNotifications() async {
         center.removeAllPendingNotificationRequests()
-        print("Todas as notificações canceladas")
+        #if DEBUG
+        print("🗑 Todas as notificações canceladas")
+        #endif
     }
-
-    func cancelDailySummary() {
-        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailySummary])
-    }
-
-    func cancelWeeklySummary() {
-        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.weeklySummary])
-    }
-
-    func cancelBirthdayNotifications() async {
-        let requests = await center.pendingNotificationRequests()
-        let birthdayIds = requests
-            .filter { $0.identifier.hasPrefix(NotificationID.birthdayPrefix) }
-            .map { $0.identifier }
-        center.removePendingNotificationRequests(withIdentifiers: birthdayIds)
-    }
-
-    func cancelAppointmentReminders() async {
-        let requests = await center.pendingNotificationRequests()
-        let reminderIds = requests
-            .filter { $0.identifier.hasPrefix(NotificationID.appointmentReminderPrefix) }
-            .map { $0.identifier }
-        center.removePendingNotificationRequests(withIdentifiers: reminderIds)
-    }
-
-    // MARK: - Data Fetching
-
-    private func fetchTodayAppointments() async -> [Appointment] {
+    
+    // MARK: - Data Fetching (Consolidated)
+    
+    /// Busca agendamentos em um intervalo de datas
+    private func fetchAppointments(from start: Date, to end: Date) async -> [Appointment] {
         guard let userId = supabase.effectiveUserId else { return [] }
-
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
-
+        
         let formatter = ISO8601DateFormatter()
-
+        
         do {
             let result: [Appointment] = try await supabase.client
                 .from("appointments")
                 .select()
                 .eq("user_id", value: userId)
-                .gte("start", value: formatter.string(from: today))
-                .lt("start", value: formatter.string(from: tomorrow))
+                .gte("start", value: formatter.string(from: start))
+                .lt("start", value: formatter.string(from: end))
                 .neq("status", value: "cancelled")
                 .order("start", ascending: true)
                 .execute()
                 .value
-
-            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais e bloqueios)
+            
+            // Filtro (regras de negócio)
             return result.filter { appointment in
-                // Excluir apenas se for explicitamente marcado como compromisso pessoal
-                if let isPersonal = appointment.isPersonal, isPersonal {
-                    return false  // Excluir compromissos pessoais
-                }
-                return appointment.patientId != nil  // Incluir apenas com paciente
+                // Excluir compromissos pessoais
+                if let isPersonal = appointment.isPersonal, isPersonal { return false }
+                // Incluir apenas se tiver paciente
+                return appointment.patientId != nil
             }
         } catch {
-            print("Erro ao buscar agendamentos do dia: \(error)")
+            print("❌ Erro ao buscar agendamentos (Notifications): \(error)")
             return []
         }
     }
-
-    private func fetchWeekAppointments() async -> [Appointment] {
-        guard let userId = supabase.effectiveUserId else { return [] }
-
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
-        calendar.firstWeekday = 1 // Domingo como primeiro dia da semana
-
-        let now = Date()
-
-        // Encontrar o próximo domingo (início da semana)
-        let weekday = calendar.component(.weekday, from: now)
-        let daysUntilSunday = weekday == 1 ? 0 : (8 - weekday) // Se já é domingo, conta essa semana
-
-        let nextSunday = calendar.date(byAdding: .day, value: daysUntilSunday, to: calendar.startOfDay(for: now))!
-        let nextSaturday = calendar.date(byAdding: .day, value: 7, to: nextSunday)! // Domingo até próximo domingo (7 dias completos)
-
-        let formatter = ISO8601DateFormatter()
-
-        do {
-            let result: [Appointment] = try await supabase.client
-                .from("appointments")
-                .select()
-                .eq("user_id", value: userId)
-                .gte("start", value: formatter.string(from: nextSunday))
-                .lt("start", value: formatter.string(from: nextSaturday))
-                .neq("status", value: "cancelled")
-                .order("start", ascending: true)
-                .execute()
-                .value
-
-            // ✅ Filtrar apenas agendamentos com pacientes (excluir compromissos pessoais e bloqueios)
-            return result.filter { appointment in
-                // Excluir apenas se for explicitamente marcado como compromisso pessoal
-                if let isPersonal = appointment.isPersonal, isPersonal {
-                    return false  // Excluir compromissos pessoais
-                }
-                return appointment.patientId != nil  // Incluir apenas com paciente
-            }
-        } catch {
-            print("Erro ao buscar agendamentos da semana: \(error)")
-            return []
-        }
-    }
-
+    
     private func fetchPatientsWithBirthdays() async -> [Patient] {
         guard let userId = supabase.effectiveUserId else { return [] }
-
+        
         do {
             let result: [Patient] = try await supabase.client
                 .from("patients")
@@ -501,56 +361,26 @@ class NotificationManager: ObservableObject {
                 .not("birth_date", operator: .is, value: "null")
                 .execute()
                 .value
-
+            
             return result
         } catch {
-            print("Erro ao buscar pacientes com aniversário: \(error)")
+            print("❌ Erro ao buscar aniversariantes: \(error)")
             return []
         }
     }
-
-    private func fetchTodayAppointmentsForReminders() async -> [Appointment] {
-        guard let userId = supabase.effectiveUserId else { return [] }
-
-        let calendar = Calendar.current
-        let now = Date()
-        let today = calendar.startOfDay(for: now)
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
-
-        let formatter = ISO8601DateFormatter()
-
-        do {
-            let result: [Appointment] = try await supabase.client
-                .from("appointments")
-                .select()
-                .eq("user_id", value: userId)
-                .gte("start", value: formatter.string(from: now)) // Apenas futuros
-                .lt("start", value: formatter.string(from: tomorrow))
-                .neq("status", value: "cancelled")
-                .order("start", ascending: true)
-                .execute()
-                .value
-
-            // Filtrar apenas agendamentos com pacientes
-            return result.filter { appointment in
-                if let isPersonal = appointment.isPersonal, isPersonal {
-                    return false
-                }
-                return appointment.patientId != nil
+    
+    // MARK: - Helper (Private)
+    
+    private func addRequest(_ request: UNNotificationRequest, description: String) {
+        Task {
+            do {
+                try await center.add(request)
+                #if DEBUG
+                print("✅ Agendado: \(description)")
+                #endif
+            } catch {
+                print("❌ Erro ao agendar (\(description)): \(error)")
             }
-        } catch {
-            print("Erro ao buscar agendamentos para lembretes: \(error)")
-            return []
-        }
-    }
-
-    // MARK: - Debug
-
-    func listPendingNotifications() async {
-        let requests = await center.pendingNotificationRequests()
-        print("=== Notificações Pendentes (\(requests.count)) ===")
-        for request in requests {
-            print("- \(request.identifier): \(request.content.title)")
         }
     }
 }

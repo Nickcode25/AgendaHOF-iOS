@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var showProfile = false
     @State private var showNotifications = false
     @State private var showFinancialReport = false
+    @State private var showInactivePatients = false
 
     var body: some View {
         List {
@@ -52,6 +53,15 @@ struct SettingsView: View {
 
             // Recursos
             Section("Recursos") {
+                // Pacientes Inativos (+6 meses)
+                SettingsRow(
+                    icon: "person.badge.clock.fill",
+                    iconColor: Color(hex: "ff6b00"),
+                    title: "Pacientes Inativos (+6 meses)"
+                ) {
+                    showInactivePatients = true
+                }
+
                 // Notificações
                 SettingsRow(
                     icon: "bell.fill",
@@ -113,6 +123,12 @@ struct SettingsView: View {
         .sheet(isPresented: $showFinancialReport) {
             FinancialReportView()
                 .environmentObject(supabase)
+        }
+        .sheet(isPresented: $showInactivePatients) {
+            NavigationStack {
+                InactivePatientsView()
+                    .environmentObject(supabase)
+            }
         }
     }
 }

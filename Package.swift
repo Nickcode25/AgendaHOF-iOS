@@ -6,7 +6,8 @@ import PackageDescription
 let package = Package(
     name: "AgendaHOF",
     platforms: [
-        .iOS(.v17)
+        .iOS(.v17),
+        .macOS(.v10_15)
     ],
     products: [
         .library(
@@ -24,7 +25,18 @@ let package = Package(
             dependencies: [
                 .product(name: "Supabase", package: "supabase-swift"),
             ],
-            path: "."
+            path: ".",
+            exclude: [
+                "Tests",
+                "AgendaHOF.xcodeproj",
+                "Preview Content",
+                "AgendaWidget"
+            ]
+        ),
+        .testTarget(
+            name: "AgendaHOFTests",
+            dependencies: ["AgendaHOF"],
+            path: "Tests"
         )
     ]
 )

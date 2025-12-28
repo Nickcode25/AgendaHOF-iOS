@@ -17,7 +17,7 @@ class WidgetDataManager {
     private init() {}
 
     /// Salvar agendamentos para os widgets acessarem
-    func saveAppointments(_ appointments: [Appointment]) {
+    func saveAppointments<T: AppointmentConvertible>(_ appointments: [T], status: ((String) -> String)? = nil) {
         // Converter para modelo simplificado (sem dependências de Supabase)
         let widgetAppointments = appointments.map { appointment in
             WidgetAppointment(
@@ -26,7 +26,7 @@ class WidgetDataManager {
                 procedure: appointment.procedure ?? "Sem procedimento",
                 start: appointment.start,
                 end: appointment.end,
-                status: appointment.status.rawValue,
+                status: "scheduled", // Status genérico para widgets
                 isPersonal: appointment.isPersonal ?? false,
                 title: appointment.title
             )
