@@ -87,47 +87,62 @@ class NotificationManager: ObservableObject {
     
     // MARK: - Daily Summary
     
-    /// Agenda notificação de resumo diário
+    /// Agenda notificação de resumo diário para os próximos 14 dias
     /// - Parameters:
     ///   - hour: Hora do dia (0-23)
     ///   - minute: Minuto (0-59)
     func scheduleDailySummary(hour: Int, minute: Int) async {
-        let content = UNMutableNotificationContent()
-        content.title = "📅 Resumo do Dia"
-        content.sound = .default
+        // Remover notificação antiga (repetitiva) se existir
+        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailySummary])
         
-        // Buscar agendamentos do dia (hoje até amanhã)
-        let now = Date()
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
-        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return }
+        let today = calendar.startOfDay(for: Date())
         
-        let appointments = await fetchAppointments(from: today, to: tomorrow)
-        let count = appointments.count
-        
-        if count == 0 {
-            content.body = "Você não tem agendamentos para hoje. Aproveite o dia!"
-        } else if count == 1 {
-            content.body = "Você tem 1 agendamento para hoje."
-            if let first = appointments.first {
-                content.body += " Primeiro: \(first.displayTitle) às \(first.start.hourMinuteString)"
+        // Agendar para os próximos 14 dias
+        for dayOffset in 0..<14 {
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: date) else { continue }
+            
+            // Ignorar dias passados (se hora já passou hoje)
+            let now = Date()
+            var triggerDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date)!
+            if triggerDate < now {
+                // Se já passou o horário hoje, não agendar para hoje (ou agendar para amanhã? não, o loop já cobre amanhã)
+                continue 
             }
-        } else {
-            content.body = "Você tem \(count) agendamentos para hoje."
-            if let first = appointments.first {
-                content.body += " Primeiro: \(first.displayTitle) às \(first.start.hourMinuteString)"
+            
+            // Buscar agendamentos para este dia específico
+            let appointments = await fetchAppointments(from: date, to: nextDay)
+            let count = appointments.count
+            
+            // Criar conteúdo
+            let content = UNMutableNotificationContent()
+            content.title = "📅 Resumo do Dia"
+            content.sound = .default
+            
+            if count == 0 {
+                content.body = "Você não tem agendamentos para hoje. Aproveite o dia!"
+            } else if count == 1 {
+                content.body = "Você tem 1 agendamento para hoje."
+                if let first = appointments.first {
+                    content.body += " Primeiro: \(first.displayTitle) às \(first.start.hourMinuteString)"
+                }
+            } else {
+                content.body = "Você tem \(count) agendamentos para hoje."
+                if let first = appointments.first {
+                    content.body += " Primeiro: \(first.displayTitle) às \(first.start.hourMinuteString)"
+                }
             }
+            
+            // Configurar trigger
+            let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+            
+            let identifier = "\(NotificationID.dailySummary)_\(date.formatted(.iso8601.year().month().day()))"
+            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+            
+            addRequest(request, description: "Resumo diário para \(date.formatted(.dateTime.day().month()))")
         }
-        
-        // Configurar trigger para repetir diariamente
-        var dateComponents = DateComponents()
-        dateComponents.hour = hour
-        dateComponents.minute = minute
-        
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-        let request = UNNotificationRequest(identifier: NotificationID.dailySummary, content: content, trigger: trigger)
-        
-        addRequest(request, description: "Resumo diário (\(hour):\(String(format: "%02d", minute)))")
     }
     
     // MARK: - Weekly Summary
@@ -137,6 +152,9 @@ class NotificationManager: ObservableObject {
     ///   - dayOfWeek: Dia da semana (1=Domingo, 2=Segunda, ..., 7=Sábado)
     ///   - hour: Hora do dia
     func scheduleWeeklySummary(dayOfWeek: Int, hour: Int) async {
+        // Remover anterior
+        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.weeklySummary])
+
         let content = UNMutableNotificationContent()
         content.title = "📊 Resumo da Semana"
         content.sound = .default
@@ -172,11 +190,12 @@ class NotificationManager: ObservableObject {
         }
         
         var dateComponents = DateComponents()
-        dateComponents.weekday = dayOfWeek
-        dateComponents.hour = hour
-        dateComponents.minute = 0
+        if let nextSundayWithTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: nextSunday) {
+             dateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nextSundayWithTime)
+        }
         
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+        // Trigger único para o próximo domingo (será reagendado na próxima abertura do app)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
         let request = UNNotificationRequest(identifier: NotificationID.weeklySummary, content: content, trigger: trigger)
         
         addRequest(request, description: "Resumo semanal")
@@ -310,6 +329,9 @@ class NotificationManager: ObservableObject {
     // MARK: - Cancel Helpers
     
     func cancelAllScheduledNotifications() async {
+        // Cancelar apenas as pendentes genéricas ou passadas. 
+        // Na verdade, ao reagendar, já limpamos. Mas para "reset" geral pode ser útil.
+        // O método scheduleAllNotifications já chama este primeiro.
         center.removeAllPendingNotificationRequests()
         #if DEBUG
         print("🗑 Todas as notificações canceladas")
@@ -336,13 +358,8 @@ class NotificationManager: ObservableObject {
                 .execute()
                 .value
             
-            // Filtro (regras de negócio)
-            return result.filter { appointment in
-                // Excluir compromissos pessoais
-                if let isPersonal = appointment.isPersonal, isPersonal { return false }
-                // Incluir apenas se tiver paciente
-                return appointment.patientId != nil
-            }
+            // Filtro removido para incluir TODOS os agendamentos (pessoais ou sem paciente) na contagem
+            return result
         } catch {
             print("❌ Erro ao buscar agendamentos (Notifications): \(error)")
             return []
