@@ -5,6 +5,7 @@ import UserNotifications
 struct AgendaHofApp: App {
     @StateObject private var supabase = SupabaseManager.shared
     @StateObject private var deepLinkManager = DeepLinkManager.shared
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
@@ -12,6 +13,7 @@ struct AgendaHofApp: App {
             ContentView()
                 .environmentObject(supabase)
                 .environmentObject(deepLinkManager)
+                .environmentObject(subscriptionManager)
                 .onOpenURL { url in
                     deepLinkManager.handle(url)
                 }

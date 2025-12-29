@@ -8,7 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		026C738CEFE74BB2817CB847 /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C3888277E836B839C08367 /* AvatarView.swift */; };
+		02D476C23B9DC498921106C9 /* WeekDayColumnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29222B7A6730BCA4DFF1D87E /* WeekDayColumnView.swift */; };
 		0AF1927D88516256A32BF735 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408951620414BC917FCC70C9 /* ContactPicker.swift */; };
+		0B72FB840A11EFEB0DAC1EDF /* SubscriptionLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5249256A227EB7355A52EB /* SubscriptionLogicTests.swift */; };
 		0E93BE27539569EED1341ABB /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E914C292260F8359C5889DB /* Color+Extensions.swift */; };
 		0EEC875D1370AB992DD6EE83 /* FinancialReportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177358FDC21A1522A4507225 /* FinancialReportViewModelTests.swift */; };
 		0FA956CC549F19F6523D8B16 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */; };
@@ -18,11 +20,13 @@
 		1B0CFA65642C1546F6587BF1 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 568453A06CE6B1943AB1E675 /* Constants.swift */; };
 		1C6F58A722AC3CEE4EB69BEF /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9332644D3BF9E303DFC2078A /* KeychainManager.swift */; };
 		2055D1CCCE49F467FD89E5DA /* OverlapLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */; };
+		2612B13EC8A663375BD51A7C /* SubscriptionLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB0311DFC71B10247FC76A5 /* SubscriptionLogic.swift */; };
 		29395804B6E90539A7716659 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54061472237F6D9424DD0542 /* ToastView.swift */; };
 		303A15293BDBCDCAEF40C95C /* PatientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7406443AB8C320235B1C62E /* PatientDetailView.swift */; };
 		32E156FA3190480EB6E13A8E /* InactivePatient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9B51CC8C2D43E0A3E4080D /* InactivePatient.swift */; };
 		3639628225DE4338B76015C2 /* InactivePatientsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADB6B765F36408AAA954645 /* InactivePatientsViewModel.swift */; };
 		39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */; };
+		40D6767BA87A7A9C8458CF63 /* WeekRecurringBlockSegmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */; };
 		41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEC53DCF046BB187ADD590 /* AgendaView.swift */; };
 		4272363A0DCDC51F85AAA211 /* ProfessionalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */; };
 		461DE4C22EFB85B40067E5D9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 461DE4C12EFB85B30067E5D9 /* WidgetKit.framework */; };
@@ -42,6 +46,7 @@
 		46F449BD2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */; };
 		46F449BE2EF9AE2E004E29FC /* ResetPasswordViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */; };
 		47F61CC81741986876F5D668 /* InactivePatientsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB146C06FD006579FEFFD772 /* InactivePatientsViewModelTests.swift */; };
+		49DA72E56FDFEECC6C97276C /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3B06252E1D7DE86BB4C459 /* SubscriptionManager.swift */; };
 		4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = TEMP_C336612F-F832-4058-8D26-0617954A1D7A /* AgendaHofApp.swift */; };
 		4F5D0E913C1EDB35FE49F44A /* Preview Content in Resources */ = {isa = PBXBuildFile; fileRef = 76D5B2BF913EBCB78104AF6F /* Preview Content */; };
 		4F8D1A8BA4126DE3BEF469C1 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F2EAD7F123902D0DE3295E /* LoginView.swift */; };
@@ -51,12 +56,14 @@
 		6336057BC0596F3C49C36457 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = F7350B170287A696432256E7 /* Supabase */; };
 		6E5B26532AC48D60E080DBC4 /* Professional.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0002888366C41F016FED872 /* Professional.swift */; };
 		75126AC242B53D136DEA6B55 /* AppointmentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D9E437779D23BE28815BFB /* AppointmentService.swift */; };
+		7910661548B0124711A4DB5C /* SubscriptionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1E52413D1F1269C7CC3A1D /* SubscriptionTypes.swift */; };
 		7AD35C4769FDEE0FEE0A0A8D /* Procedure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F9F07845B377E75DFC08BB /* Procedure.swift */; };
 		80A385F9E09D56B5AA16F4D5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE7668D92C2F35C312AC4FD /* SettingsView.swift */; };
 		81254EF39B930733F018D114 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C2E355EEFE92729F914185D /* SupabaseManager.swift */; };
 		8458E20E7F3F8FB2D54292EE /* NewAppointmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73DC13BE1A07029C8F512DB5 /* NewAppointmentView.swift */; };
 		8ABA32F23ADFCFB9303BC1F9 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A435D7ADF1CAFE4AFBE9B842 /* Date+Extensions.swift */; };
 		8B9440454BC0C5B0F5C51519 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EFD11C2D863D92345B11C5 /* AppLogger.swift */; };
+		8D666026C67F5DFEB33A8F28 /* UserSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0A1A2FBF37D88D8AE79152 /* UserSubscription.swift */; };
 		8EF66DD97C195BB932E61B59 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E78DF2B4D2F78372F2CA2DBF /* AuthViewModel.swift */; };
 		90D7407F5C4BDA7064D667D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1E37F46729096E1602A7925 /* Assets.xcassets */; };
 		95474FC041985A9B7A14B521 /* DeepLinkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342A68FE597DAC780C42BEC5 /* DeepLinkManager.swift */; };
@@ -65,8 +72,8 @@
 		AC6993E4617F6987EFEBBFDF /* settings.local.json in Resources */ = {isa = PBXBuildFile; fileRef = F8516784C7585E5246F8AF13 /* settings.local.json */; };
 		AD98E0D63C5E4E9D90865A28 /* CalendarWeekView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E546A0D1B8FB5318925D17 /* CalendarWeekView.swift */; };
 		AF321D2AD8BA4D8A5032DBB5 /* NewRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C31345C39AE1C255BF35A4E /* NewRecurringBlockView.swift */; };
+		B0A3F9337888AE39C4283072 /* SupportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1490807C226955D433A2A184 /* SupportView.swift */; };
 		B1934A7E0EE19F95013EB77B /* DayAgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6517641A4BB66289277ACEA0 /* DayAgendaView.swift */; };
-		B8ECC5F36F3CEBBD9FD9F0EF /* CalendarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E7F5ABE818869F37223CFA /* CalendarConstants.swift */; };
 		BB361370EAD56AFAA2F30D55 /* String+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */; };
 		BF1465FA8211532924A6BCB3 /* CalendarPagingContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */; };
 		C01E4912987BA492D13CE0CD /* Patient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6697A0C1C5AEDADB2A92428E /* Patient.swift */; };
@@ -75,8 +82,11 @@
 		C55B97A05494D0577100E443 /* CalendarDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE779576690594C23259C5B5 /* CalendarDayView.swift */; };
 		C77E83CEEBC7D29EB0DB2D0C /* RecurringBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F865118D2BD455D5EA77BA9C /* RecurringBlock.swift */; };
 		CB375CBE1F467AC4B0B7791A /* AgendaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */; };
+		CC74D44656D7EDF535BB7BB7 /* WeekDayHeaderCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA59325939B49A80E6C8E386 /* WeekDayHeaderCell.swift */; };
 		CE75F12CB7BE479B00373B86 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D5F7B7E6BE3B1EEE2228758 /* LoadingView.swift */; };
+		D331AC44347DBFD146AD9FC2 /* CalendarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4828B2478AE520E1B18A2DBC /* CalendarConstants.swift */; };
 		D473BCBEBFD8BA8BBB17E6F1 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFC09AC53EA56DBFFF534B38 /* NotificationManager.swift */; };
+		D8483CBAB3B6A5964E141782 /* WeekEventCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB0BB661F1479F958FA4F3F /* WeekEventCardView.swift */; };
 		DE3867D9978171FC693F9AFE /* PatientService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 026AA8C980FB171DB10133FE /* PatientService.swift */; };
 		E677FE4EFF44745E171E4F39 /* PatientsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DE7788A04ECF72A76DF52F /* PatientsListView.swift */; };
 		F180A3996C2B2D590DC8869C /* Appointment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1888739FF31F7D87DAD2178F /* Appointment.swift */; };
@@ -121,11 +131,16 @@
 		03D2307F225153924B3ADAB8 /* StringValidationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StringValidationTests.swift; path = StringValidationTests.swift; sourceTree = "<group>"; };
 		03D9E437779D23BE28815BFB /* AppointmentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppointmentService.swift; sourceTree = "<group>"; };
 		0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Extensions.swift"; sourceTree = "<group>"; };
+		0F5249256A227EB7355A52EB /* SubscriptionLogicTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionLogicTests.swift; sourceTree = "<group>"; };
+		11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekRecurringBlockSegmentView.swift; sourceTree = "<group>"; };
 		127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		1490807C226955D433A2A184 /* SupportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupportView.swift; sourceTree = "<group>"; };
 		177358FDC21A1522A4507225 /* FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/ViewModels/FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
 		1888739FF31F7D87DAD2178F /* Appointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Appointment.swift; sourceTree = "<group>"; };
-		27E7F5ABE818869F37223CFA /* CalendarConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarConstants.swift; sourceTree = "<group>"; };
+		27E7F5ABE818869F37223CFA /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
+		29222B7A6730BCA4DFF1D87E /* WeekDayColumnView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekDayColumnView.swift; sourceTree = "<group>"; };
 		2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
+		2F3B06252E1D7DE86BB4C459 /* SubscriptionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		342A68FE597DAC780C42BEC5 /* DeepLinkManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkManager.swift; sourceTree = "<group>"; };
 		39E5BF262FBAEAC2BCCD0960 /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSupabaseManager.swift; path = MockSupabaseManager.swift; sourceTree = "<group>"; };
 		3A9578000F01CFD33A2E9583 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InactivePatientsViewModelTests.swift; path = InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
@@ -137,13 +152,13 @@
 		461DE4C12EFB85B30067E5D9 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		461DE4C32EFB85B40067E5D9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		461DE4D52EFB863A0067E5D9 /* AgendaWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AgendaWidgetExtension.entitlements; sourceTree = "<group>"; };
-		461DE4D82EFB88130067E5D9 /* WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAppointment.swift; sourceTree = "<group>"; };
+		461DE4D82EFB88130067E5D9 /* WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WidgetAppointment.swift; sourceTree = SOURCE_ROOT; };
 		461DE4ED2EFB8C640067E5D9 /* AgendaWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/AgendaWidget.swift; sourceTree = "<group>"; };
 		461DE4EE2EFB8C640067E5D9 /* AgendaWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/AgendaWidgetProvider.swift; sourceTree = "<group>"; };
 		461DE4EF2EFB8C640067E5D9 /* LargeWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/LargeWidgetView.swift; sourceTree = "<group>"; };
 		461DE4F02EFB8C640067E5D9 /* MediumWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/MediumWidgetView.swift; sourceTree = "<group>"; };
 		461DE4F12EFB8C640067E5D9 /* SmallWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/SmallWidgetView.swift; sourceTree = "<group>"; };
-		461DE4FA2EFB91370067E5D9 /* WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAppointment.swift; sourceTree = "<group>"; };
+		461DE4FA2EFB91370067E5D9 /* WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WidgetAppointment.swift; sourceTree = SOURCE_ROOT; };
 		461DE4FE2EFB93F80067E5D9 /* Appointment+Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Appointment+Widget.swift"; sourceTree = "<group>"; };
 		464D67D62EFC638E00BC932A /* WidgetDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataManager.swift; sourceTree = "<group>"; };
 		46A63A6A2EFEF001009895FE /* AgendaHOFTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgendaHOFTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -151,6 +166,7 @@
 		46F449B82EF9ADFF004E29FC /* ResetPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetPasswordView.swift; sourceTree = "<group>"; };
 		46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgotPasswordViewModel.swift; sourceTree = "<group>"; };
 		46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetPasswordViewModel.swift; sourceTree = "<group>"; };
+		4828B2478AE520E1B18A2DBC /* CalendarConstants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarConstants.swift; sourceTree = "<group>"; };
 		48416A8CB6499CA643EAB313 /* FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FinancialReportViewModelTests.swift; path = FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
 		4976895632993F9F81CAF2E2 /* ResetPasswordViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/ViewModels/ResetPasswordViewModelTests.swift; sourceTree = "<group>"; };
 		4B9B51CC8C2D43E0A3E4080D /* InactivePatient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InactivePatient.swift; sourceTree = "<group>"; };
@@ -158,14 +174,16 @@
 		4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionalService.swift; sourceTree = "<group>"; };
 		5037D63E0DB017064738F342 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		54061472237F6D9424DD0542 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
-		568453A06CE6B1943AB1E675 /* Constants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Constants.swift; path = Constants.swift; sourceTree = "<group>"; };
+		568453A06CE6B1943AB1E675 /* Constants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Constants.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
 		59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTimeGrid.swift; sourceTree = "<group>"; };
 		59E546A0D1B8FB5318925D17 /* CalendarWeekView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarWeekView.swift; sourceTree = "<group>"; };
 		5D5F7B7E6BE3B1EEE2228758 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
+		5DB0BB661F1479F958FA4F3F /* WeekEventCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekEventCardView.swift; sourceTree = "<group>"; };
 		5E914C292260F8359C5889DB /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
 		6517641A4BB66289277ACEA0 /* DayAgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayAgendaView.swift; sourceTree = "<group>"; };
 		6697A0C1C5AEDADB2A92428E /* Patient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patient.swift; sourceTree = "<group>"; };
-		6CD88A37337109F45CC1D4C1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		6B1E52413D1F1269C7CC3A1D /* SubscriptionTypes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionTypes.swift; sourceTree = "<group>"; };
+		6CD88A37337109F45CC1D4C1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
 		717F8CA95030B36649EE075D /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSupabaseManager.swift; path = Tests/Mocks/MockSupabaseManager.swift; sourceTree = "<group>"; };
 		72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPagingContainer.swift; sourceTree = "<group>"; };
 		73DC13BE1A07029C8F512DB5 /* NewAppointmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewAppointmentView.swift; sourceTree = "<group>"; };
@@ -182,11 +200,14 @@
 		A7C14634084EEA81140FB412 /* FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FinancialReportViewModelTests.swift; path = Tests/ViewModels/FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
 		B1E37F46729096E1602A7925 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		B7406443AB8C320235B1C62E /* PatientDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientDetailView.swift; sourceTree = "<group>"; };
-		BE4A031A64795E8B7A254ED6 /* Constants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Constants.swift; path = Core/Constants.swift; sourceTree = "<group>"; };
+		BA59325939B49A80E6C8E386 /* WeekDayHeaderCell.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekDayHeaderCell.swift; sourceTree = "<group>"; };
+		BE4A031A64795E8B7A254ED6 /* Constants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Constants.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
 		BFC09AC53EA56DBFFF534B38 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		C9A12663366ED99CA3E7168A /* AuthViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthViewModelTests.swift; path = AuthViewModelTests.swift; sourceTree = "<group>"; };
 		CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaViewModel.swift; sourceTree = "<group>"; };
+		CD0A1A2FBF37D88D8AE79152 /* UserSubscription.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserSubscription.swift; sourceTree = "<group>"; };
 		CE779576690594C23259C5B5 /* CalendarDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayView.swift; sourceTree = "<group>"; };
+		CEB0311DFC71B10247FC76A5 /* SubscriptionLogic.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Logic/SubscriptionLogic.swift; sourceTree = SOURCE_ROOT; };
 		CF0B0641E4E52A846742DCF9 /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		D0C3888277E836B839C08367 /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
 		D464CFC0BD6BA50FBAE4474D /* ResetPasswordViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ResetPasswordViewModelTests.swift; path = Tests/ViewModels/ResetPasswordViewModelTests.swift; sourceTree = "<group>"; };
@@ -309,6 +330,8 @@
 				F865118D2BD455D5EA77BA9C /* RecurringBlock.swift */,
 				2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */,
 				4B9B51CC8C2D43E0A3E4080D /* InactivePatient.swift */,
+				6B1E52413D1F1269C7CC3A1D /* SubscriptionTypes.swift */,
+				CD0A1A2FBF37D88D8AE79152 /* UserSubscription.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -390,14 +413,27 @@
 		6CDF55EC742AE16281287E63 /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
-				27E7F5ABE818869F37223CFA /* CalendarConstants.swift */,
+				27E7F5ABE818869F37223CFA /* Constants.swift */,
 				CE779576690594C23259C5B5 /* CalendarDayView.swift */,
 				72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */,
 				59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */,
 				59E546A0D1B8FB5318925D17 /* CalendarWeekView.swift */,
 				FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */,
+				4828B2478AE520E1B18A2DBC /* CalendarConstants.swift */,
+				29222B7A6730BCA4DFF1D87E /* WeekDayColumnView.swift */,
+				BA59325939B49A80E6C8E386 /* WeekDayHeaderCell.swift */,
+				5DB0BB661F1479F958FA4F3F /* WeekEventCardView.swift */,
+				11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */,
 			);
 			path = Calendar;
+			sourceTree = "<group>";
+		};
+		78811F8D4F9400C598DF9CB5 /* Logic */ = {
+			isa = PBXGroup;
+			children = (
+				CEB0311DFC71B10247FC76A5 /* SubscriptionLogic.swift */,
+			);
+			name = Logic;
 			sourceTree = "<group>";
 		};
 		837E70A0996B4275891887D1 /* Agenda */ = {
@@ -445,6 +481,7 @@
 				026AA8C980FB171DB10133FE /* PatientService.swift */,
 				4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */,
 				342A68FE597DAC780C42BEC5 /* DeepLinkManager.swift */,
+				2F3B06252E1D7DE86BB4C459 /* SubscriptionManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -500,6 +537,7 @@
 				A11F3ED872BF5E10C05ED458 /* Extensions */,
 				A6551A539FEC22AF5532D3EB /* ViewModels */,
 				B9A4AE4774692DBAB731A75D /* Mocks */,
+				CB44D3EC4B095EB91C4A2C2A /* Core */,
 			);
 			name = Tests;
 			path = Tests;
@@ -515,6 +553,14 @@
 			path = Tests/Mocks;
 			sourceTree = "<group>";
 		};
+		CB44D3EC4B095EB91C4A2C2A /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				0F5249256A227EB7355A52EB /* SubscriptionLogicTests.swift */,
+			);
+			name = Core;
+			sourceTree = "<group>";
+		};
 		CBD5BF13F334320B8F722585 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
@@ -528,6 +574,7 @@
 			children = (
 				3DE7668D92C2F35C312AC4FD /* SettingsView.swift */,
 				022282F2139043B887E3FE39 /* InactivePatientsView.swift */,
+				1490807C226955D433A2A184 /* SupportView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -575,6 +622,7 @@
 				408951620414BC917FCC70C9 /* ContactPicker.swift */,
 				BE4A031A64795E8B7A254ED6 /* Constants.swift */,
 				568453A06CE6B1943AB1E675 /* Constants.swift */,
+				78811F8D4F9400C598DF9CB5 /* Logic */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -739,6 +787,7 @@
 				47F61CC81741986876F5D668 /* InactivePatientsViewModelTests.swift in Sources */,
 				10D5BD4613DFAE49D44FF09A /* ResetPasswordViewModelTests.swift in Sources */,
 				5791F49E98B067BBCEF1C1AA /* MockSupabaseManager.swift in Sources */,
+				0B72FB840A11EFEB0DAC1EDF /* SubscriptionLogicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -799,9 +848,18 @@
 				3639628225DE4338B76015C2 /* InactivePatientsViewModel.swift in Sources */,
 				C2D1F763B2A948ADAA00EB94 /* InactivePatientsView.swift in Sources */,
 				1B0CFA65642C1546F6587BF1 /* Constants.swift in Sources */,
-				B8ECC5F36F3CEBBD9FD9F0EF /* CalendarConstants.swift in Sources */,
 				95474FC041985A9B7A14B521 /* DeepLinkManager.swift in Sources */,
 				8B9440454BC0C5B0F5C51519 /* AppLogger.swift in Sources */,
+				7910661548B0124711A4DB5C /* SubscriptionTypes.swift in Sources */,
+				8D666026C67F5DFEB33A8F28 /* UserSubscription.swift in Sources */,
+				49DA72E56FDFEECC6C97276C /* SubscriptionManager.swift in Sources */,
+				2612B13EC8A663375BD51A7C /* SubscriptionLogic.swift in Sources */,
+				D331AC44347DBFD146AD9FC2 /* CalendarConstants.swift in Sources */,
+				B0A3F9337888AE39C4283072 /* SupportView.swift in Sources */,
+				02D476C23B9DC498921106C9 /* WeekDayColumnView.swift in Sources */,
+				CC74D44656D7EDF535BB7BB7 /* WeekDayHeaderCell.swift in Sources */,
+				D8483CBAB3B6A5964E141782 /* WeekEventCardView.swift in Sources */,
+				40D6767BA87A7A9C8458CF63 /* WeekRecurringBlockSegmentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

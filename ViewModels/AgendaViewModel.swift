@@ -78,7 +78,8 @@ class AgendaViewModel: ObservableObject {
             return formatter.string(from: selectedDate)
 
         case .week:
-            let calendar = Calendar.current
+            var calendar = Calendar.current
+            calendar.firstWeekday = 2 // Segunda-feira (1 = Domingo, 2 = Segunda)
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
             let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek)!
 
@@ -138,6 +139,7 @@ class AgendaViewModel: ObservableObject {
 
         appointments = appointmentService.appointments
         error = appointmentService.error
+        
         isLoading = false
 
         // Carregar bloqueios recorrentes

@@ -359,6 +359,7 @@ struct WeekPageContent: View {
                 }
             }
         }
+        .id("week-paging-\(weekStartDate.timeIntervalSince1970)-\(viewModel.appointments.count)")
     }
 
     // MARK: - Helpers

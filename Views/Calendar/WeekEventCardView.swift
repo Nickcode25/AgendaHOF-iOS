@@ -122,18 +122,27 @@ struct WeekEventCardView: View {
     let end = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: now)!
 
     let appointment = Appointment(
-        id: UUID(),
+        id: UUID().uuidString,
+        createdAt: now,
+        updatedAt: now,
+        userId: UUID().uuidString,
+        patientId: nil,
+        patientName: "João Silva",
+        procedure: "Consulta", // Note: param name is 'procedure', not 'procedureName' in init based on file view? Wait, let me double check Appointment.swift view again if needed. 
+        // Checking Appointment.swift again from history: 
+        // struct Appointment ... var procedure: String? ...
+        // init(... procedure: String? = nil ...)
+        // The old code had `procedureName: "Consulta"`.
+        procedureId: nil,
+        selectedProducts: nil,
+        professional: "Dr. Teste",
+        room: nil,
         start: start,
         end: end,
-        patientName: "João Silva",
-        procedureName: "Consulta",
-        userId: UUID(),
-        patientId: nil,
-        procedureId: nil,
-        status: "scheduled",
         notes: nil,
-        createdAt: now,
-        updatedAt: now
+        status: .scheduled,
+        isPersonal: false,
+        title: nil
     )
 
     let positioned = PositionedAppointment(
@@ -142,7 +151,7 @@ struct WeekEventCardView: View {
         totalColumns: 1
     )
 
-    return ZStack(alignment: .topLeading) {
+    ZStack(alignment: .topLeading) {
         Color(.systemGroupedBackground)
             .ignoresSafeArea()
 

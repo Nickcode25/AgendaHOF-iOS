@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var showNotifications = false
     @State private var showFinancialReport = false
     @State private var showInactivePatients = false
+    @State private var showSupport = false
 
     var body: some View {
         List {
@@ -53,15 +54,6 @@ struct SettingsView: View {
 
             // Recursos
             Section("Recursos") {
-                // Pacientes Inativos (+6 meses)
-                SettingsRow(
-                    icon: "person.badge.clock.fill",
-                    iconColor: Color(hex: "ff6b00"),
-                    title: "Pacientes Inativos (+6 meses)"
-                ) {
-                    showInactivePatients = true
-                }
-
                 // Notificações
                 SettingsRow(
                     icon: "bell.fill",
@@ -69,6 +61,15 @@ struct SettingsView: View {
                     title: "Notificações"
                 ) {
                     showNotifications = true
+                }
+                
+                // Pacientes Inativos (+6 meses)
+                SettingsRow(
+                    icon: "person.badge.clock.fill",
+                    iconColor: Color(hex: "ff6b00"),
+                    title: "Pacientes Inativos (+6 meses)"
+                ) {
+                    showInactivePatients = true
                 }
 
                 // Relatório Financeiro (apenas owner)
@@ -80,6 +81,15 @@ struct SettingsView: View {
                     ) {
                         showFinancialReport = true
                     }
+                }
+                
+                // Suporte
+                SettingsRow(
+                    icon: "headphones.circle.fill",
+                    iconColor: .blue,
+                    title: "Suporte"
+                ) {
+                    showSupport = true
                 }
             }
 
@@ -129,6 +139,9 @@ struct SettingsView: View {
                 InactivePatientsView()
                     .environmentObject(supabase)
             }
+        }
+        .sheet(isPresented: $showSupport) {
+            SupportView()
         }
     }
 }
@@ -472,7 +485,16 @@ struct NotificationsSettingsView: View {
                         Button("Ativar Notificações") {
                             Task {
                                 let granted = await notificationManager.requestAuthorization()
-                                if !granted {
+                                if granted {
+                                    // Ativar todas as notificações automaticamente
+                                    dailySummaryEnabled = true
+                                    weeklySummaryEnabled = true
+                                    birthdayNotificationsEnabled = true
+                                    appointmentReminderEnabled = true
+                                    
+                                    // Agendar todas as notificações
+                                    await notificationManager.scheduleAllNotifications()
+                                } else {
                                     showPermissionAlert = true
                                 }
                             }

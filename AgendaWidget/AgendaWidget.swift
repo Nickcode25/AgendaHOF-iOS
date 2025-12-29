@@ -28,7 +28,7 @@ struct AgendaWidgetEntryView: View {
                 MediumWidgetView(entry: entry)
             case .systemLarge:
                 LargeWidgetView(entry: entry)
-            @unknown default:
+            default:
                 SmallWidgetView(entry: entry)
             }
         }

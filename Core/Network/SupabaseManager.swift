@@ -65,9 +65,29 @@ class SupabaseManager: ObservableObject {
 
         self.currentSession = session
         self.currentUser = session.user
-        self.isAuthenticated = true
-
+        
+        // Carregar perfil primeiro
         await loadUserProfile()
+        
+        // Verificar acesso via SubscriptionManager
+        await SubscriptionManager.shared.checkAccess()
+        
+        // Permitir acesso apenas se tiver assinatura ou trial
+        let accessState = SubscriptionManager.shared.accessState
+        if accessState.hasActiveSubscription || accessState.isInTrial {
+            self.isAuthenticated = true
+            AppLogger.log("✅ [Auth] Login bem-sucedido. Plano: \(accessState.planType.displayName)", category: .auth)
+        } else {
+            // Fazer logout se não tiver acesso
+            self.currentSession = nil
+            self.currentUser = nil
+            self.userProfile = nil
+            self.isAuthenticated = false
+            AppLogger.log("🚫 [Auth] Login negado. Sem plano ativo.", category: .auth)
+            throw NSError(domain: "AgendaHOF", code: 403, userInfo: [
+                NSLocalizedDescriptionKey: "Sua conta não possui um plano ativo. Entre em contato com o suporte para renovar sua assinatura."
+            ])
+        }
     }
 
     func signUp(email: String, password: String, name: String, phone: String) async throws {

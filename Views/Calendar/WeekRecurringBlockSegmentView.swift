@@ -89,14 +89,18 @@ struct WeekRecurringBlockSegmentView: View {
 
 #Preview {
     let block = RecurringBlock(
-        id: UUID(),
+        id: UUID().uuidString,
+        createdAt: Date(),
+        updatedAt: Date(),
+        userId: UUID().uuidString,
         title: "Almoço",
         startTime: "12:00:00",
         endTime: "13:00:00",
         daysOfWeek: [1, 2, 3, 4, 5],
-        userId: UUID(),
-        createdAt: Date(),
-        updatedAt: Date()
+        active: true,
+        notes: nil,
+        professional: nil,
+        professionalId: nil
     )
 
     let segment = BlockSegment(
@@ -105,7 +109,7 @@ struct WeekRecurringBlockSegmentView: View {
         endMinutes: 780    // 13:00
     )
 
-    return ZStack(alignment: .topLeading) {
+    ZStack(alignment: .topLeading) {
         Color(.systemGroupedBackground)
             .ignoresSafeArea()
 

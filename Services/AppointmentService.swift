@@ -18,6 +18,11 @@ class AppointmentService: ObservableObject {
 
         isLoading = true
         error = nil
+        
+        // Log de diagnóstico
+        if let prof = professional {
+            AppLogger.log("📅 [Appointments] Filtro Profissional: \(prof)", category: .business)
+        }
 
         do {
             let formatter = ISO8601DateFormatter()
@@ -48,7 +53,7 @@ class AppointmentService: ObservableObject {
                     .execute()
                     .value
             }
-
+            
             appointments = result
 
             // ✅ WIDGET: Salvar agendamentos futuros para os widgets
@@ -58,7 +63,7 @@ class AppointmentService: ObservableObject {
             print("Busca de agendamentos cancelada")
         } catch {
             self.error = error.localizedDescription
-            print("Erro ao buscar agendamentos: \(error)")
+            AppLogger.error("[Appointments] Erro ao buscar: \(error)")
         }
 
         isLoading = false
@@ -100,9 +105,13 @@ class AppointmentService: ObservableObject {
     // MARK: - Fetch for Week
 
     func fetchAppointmentsForWeek(of date: Date, professional: String? = nil) async {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2 // Forçar segunda-feira como início da semana para alinhar com a View
+        
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
         let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfWeek)!
+        
+        AppLogger.log("📅 [Service] Fetching Week: \(startOfWeek) to \(endOfWeek)", category: .business)
 
         await fetchAppointments(from: startOfWeek, to: endOfWeek, professional: professional)
     }

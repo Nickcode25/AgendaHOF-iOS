@@ -91,7 +91,7 @@ struct WeekDayColumnView: View {
     @ViewBuilder
     private var appointmentsLayer: some View {
         let positionedAppointments = OverlapLayoutEngine.calculateLayout(for: appointments)
-
+        
         ForEach(positionedAppointments) { positioned in
             WeekEventCardView(
                 positioned: positioned,
@@ -101,6 +101,7 @@ struct WeekDayColumnView: View {
                 onAppointmentTap(positioned.appointment)
             }
         }
+        .id(appointments.map(\.id).hashValue) // Força re-render quando a lista muda
     }
 
     // MARK: - Block Segmentation Logic
@@ -190,21 +191,26 @@ struct WeekDayColumnView: View {
     let appointment1End = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: now)!
 
     let appointment1 = Appointment(
-        id: UUID(),
+        id: UUID().uuidString,
+        createdAt: now,
+        updatedAt: now,
+        userId: UUID().uuidString,
+        patientId: nil,
+        patientName: "João Silva",
+        procedure: nil,
+        procedureId: nil,
+        selectedProducts: nil,
+        professional: "Dr. Exemplo",
+        room: nil,
         start: appointment1Start,
         end: appointment1End,
-        patientName: "João Silva",
-        procedureName: "Consulta",
-        userId: UUID(),
-        patientId: nil,
-        procedureId: nil,
-        status: "scheduled",
         notes: nil,
-        createdAt: now,
-        updatedAt: now
+        status: .scheduled,
+        isPersonal: false,
+        title: nil
     )
 
-    return ScrollView {
+    ScrollView {
         WeekDayColumnView(
             date: now,
             appointments: [appointment1],
