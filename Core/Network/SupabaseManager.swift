@@ -90,46 +90,85 @@ class SupabaseManager: ObservableObject {
         }
     }
 
-    func signUp(email: String, password: String, name: String, phone: String) async throws {
+    func signUp(email: String, password: String, name: String, professionalName: String?, phone: String, trialEndDate: String) async throws {
         isLoading = true
         defer { isLoading = false }
 
-        // 1. Criar usuário no Supabase Auth
+        // 1. Criar usuário no Supabase Auth com Metadados
+        // O Trigger 'handle_new_user' no banco de dados irá ler estes metadados
+        // e criar o registro na tabela user_profiles automaticamente.
+        
+        // Monta os metadados (professionalName é opcional)
+        var metadata: [String: AnyJSON] = [
+            "full_name": AnyJSON.string(name),
+            "phone": AnyJSON.string(phone),
+            "trial_end_date": AnyJSON.string(trialEndDate)
+        ]
+        
+        // Adiciona professional_name apenas se foi preenchido
+        if let profName = professionalName, !profName.isEmpty {
+            metadata["professional_name"] = AnyJSON.string(profName)
+        }
+        
         let session = try await client.auth.signUp(
             email: email,
             password: password,
-            data: [
-                "full_name": AnyJSON.string(name),
-                "phone": AnyJSON.string(phone)
-            ]
+            data: metadata
         )
 
         self.currentSession = session.session
         self.currentUser = session.user
         self.isAuthenticated = session.session != nil
 
-        // 2. Criar perfil do usuário na tabela user_profiles
-        let userId = session.user.id
-        do {
-            let userProfile: [String: AnyJSON] = [
-                "id": AnyJSON.string(userId.uuidString),
-                "full_name": AnyJSON.string(name),
-                "phone": AnyJSON.string(phone),
-                "role": AnyJSON.string("owner"),
-                "is_active": AnyJSON.bool(true)
-            ]
+        // Aguardar um momento para o Trigger rodar e criar o perfil
+        try? await Task.sleep(nanoseconds: 2 * 1_000_000_000) // Aumentado para 2 segundos
+        
+        // Tentar carregar o perfil criado pelo Trigger
+        await loadUserProfile()
+        
+        // FALBACK: Se o trigger falhou ou demorou demais, criamos manualmente
+        if self.userProfile == nil {
+            AppLogger.log("⚠️ Aviso: Trigger demorou ou falhou. Criando perfil manualmente via App...", category: .auth)
+            
+            let userId = session.user.id
+            
+            // display_name: usa professional_name se existir, senão usa full_name
+            let displayName = (professionalName != nil && !professionalName!.isEmpty) ? professionalName! : name
+            
+            do {
+                var userProfile: [String: AnyJSON] = [
+                    "id": AnyJSON.string(userId.uuidString),
+                    "full_name": AnyJSON.string(name),
+                    "display_name": AnyJSON.string(displayName),
+                    "email": AnyJSON.string(email),
+                    "phone": AnyJSON.string(phone),
+                    "role": AnyJSON.string("owner"),
+                    "clinic_id": AnyJSON.string(userId.uuidString),
+                    "is_active": AnyJSON.bool(true)
+                ]
+                
+                // Adiciona professional_name apenas se foi preenchido
+                if let profName = professionalName, !profName.isEmpty {
+                    userProfile["professional_name"] = AnyJSON.string(profName)
+                }
 
-            try await client
-                .from("user_profiles")
-                .insert(userProfile)
-                .execute()
+                try await client
+                    .from("user_profiles")
+                    .insert(userProfile)
+                    .execute()
 
-            // Carregar o perfil criado
-            await loadUserProfile()
-        } catch {
-            print("Erro ao criar perfil do usuário: \(error)")
-            // Não falhar o signup se houver erro ao criar perfil
-            // O perfil pode ser criado posteriormente
+                // Tentar carregar novamente
+                await loadUserProfile()
+                AppLogger.log("✅ Perfil criado manualmente com sucesso!", category: .auth)
+            } catch {
+                AppLogger.error("❌ Erro fatal ao criar perfil (Fallback): \(error)")
+                // Se falhar o fallback, aí sim deslogamos
+                try? await client.auth.signOut()
+                self.currentSession = nil
+                self.currentUser = nil
+                self.isAuthenticated = false
+                throw error
+            }
         }
     }
 
@@ -150,7 +189,7 @@ class SupabaseManager: ObservableObject {
             await loadUserProfile()
         } catch {
             self.isAuthenticated = false
-            print("Nenhuma sessão ativa: \(error.localizedDescription)")
+            AppLogger.log("Nenhuma sessão ativa: \(error.localizedDescription)", category: .auth)
         }
     }
 
@@ -174,7 +213,7 @@ class SupabaseManager: ObservableObject {
 
             self.userProfile = profile
         } catch {
-            print("Erro ao carregar perfil: \(error)")
+            AppLogger.error("Erro ao carregar perfil: \(error)")
         }
     }
 

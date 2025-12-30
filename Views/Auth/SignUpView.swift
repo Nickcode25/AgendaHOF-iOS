@@ -52,9 +52,6 @@ struct SignUpView: View {
                 }
             }
             .onAppear {
-#if DEBUG
-                print("SignUpView onAppear from:", #file)
-#endif
                 withAnimation(.easeOut(duration: 0.6)) {
                     isAppearing = true
                 }
@@ -140,18 +137,15 @@ struct SignUpView: View {
                     )
             }
 
-            // Campo Email
+            // Campo Nome Profissional (Opcional)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Email *")
+                Text("Nome Profissional")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)
 
-                TextField("seu@email.com", text: $viewModel.email)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
+                TextField("Ex: Dra. Mariana Vargas", text: $viewModel.professionalName)
+                    .textInputAutocapitalization(.words)
                     .foregroundStyle(.primary)
                     .tint(Color(hex: "ff6b00"))
                     .padding(.horizontal, 16)
@@ -164,6 +158,88 @@ struct SignUpView: View {
                                     .stroke(Color(.systemGray4), lineWidth: 1)
                             )
                     )
+                
+                // Dica explicativa
+                Text("Opcional - Como você deseja ser identificado(a) no sistema")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+            }
+
+            // Campo Email
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Email *")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+
+                TextField("Seu melhor email", text: $viewModel.email)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .foregroundStyle(.primary)
+                    .tint(Color(hex: "ff6b00"))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(emailBorderColor, lineWidth: 1)
+                            )
+                    )
+                
+                // Feedback visual para email
+                if !viewModel.email.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: isEmailValid ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(isEmailValid ? .green : .red)
+                        Text(isEmailValid ? "Email válido" : "Email inválido")
+                            .font(.caption2)
+                            .foregroundStyle(isEmailValid ? .green : .red)
+                    }
+                    .padding(.leading, 4)
+                }
+            }
+            
+            // Campo Confirmar Email
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Confirme seu Email *")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+
+                TextField("Digite o email novamente", text: $viewModel.confirmEmail)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .foregroundStyle(.primary)
+                    .tint(Color(hex: "ff6b00"))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(confirmEmailBorderColor, lineWidth: 1)
+                            )
+                    )
+                
+                // Feedback visual para confirmar email
+                if !viewModel.confirmEmail.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: emailsMatch ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(emailsMatch ? .green : .red)
+                        Text(emailsMatch ? "Emails coincidem" : "Emails não coincidem")
+                            .font(.caption2)
+                            .foregroundStyle(emailsMatch ? .green : .red)
+                    }
+                    .padding(.leading, 4)
+                }
             }
 
             // Campo Telefone
@@ -185,12 +261,25 @@ struct SignUpView: View {
                             .fill(Color(.systemBackground))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color(.systemGray4), lineWidth: 1)
+                                    .stroke(phoneBorderColor, lineWidth: 1)
                             )
                     )
                     .onChange(of: viewModel.phone) { _, newValue in
                         viewModel.phone = formatPhoneBrazil(newValue)
                     }
+                
+                // Feedback visual para telefone
+                if !viewModel.phone.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: isPhoneValid ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(isPhoneValid ? .green : .red)
+                        Text(isPhoneValid ? "Telefone válido" : "Digite telefone com DDD")
+                            .font(.caption2)
+                            .foregroundStyle(isPhoneValid ? .green : .red)
+                    }
+                    .padding(.leading, 4)
+                }
             }
 
             // Campo Senha
@@ -396,13 +485,52 @@ struct SignUpView: View {
 
     private var isFormValid: Bool {
         !viewModel.name.isEmpty &&
-        !viewModel.email.isEmpty &&
-        !viewModel.phone.isEmpty &&
+        isEmailValid &&
+        emailsMatch &&
+        isPhoneValid &&
         !viewModel.password.isEmpty &&
         !viewModel.confirmPassword.isEmpty &&
-        viewModel.password == viewModel.confirmPassword &&
+        passwordsMatch &&
         viewModel.password.count >= 8 &&
         acceptedTerms
+    }
+    
+    // Validações em tempo real para Email
+    private var isEmailValid: Bool {
+        !viewModel.email.isEmpty && viewModel.email.isValidEmail
+    }
+    
+    private var emailsMatch: Bool {
+        !viewModel.email.isEmpty && !viewModel.confirmEmail.isEmpty && 
+        viewModel.email.lowercased().trimmingCharacters(in: .whitespaces) == 
+        viewModel.confirmEmail.lowercased().trimmingCharacters(in: .whitespaces)
+    }
+    
+    private var isPhoneValid: Bool {
+        let cleanPhone = viewModel.phone.filter { $0.isNumber }
+        return cleanPhone.count >= 10 && cleanPhone.count <= 11
+    }
+    
+    // Cores de borda dinâmicas
+    private var emailBorderColor: Color {
+        if viewModel.email.isEmpty {
+            return Color(.systemGray4)
+        }
+        return isEmailValid ? .green : .red
+    }
+    
+    private var confirmEmailBorderColor: Color {
+        if viewModel.confirmEmail.isEmpty {
+            return Color(.systemGray4)
+        }
+        return emailsMatch ? .green : .red
+    }
+    
+    private var phoneBorderColor: Color {
+        if viewModel.phone.isEmpty {
+            return Color(.systemGray4)
+        }
+        return isPhoneValid ? .green : .red
     }
 
     // Validações de senha em tempo real

@@ -141,7 +141,20 @@ class NotificationManager: ObservableObject {
             let identifier = "\(NotificationID.dailySummary)_\(date.formatted(.iso8601.year().month().day()))"
             let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
             
-            addRequest(request, description: "Resumo diário para \(date.formatted(.dateTime.day().month()))")
+        addRequest(request, description: "Resumo diário para \(date.formatted(.dateTime.day().month()))")
+        }
+    }
+
+    /// Reagendar resumo diário para garantir dados atualizados
+    func refreshDailySummary() async {
+        guard isAuthorized else { return }
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: "daily_summary_enabled") {
+            let hour = defaults.integer(forKey: "daily_summary_hour")
+            let minute = defaults.integer(forKey: "daily_summary_minute")
+            
+            AppLogger.log("🔄 [Notification] Atualizando resumo diário com dados recentes...", category: .notification)
+            await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
         }
     }
     
@@ -333,9 +346,7 @@ class NotificationManager: ObservableObject {
         // Na verdade, ao reagendar, já limpamos. Mas para "reset" geral pode ser útil.
         // O método scheduleAllNotifications já chama este primeiro.
         center.removeAllPendingNotificationRequests()
-        #if DEBUG
-        print("🗑 Todas as notificações canceladas")
-        #endif
+        // #if DEBUG block removed for cleanup
     }
     
     // MARK: - Data Fetching (Consolidated)
@@ -392,9 +403,7 @@ class NotificationManager: ObservableObject {
         Task {
             do {
                 try await center.add(request)
-                #if DEBUG
-                print("✅ Agendado: \(description)")
-                #endif
+                // #if DEBUG block removed for cleanup
             } catch {
                 print("❌ Erro ao agendar (\(description)): \(error)")
             }

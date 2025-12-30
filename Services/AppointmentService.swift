@@ -138,9 +138,7 @@ class AppointmentService: ObservableObject {
     // MARK: - Create
 
     func createAppointment(_ appointment: Appointment.Insert) async throws -> Appointment {
-        #if DEBUG
-        print("🆕 [Create Appointment] Creating with status: \(appointment.status.rawValue)")
-        #endif
+        // #if DEBUG block removed for cleanup
 
         let result: Appointment = try await supabase.client
             .from("appointments")
@@ -150,9 +148,10 @@ class AppointmentService: ObservableObject {
             .execute()
             .value
 
-        #if DEBUG
-        print("✅ [Create Appointment] Created with ID: \(result.id), status from DB: \(result.status.rawValue)")
-        #endif
+        // #if DEBUG block removed for cleanup
+
+        // 🔔 Atualizar notificações
+        Task { await NotificationManager.shared.refreshDailySummary() }
 
         return result
     }
@@ -165,6 +164,9 @@ class AppointmentService: ObservableObject {
             .update(updates)
             .eq("id", value: id)
             .execute()
+            
+        // 🔔 Atualizar notificações
+        Task { await NotificationManager.shared.refreshDailySummary() }
     }
 
     // MARK: - Update Status
@@ -187,6 +189,9 @@ class AppointmentService: ObservableObject {
             .delete()
             .eq("id", value: id)
             .execute()
+            
+        // 🔔 Atualizar notificações
+        Task { await NotificationManager.shared.refreshDailySummary() }
     }
 
     // MARK: - Fetch by Patient

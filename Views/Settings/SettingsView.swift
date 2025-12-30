@@ -73,6 +73,7 @@ struct SettingsView: View {
                 }
 
                 // Relatório Financeiro (apenas owner)
+                // Relatório Financeiro (apenas owner)
                 if supabase.isOwner {
                     SettingsRow(
                         icon: "chart.bar.fill",

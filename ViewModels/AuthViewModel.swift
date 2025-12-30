@@ -6,9 +6,11 @@ class AuthViewModel: ObservableObject {
     // MARK: - Published Properties
 
     @Published var email = ""
+    @Published var confirmEmail = "" // Novo campo
     @Published var password = ""
     @Published var confirmPassword = ""
     @Published var name = ""
+    @Published var professionalName = "" // Nome Profissional (opcional)
     @Published var phone = ""
     @Published var rememberMe = false
     @Published var showPassword = false
@@ -81,28 +83,41 @@ class AuthViewModel: ObservableObject {
     // MARK: - Sign Up
 
     func signUp() async {
-        // Validação
+        // 1. Sanitização
+        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleanConfirmEmail = confirmEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleanPhone = phone.replacingOccurrences(of: "\\D", with: "", options: .regularExpression)
+        
+        // 2. Validação
         guard !name.isEmpty else {
             showError(message: "Digite seu nome completo")
             return
         }
 
-        guard !email.isEmpty else {
+        // professionalName é opcional - não precisa de validação obrigatória
+
+        guard !cleanEmail.isEmpty else {
             showError(message: "Digite seu email")
             return
         }
 
-        guard email.isValidEmail else {
+        guard cleanEmail.isValidEmail else {
             showError(message: "Digite um email válido")
             return
         }
+        
+        guard cleanEmail == cleanConfirmEmail else {
+            showError(message: "Os emails não coincidem")
+            return
+        }
 
-        guard !phone.isEmpty else {
+        guard !cleanPhone.isEmpty else {
             showError(message: "Digite seu telefone")
             return
         }
 
-        guard phone.isValidPhone else {
+        // Validação básica de telefone (10 ou 11 dígitos para BR)
+        guard cleanPhone.count >= 10 && cleanPhone.count <= 11 else {
             showError(message: "Digite um telefone válido com DDD")
             return
         }
@@ -124,9 +139,22 @@ class AuthViewModel: ObservableObject {
 
         isLoading = true
         errorMessage = nil
+        
+        // 3. Enriquecimento (Trial Date)
+        // Data atual + 7 dias
+        let trialEndDate = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+        let trialEndDateString = ISO8601DateFormatter().string(from: trialEndDate)
 
         do {
-            try await supabase.signUp(email: email, password: password, name: name, phone: phone)
+            // Passamos os dados sanitizados e enriquecidos
+            try await supabase.signUp(
+                email: cleanEmail, 
+                password: password, 
+                name: name, 
+                professionalName: professionalName.isEmpty ? nil : professionalName, // Opcional
+                phone: cleanPhone, // Telefone limpo (apenas números)
+                trialEndDate: trialEndDateString
+            )
             showSuccess(message: "Conta criada! Verifique seu email para confirmar.")
         } catch {
             showError(message: error.authErrorMessage)
@@ -215,9 +243,11 @@ class AuthViewModel: ObservableObject {
 
     func clearForm() {
         email = ""
+        confirmEmail = ""
         password = ""
         confirmPassword = ""
         name = ""
+        professionalName = ""
         phone = ""
         errorMessage = nil
         showError = false
