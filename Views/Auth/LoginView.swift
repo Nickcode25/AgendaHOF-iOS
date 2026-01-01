@@ -6,40 +6,214 @@ struct LoginView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var showForgotPassword = false
     @State private var showSignUp = false
-    @State private var showPassword = false
-
+    @State private var isPasswordVisible = false // Renamed from showPassword to match snippet variable name preference
+    
     // Animação de entrada
     @State private var isAppearing = false
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Espaçamento topo adaptativo
-                    Spacer()
-                        .frame(height: max(geometry.size.height * 0.1, 40))
-
-                    // Conteúdo principal
-                    VStack(spacing: 40) {
-                        // Header: Branding minimalista
-                        brandingSection
-
-                        // Formulário
-                        formSection
-
-                        // Footer: Criar conta
-                        footerSection
+        ZStack {
+            // Gradiente Midnight Fire
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.04, green: 0.04, blue: 0.04),
+                    Color(red: 0.12, green: 0.07, blue: 0.03),
+                    Color(red: 0.98, green: 0.45, blue: 0.09)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer() // Push content to center
+                        
+                        // Conteúdo centralizado
+                        VStack(spacing: 0) {
+                            // Logo e título
+                            VStack(spacing: 20) {
+                                // Logo Original
+                                AsyncImage(url: URL(string: "https://AgendaHOF.b-cdn.net/logo-light.png")) { phase in
+                                    if let image = phase.image {
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                    } else if phase.error != nil {
+                                        Image(systemName: "stethoscope")
+                                            .font(.system(size: 60, weight: .light))
+                                            .foregroundStyle(.white)
+                                    } else {
+                                        ProgressView()
+                                            .tint(.white)
+                                    }
+                                }
+                                .frame(height: 120)
+                                
+                                VStack(spacing: 8) {
+                                    Text("A sua clínica a um toque de distância.")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.7))
+                                }
+                            }
+                            .padding(.bottom, 50)
+                            .opacity(isAppearing ? 1 : 0)
+                            .offset(y: isAppearing ? 0 : -20)
+                            
+                            // Card de Login
+                            VStack(spacing: 24) {
+                                // Campo Email
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Email")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.9))
+                                    
+                                    HStack {
+                                        Image(systemName: "envelope.fill")
+                                            .foregroundColor(.orange.opacity(0.7))
+                                            .frame(width: 20)
+                                        
+                                        TextField("Digite seu email", text: $viewModel.email)
+                                            .foregroundColor(.white)
+                                            .keyboardType(.emailAddress)
+                                            .autocapitalization(.none)
+                                            .tint(.orange) // Ensure tint/cursor is orange not blue
+                                    }
+                                    .padding()
+                                    .background(Color.white.opacity(0.1))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    )
+                                }
+                                
+                                // Campo Senha
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Senha")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.white.opacity(0.9))
+                                        
+                                        Spacer()
+                                        
+                                        Button(action: {
+                                            showForgotPassword = true
+                                        }) {
+                                            Text("Esqueceu?")
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundColor(.orange)
+                                        }
+                                    }
+                                    
+                                    HStack {
+                                        Image(systemName: "lock.fill")
+                                            .foregroundColor(.orange.opacity(0.7))
+                                            .frame(width: 20)
+                                        
+                                        if isPasswordVisible {
+                                            TextField("Digite sua senha", text: $viewModel.password)
+                                                .foregroundColor(.white)
+                                        } else {
+                                            SecureField("Digite sua senha", text: $viewModel.password)
+                                                .foregroundColor(.white)
+                                        }
+                                        
+                                        Button(action: {
+                                            isPasswordVisible.toggle()
+                                        }) {
+                                            Image(systemName: isPasswordVisible ? "eye.fill" : "eye.slash.fill")
+                                                .foregroundColor(.white.opacity(0.5))
+                                        }
+                                    }
+                                    .padding()
+                                    .background(Color.white.opacity(0.1))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    )
+                                }
+                                
+                                // Botão Entrar
+                                Button(action: {
+                                    Task { await viewModel.signIn() }
+                                }) {
+                                    HStack(spacing: 10) {
+                                        if viewModel.isLoading {
+                                            ProgressView()
+                                                .tint(.black)
+                                        } else {
+                                            Text("Entrar")
+                                                .font(.system(size: 17, weight: .semibold))
+                                        }
+                                    }
+                                    .foregroundColor(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.orange,
+                                                Color(red: 1.0, green: 0.6, blue: 0.2)
+                                            ]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .cornerRadius(12)
+                                    .shadow(color: Color.orange.opacity(0.4), radius: 10, y: 5)
+                                }
+                                .padding(.top, 8)
+                                .disabled(viewModel.isLoading)
+                                
+                                // Divisor
+                                HStack {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.2))
+                                        .frame(height: 1)
+                                    
+                                    Text("ou")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.white.opacity(0.6))
+                                        .padding(.horizontal, 12)
+                                    
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.2))
+                                        .frame(height: 1)
+                                }
+                                
+                                // Criar conta
+                                HStack(spacing: 4) {
+                                    Text("Não tem uma conta?")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.7))
+                                    
+                                    Button(action: {
+                                        showSignUp = true
+                                    }) {
+                                        Text("Criar conta")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.orange)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 32)
+                            .opacity(isAppearing ? 1 : 0)
+                            .offset(y: isAppearing ? 0 : 20)
+                        }
+                        
+                        Spacer() // Push content to center
                     }
-                    .padding(.horizontal, 24)
-
-                    Spacer()
-                        .frame(height: 40)
+                    .frame(minHeight: geometry.size.height)
+                    .padding(.vertical, 20)
                 }
-                .frame(minHeight: geometry.size.height)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
-        .background(Color(.systemBackground))
+        .navigationBarHidden(true)
+        .preferredColorScheme(.dark)
         .onAppear {
             withAnimation(.easeOut(duration: 0.6)) {
                 isAppearing = true
@@ -56,187 +230,6 @@ struct LoginView: View {
         .sheet(isPresented: $showSignUp) {
             SignUpView()
         }
-    }
-
-    // MARK: - Branding Section
-
-    private var brandingSection: some View {
-        VStack(spacing: 12) {
-            // Logo (adapta ao modo claro/escuro)
-            let logoURL = colorScheme == .dark
-                ? "https://AgendaHOF.b-cdn.net/logo-light.png"
-                : "https://AgendaHOF.b-cdn.net/logo-dark.png"
-
-            AsyncImage(url: URL(string: logoURL)) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else if phase.error != nil {
-                    Image(systemName: "stethoscope")
-                        .font(.system(size: 48, weight: .light))
-                        .foregroundStyle(.primary.opacity(0.3))
-                } else {
-                    ProgressView()
-                }
-            }
-            .frame(height: 80)
-
-            // Tagline
-            Text("A sua clínica a um toque de distância.")
-                .font(.system(size: 15, weight: .regular))
-                .foregroundStyle(.secondary.opacity(0.8))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-        }
-        .opacity(isAppearing ? 1 : 0)
-        .offset(y: isAppearing ? 0 : -10)
-        .animation(.easeOut(duration: 0.5), value: isAppearing)
-    }
-
-    // MARK: - Form Section
-
-    private var formSection: some View {
-        VStack(spacing: 16) {
-            // Campo Email
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Email")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                TextField("seu@email.com", text: $viewModel.email)
-                    .textContentType(.username)
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .foregroundStyle(.primary)
-                    .tint(Color(hex: "ff6b00"))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemBackground))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color(.systemGray4), lineWidth: 1)
-                            )
-                    )
-            }
-
-            // Campo Senha
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 0) {
-                    Text("Senha")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Button {
-                        showForgotPassword = true
-                    } label: {
-                        Text("Esqueceu?")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                HStack(spacing: 12) {
-                    if showPassword {
-                        TextField("Digite sua senha", text: $viewModel.password)
-                            .textContentType(.password)
-                            .foregroundStyle(.primary)
-                            .tint(Color(hex: "ff6b00"))
-                    } else {
-                        SecureField("Digite sua senha", text: $viewModel.password)
-                            .textContentType(.password)
-                            .foregroundStyle(.primary)
-                            .tint(Color(hex: "ff6b00"))
-                    }
-
-                    Button {
-                        showPassword.toggle()
-                    } label: {
-                        Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
-                            .font(.system(size: 15, weight: .regular))
-                            .foregroundStyle(.quaternary)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 15)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemBackground))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color(.systemGray4), lineWidth: 1)
-                        )
-                )
-            }
-
-            // Botão Entrar
-            Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                Task {
-                    await viewModel.signIn()
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(0.9)
-                    } else {
-                        Text("Entrar")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .foregroundColor(.white)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.black)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                )
-            }
-            .disabled(!isFormValid || viewModel.isLoading)
-            .opacity(isFormValid ? 1 : 0.5)
-            .animation(.easeInOut(duration: 0.2), value: isFormValid)
-            .padding(.top, 8)
-        }
-        .opacity(isAppearing ? 1 : 0)
-        .offset(y: isAppearing ? 0 : 10)
-        .animation(.easeOut(duration: 0.5).delay(0.1), value: isAppearing)
-    }
-
-    // MARK: - Footer Section
-
-    private var footerSection: some View {
-        Button {
-            showSignUp = true
-        } label: {
-            HStack(spacing: 4) {
-                Text("Não tem uma conta?")
-                    .foregroundStyle(.secondary)
-
-                Text("Criar conta")
-                    .foregroundStyle(.primary)
-                    .fontWeight(.medium)
-            }
-            .font(.system(size: 15))
-        }
-        .opacity(isAppearing ? 1 : 0)
-        .animation(.easeOut(duration: 0.5).delay(0.15), value: isAppearing)
-    }
-
-    // MARK: - Helpers
-
-    private var isFormValid: Bool {
-        !viewModel.email.isEmpty && !viewModel.password.isEmpty
     }
 }
 

@@ -129,6 +129,10 @@ struct ContentView: View {
                 defaults.set(0, forKey: "daily_summary_minute")
                 defaults.set(true, forKey: "weekly_summary_enabled")
                 defaults.set(true, forKey: "birthday_notifications_enabled")
+                
+                // Ativar lembretes de agendamento por padrão
+                defaults.set(true, forKey: "appointment_reminder_enabled")
+                defaults.set(30, forKey: "appointment_reminder_minutes") // Padrão 30 min antes
             }
             await NotificationManager.shared.scheduleAllNotifications()
         }
