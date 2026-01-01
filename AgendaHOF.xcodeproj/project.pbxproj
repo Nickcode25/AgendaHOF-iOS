@@ -12,15 +12,15 @@
 		0AF1927D88516256A32BF735 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408951620414BC917FCC70C9 /* ContactPicker.swift */; };
 		0B72FB840A11EFEB0DAC1EDF /* SubscriptionLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5249256A227EB7355A52EB /* SubscriptionLogicTests.swift */; };
 		0E93BE27539569EED1341ABB /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E914C292260F8359C5889DB /* Color+Extensions.swift */; };
-		0EEC875D1370AB992DD6EE83 /* FinancialReportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177358FDC21A1522A4507225 /* FinancialReportViewModelTests.swift */; };
+		0EEC875D1370AB992DD6EE83 /* Tests/ViewModels/FinancialReportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177358FDC21A1522A4507225 /* Tests/ViewModels/FinancialReportViewModelTests.swift */; };
 		0FA956CC549F19F6523D8B16 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */; };
 		107A6B70222A3D1BE553052F /* WeekAgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E031139A6648AB3E4A78588 /* WeekAgendaView.swift */; };
-		10D5BD4613DFAE49D44FF09A /* ResetPasswordViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4976895632993F9F81CAF2E2 /* ResetPasswordViewModelTests.swift */; };
+		10D5BD4613DFAE49D44FF09A /* Tests/ViewModels/ResetPasswordViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4976895632993F9F81CAF2E2 /* Tests/ViewModels/ResetPasswordViewModelTests.swift */; };
 		12082EF6F3812CB4E5F50C04 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5037D63E0DB017064738F342 /* MainTabView.swift */; };
 		1B0CFA65642C1546F6587BF1 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 568453A06CE6B1943AB1E675 /* Constants.swift */; };
 		1C6F58A722AC3CEE4EB69BEF /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9332644D3BF9E303DFC2078A /* KeychainManager.swift */; };
 		2055D1CCCE49F467FD89E5DA /* OverlapLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */; };
-		2612B13EC8A663375BD51A7C /* SubscriptionLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB0311DFC71B10247FC76A5 /* SubscriptionLogic.swift */; };
+		2612B13EC8A663375BD51A7C /* Core/Logic/SubscriptionLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB0311DFC71B10247FC76A5 /* Core/Logic/SubscriptionLogic.swift */; };
 		29395804B6E90539A7716659 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54061472237F6D9424DD0542 /* ToastView.swift */; };
 		303A15293BDBCDCAEF40C95C /* PatientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7406443AB8C320235B1C62E /* PatientDetailView.swift */; };
 		32E156FA3190480EB6E13A8E /* InactivePatient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9B51CC8C2D43E0A3E4080D /* InactivePatient.swift */; };
@@ -32,27 +32,27 @@
 		461DE4C22EFB85B40067E5D9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 461DE4C12EFB85B30067E5D9 /* WidgetKit.framework */; };
 		461DE4C42EFB85B40067E5D9 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 461DE4C32EFB85B40067E5D9 /* SwiftUI.framework */; };
 		461DE4CF2EFB85B90067E5D9 /* AgendaWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 461DE4BF2EFB85B30067E5D9 /* AgendaWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		461DE4F22EFB8C640067E5D9 /* LargeWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4EF2EFB8C640067E5D9 /* LargeWidgetView.swift */; };
-		461DE4F32EFB8C640067E5D9 /* MediumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4F02EFB8C640067E5D9 /* MediumWidgetView.swift */; };
-		461DE4F42EFB8C640067E5D9 /* SmallWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4F12EFB8C640067E5D9 /* SmallWidgetView.swift */; };
-		461DE4F52EFB8C640067E5D9 /* AgendaWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4EE2EFB8C640067E5D9 /* AgendaWidgetProvider.swift */; };
-		461DE4F62EFB8C640067E5D9 /* AgendaWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4ED2EFB8C640067E5D9 /* AgendaWidget.swift */; };
-		461DE4FC2EFB91370067E5D9 /* WidgetAppointment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4FA2EFB91370067E5D9 /* WidgetAppointment.swift */; };
-		461DE4FD2EFB91370067E5D9 /* WidgetAppointment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4FA2EFB91370067E5D9 /* WidgetAppointment.swift */; };
+		461DE4F22EFB8C640067E5D9 /* AgendaWidget/LargeWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4EF2EFB8C640067E5D9 /* AgendaWidget/LargeWidgetView.swift */; };
+		461DE4F32EFB8C640067E5D9 /* AgendaWidget/MediumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4F02EFB8C640067E5D9 /* AgendaWidget/MediumWidgetView.swift */; };
+		461DE4F42EFB8C640067E5D9 /* AgendaWidget/SmallWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4F12EFB8C640067E5D9 /* AgendaWidget/SmallWidgetView.swift */; };
+		461DE4F52EFB8C640067E5D9 /* AgendaWidget/AgendaWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4EE2EFB8C640067E5D9 /* AgendaWidget/AgendaWidgetProvider.swift */; };
+		461DE4F62EFB8C640067E5D9 /* AgendaWidget/AgendaWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4ED2EFB8C640067E5D9 /* AgendaWidget/AgendaWidget.swift */; };
+		461DE4FC2EFB91370067E5D9 /* Shared/WidgetAppointment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4FA2EFB91370067E5D9 /* Shared/WidgetAppointment.swift */; };
+		461DE4FD2EFB91370067E5D9 /* Shared/WidgetAppointment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4FA2EFB91370067E5D9 /* Shared/WidgetAppointment.swift */; };
 		461DE4FF2EFB93F80067E5D9 /* Appointment+Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461DE4FE2EFB93F80067E5D9 /* Appointment+Widget.swift */; };
 		464D67D72EFC638E00BC932A /* WidgetDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464D67D62EFC638E00BC932A /* WidgetDataManager.swift */; };
 		46F449B92EF9ADFF004E29FC /* PasswordStrengthIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449B72EF9ADFF004E29FC /* PasswordStrengthIndicator.swift */; };
 		46F449BA2EF9ADFF004E29FC /* ResetPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449B82EF9ADFF004E29FC /* ResetPasswordView.swift */; };
 		46F449BD2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */; };
 		46F449BE2EF9AE2E004E29FC /* ResetPasswordViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */; };
-		47F61CC81741986876F5D668 /* InactivePatientsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB146C06FD006579FEFFD772 /* InactivePatientsViewModelTests.swift */; };
+		47F61CC81741986876F5D668 /* Tests/ViewModels/InactivePatientsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB146C06FD006579FEFFD772 /* Tests/ViewModels/InactivePatientsViewModelTests.swift */; };
 		49DA72E56FDFEECC6C97276C /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3B06252E1D7DE86BB4C459 /* SubscriptionManager.swift */; };
-		4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = TEMP_C336612F-F832-4058-8D26-0617954A1D7A /* AgendaHofApp.swift */; };
+		4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = "TEMP_C336612F-F832-4058-8D26-0617954A1D7A" /* AgendaHofApp.swift */; };
 		4F5D0E913C1EDB35FE49F44A /* Preview Content in Resources */ = {isa = PBXBuildFile; fileRef = 76D5B2BF913EBCB78104AF6F /* Preview Content */; };
 		4F8D1A8BA4126DE3BEF469C1 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F2EAD7F123902D0DE3295E /* LoginView.swift */; };
 		5052B4BD009E1C85CF156A1E /* FinancialReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35DF113DD693A03116E3FE0 /* FinancialReportView.swift */; };
-		5791F49E98B067BBCEF1C1AA /* MockSupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8B5A6DC0ABC3D156133F9C4 /* MockSupabaseManager.swift */; };
-		62A3754916EDFD7F1DC333A9 /* AuthViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B6CB7C392E0E63ECE28E21 /* AuthViewModelTests.swift */; };
+		5791F49E98B067BBCEF1C1AA /* Tests/Mocks/MockSupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8B5A6DC0ABC3D156133F9C4 /* Tests/Mocks/MockSupabaseManager.swift */; };
+		62A3754916EDFD7F1DC333A9 /* Tests/ViewModels/AuthViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B6CB7C392E0E63ECE28E21 /* Tests/ViewModels/AuthViewModelTests.swift */; };
 		6336057BC0596F3C49C36457 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = F7350B170287A696432256E7 /* Supabase */; };
 		6E5B26532AC48D60E080DBC4 /* Professional.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0002888366C41F016FED872 /* Professional.swift */; };
 		75126AC242B53D136DEA6B55 /* AppointmentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D9E437779D23BE28815BFB /* AppointmentService.swift */; };
@@ -91,7 +91,7 @@
 		E677FE4EFF44745E171E4F39 /* PatientsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DE7788A04ECF72A76DF52F /* PatientsListView.swift */; };
 		F180A3996C2B2D590DC8869C /* Appointment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1888739FF31F7D87DAD2178F /* Appointment.swift */; };
 		F2206DC6A7BBC77AE9EAE2A5 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0B0641E4E52A846742DCF9 /* SignUpView.swift */; };
-		F6B962CA08EB770F6D78E326 /* StringValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC64B03C4A751D29503616F /* StringValidationTests.swift */; };
+		F6B962CA08EB770F6D78E326 /* Tests/Extensions/StringValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC64B03C4A751D29503616F /* Tests/Extensions/StringValidationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -128,22 +128,22 @@
 /* Begin PBXFileReference section */
 		022282F2139043B887E3FE39 /* InactivePatientsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InactivePatientsView.swift; sourceTree = "<group>"; };
 		026AA8C980FB171DB10133FE /* PatientService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientService.swift; sourceTree = "<group>"; };
-		03D2307F225153924B3ADAB8 /* StringValidationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StringValidationTests.swift; path = StringValidationTests.swift; sourceTree = "<group>"; };
+		03D2307F225153924B3ADAB8 /* StringValidationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StringValidationTests.swift; sourceTree = "<group>"; };
 		03D9E437779D23BE28815BFB /* AppointmentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppointmentService.swift; sourceTree = "<group>"; };
 		0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Extensions.swift"; sourceTree = "<group>"; };
 		0F5249256A227EB7355A52EB /* SubscriptionLogicTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionLogicTests.swift; sourceTree = "<group>"; };
 		11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekRecurringBlockSegmentView.swift; sourceTree = "<group>"; };
 		127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		1490807C226955D433A2A184 /* SupportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupportView.swift; sourceTree = "<group>"; };
-		177358FDC21A1522A4507225 /* FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/ViewModels/FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
+		177358FDC21A1522A4507225 /* Tests/ViewModels/FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tests/ViewModels/FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
 		1888739FF31F7D87DAD2178F /* Appointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Appointment.swift; sourceTree = "<group>"; };
-		27E7F5ABE818869F37223CFA /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
+		27E7F5ABE818869F37223CFA /* Core/Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
 		29222B7A6730BCA4DFF1D87E /* WeekDayColumnView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekDayColumnView.swift; sourceTree = "<group>"; };
 		2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		2F3B06252E1D7DE86BB4C459 /* SubscriptionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		342A68FE597DAC780C42BEC5 /* DeepLinkManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkManager.swift; sourceTree = "<group>"; };
-		39E5BF262FBAEAC2BCCD0960 /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSupabaseManager.swift; path = MockSupabaseManager.swift; sourceTree = "<group>"; };
-		3A9578000F01CFD33A2E9583 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InactivePatientsViewModelTests.swift; path = InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
+		39E5BF262FBAEAC2BCCD0960 /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MockSupabaseManager.swift; sourceTree = "<group>"; };
+		3A9578000F01CFD33A2E9583 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
 		3BAEC53DCF046BB187ADD590 /* AgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaView.swift; sourceTree = "<group>"; };
 		3DE7668D92C2F35C312AC4FD /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		408951620414BC917FCC70C9 /* ContactPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPicker.swift; sourceTree = "<group>"; };
@@ -152,13 +152,13 @@
 		461DE4C12EFB85B30067E5D9 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		461DE4C32EFB85B40067E5D9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		461DE4D52EFB863A0067E5D9 /* AgendaWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AgendaWidgetExtension.entitlements; sourceTree = "<group>"; };
-		461DE4D82EFB88130067E5D9 /* WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WidgetAppointment.swift; sourceTree = SOURCE_ROOT; };
-		461DE4ED2EFB8C640067E5D9 /* AgendaWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/AgendaWidget.swift; sourceTree = "<group>"; };
-		461DE4EE2EFB8C640067E5D9 /* AgendaWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/AgendaWidgetProvider.swift; sourceTree = "<group>"; };
-		461DE4EF2EFB8C640067E5D9 /* LargeWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/LargeWidgetView.swift; sourceTree = "<group>"; };
-		461DE4F02EFB8C640067E5D9 /* MediumWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/MediumWidgetView.swift; sourceTree = "<group>"; };
-		461DE4F12EFB8C640067E5D9 /* SmallWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/SmallWidgetView.swift; sourceTree = "<group>"; };
-		461DE4FA2EFB91370067E5D9 /* WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WidgetAppointment.swift; sourceTree = SOURCE_ROOT; };
+		461DE4D82EFB88130067E5D9 /* Shared/WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WidgetAppointment.swift; sourceTree = SOURCE_ROOT; };
+		461DE4ED2EFB8C640067E5D9 /* AgendaWidget/AgendaWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/AgendaWidget.swift; sourceTree = "<group>"; };
+		461DE4EE2EFB8C640067E5D9 /* AgendaWidget/AgendaWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/AgendaWidgetProvider.swift; sourceTree = "<group>"; };
+		461DE4EF2EFB8C640067E5D9 /* AgendaWidget/LargeWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/LargeWidgetView.swift; sourceTree = "<group>"; };
+		461DE4F02EFB8C640067E5D9 /* AgendaWidget/MediumWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/MediumWidgetView.swift; sourceTree = "<group>"; };
+		461DE4F12EFB8C640067E5D9 /* AgendaWidget/SmallWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaWidget/SmallWidgetView.swift; sourceTree = "<group>"; };
+		461DE4FA2EFB91370067E5D9 /* Shared/WidgetAppointment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WidgetAppointment.swift; sourceTree = SOURCE_ROOT; };
 		461DE4FE2EFB93F80067E5D9 /* Appointment+Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Appointment+Widget.swift"; sourceTree = "<group>"; };
 		464D67D62EFC638E00BC932A /* WidgetDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataManager.swift; sourceTree = "<group>"; };
 		46A63A6A2EFEF001009895FE /* AgendaHOFTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgendaHOFTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -167,8 +167,8 @@
 		46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgotPasswordViewModel.swift; sourceTree = "<group>"; };
 		46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetPasswordViewModel.swift; sourceTree = "<group>"; };
 		4828B2478AE520E1B18A2DBC /* CalendarConstants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarConstants.swift; sourceTree = "<group>"; };
-		48416A8CB6499CA643EAB313 /* FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FinancialReportViewModelTests.swift; path = FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
-		4976895632993F9F81CAF2E2 /* ResetPasswordViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/ViewModels/ResetPasswordViewModelTests.swift; sourceTree = "<group>"; };
+		48416A8CB6499CA643EAB313 /* FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
+		4976895632993F9F81CAF2E2 /* Tests/ViewModels/ResetPasswordViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tests/ViewModels/ResetPasswordViewModelTests.swift; sourceTree = "<group>"; };
 		4B9B51CC8C2D43E0A3E4080D /* InactivePatient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InactivePatient.swift; sourceTree = "<group>"; };
 		4E031139A6648AB3E4A78588 /* WeekAgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekAgendaView.swift; sourceTree = "<group>"; };
 		4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionalService.swift; sourceTree = "<group>"; };
@@ -183,7 +183,7 @@
 		6517641A4BB66289277ACEA0 /* DayAgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayAgendaView.swift; sourceTree = "<group>"; };
 		6697A0C1C5AEDADB2A92428E /* Patient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patient.swift; sourceTree = "<group>"; };
 		6B1E52413D1F1269C7CC3A1D /* SubscriptionTypes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionTypes.swift; sourceTree = "<group>"; };
-		6CD88A37337109F45CC1D4C1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
+		6CD88A37337109F45CC1D4C1 /* Core/Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
 		717F8CA95030B36649EE075D /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSupabaseManager.swift; path = Tests/Mocks/MockSupabaseManager.swift; sourceTree = "<group>"; };
 		72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPagingContainer.swift; sourceTree = "<group>"; };
 		73DC13BE1A07029C8F512DB5 /* NewAppointmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewAppointmentView.swift; sourceTree = "<group>"; };
@@ -203,46 +203,36 @@
 		BA59325939B49A80E6C8E386 /* WeekDayHeaderCell.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekDayHeaderCell.swift; sourceTree = "<group>"; };
 		BE4A031A64795E8B7A254ED6 /* Constants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Constants.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
 		BFC09AC53EA56DBFFF534B38 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
-		C9A12663366ED99CA3E7168A /* AuthViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthViewModelTests.swift; path = AuthViewModelTests.swift; sourceTree = "<group>"; };
+		C9A12663366ED99CA3E7168A /* AuthViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuthViewModelTests.swift; sourceTree = "<group>"; };
 		CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaViewModel.swift; sourceTree = "<group>"; };
 		CD0A1A2FBF37D88D8AE79152 /* UserSubscription.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserSubscription.swift; sourceTree = "<group>"; };
 		CE779576690594C23259C5B5 /* CalendarDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayView.swift; sourceTree = "<group>"; };
-		CEB0311DFC71B10247FC76A5 /* SubscriptionLogic.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Logic/SubscriptionLogic.swift; sourceTree = SOURCE_ROOT; };
+		CEB0311DFC71B10247FC76A5 /* Core/Logic/SubscriptionLogic.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Logic/SubscriptionLogic.swift; sourceTree = SOURCE_ROOT; };
 		CF0B0641E4E52A846742DCF9 /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		D0C3888277E836B839C08367 /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
 		D464CFC0BD6BA50FBAE4474D /* ResetPasswordViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ResetPasswordViewModelTests.swift; path = Tests/ViewModels/ResetPasswordViewModelTests.swift; sourceTree = "<group>"; };
-		D8B5A6DC0ABC3D156133F9C4 /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/Mocks/MockSupabaseManager.swift; sourceTree = "<group>"; };
-		DB146C06FD006579FEFFD772 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/ViewModels/InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
+		D8B5A6DC0ABC3D156133F9C4 /* Tests/Mocks/MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tests/Mocks/MockSupabaseManager.swift; sourceTree = "<group>"; };
+		DB146C06FD006579FEFFD772 /* Tests/ViewModels/InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tests/ViewModels/InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
 		E0002888366C41F016FED872 /* Professional.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Professional.swift; sourceTree = "<group>"; };
 		E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRecurringBlockView.swift; sourceTree = "<group>"; };
-		E2B6CB7C392E0E63ECE28E21 /* AuthViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/ViewModels/AuthViewModelTests.swift; sourceTree = "<group>"; };
+		E2B6CB7C392E0E63ECE28E21 /* Tests/ViewModels/AuthViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tests/ViewModels/AuthViewModelTests.swift; sourceTree = "<group>"; };
 		E78DF2B4D2F78372F2CA2DBF /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		E83B22B8D455466EA6FC75F3 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InactivePatientsViewModelTests.swift; path = Tests/ViewModels/InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
 		EADB6B765F36408AAA954645 /* InactivePatientsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InactivePatientsViewModel.swift; sourceTree = "<group>"; };
 		EE98D42CD5D39012AAADBC2D /* AgendaHOF.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgendaHOF.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		F011CB501235B0E04D6BD02D /* ResetPasswordViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ResetPasswordViewModelTests.swift; path = ResetPasswordViewModelTests.swift; sourceTree = "<group>"; };
+		F011CB501235B0E04D6BD02D /* ResetPasswordViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResetPasswordViewModelTests.swift; sourceTree = "<group>"; };
 		F0EFD11C2D863D92345B11C5 /* AppLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		F8516784C7585E5246F8AF13 /* settings.local.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = settings.local.json; sourceTree = "<group>"; };
 		F865118D2BD455D5EA77BA9C /* RecurringBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringBlock.swift; sourceTree = "<group>"; };
 		F8F2EAD7F123902D0DE3295E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapLayoutEngine.swift; sourceTree = "<group>"; };
 		FF1B1D057F2F11AE1D01E7E4 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
-		FFC64B03C4A751D29503616F /* StringValidationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; path = Tests/Extensions/StringValidationTests.swift; sourceTree = "<group>"; };
-		TEMP_C336612F-F832-4058-8D26-0617954A1D7A /* AgendaHofApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaHofApp.swift; sourceTree = "<group>"; };
+		FFC64B03C4A751D29503616F /* Tests/Extensions/StringValidationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tests/Extensions/StringValidationTests.swift; sourceTree = "<group>"; };
+		"TEMP_C336612F-F832-4058-8D26-0617954A1D7A" /* AgendaHofApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaHofApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		46A63A6B2EFEF001009895FE /* AgendaHOFTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = AgendaHOFTests;
-			sourceTree = "<group>";
-		};
+		46A63A6B2EFEF001009895FE /* AgendaHOFTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AgendaHOFTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -287,7 +277,7 @@
 			isa = PBXGroup;
 			children = (
 				461DE4FB2EFB91370067E5D9 /* Shared */,
-				461DE4D82EFB88130067E5D9 /* WidgetAppointment.swift */,
+				461DE4D82EFB88130067E5D9 /* Shared/WidgetAppointment.swift */,
 				461DE4D52EFB863A0067E5D9 /* AgendaWidgetExtension.entitlements */,
 				461DE4BA2EFA10F80067E5D9 /* AgendaHOF.entitlements */,
 				B57D765B7F969D1CED05F391 /* .claude */,
@@ -305,18 +295,18 @@
 				461DE4C02EFB85B30067E5D9 /* Frameworks */,
 				07B29D44A103FACA5A6BF3D1 /* Products */,
 				46FBAE6C2EF7892400B61C41 /* Recovered References */,
-				461DE4ED2EFB8C640067E5D9 /* AgendaWidget.swift */,
-				461DE4EE2EFB8C640067E5D9 /* AgendaWidgetProvider.swift */,
-				461DE4EF2EFB8C640067E5D9 /* LargeWidgetView.swift */,
-				461DE4F02EFB8C640067E5D9 /* MediumWidgetView.swift */,
-				461DE4F12EFB8C640067E5D9 /* SmallWidgetView.swift */,
+				461DE4ED2EFB8C640067E5D9 /* AgendaWidget/AgendaWidget.swift */,
+				461DE4EE2EFB8C640067E5D9 /* AgendaWidget/AgendaWidgetProvider.swift */,
+				461DE4EF2EFB8C640067E5D9 /* AgendaWidget/LargeWidgetView.swift */,
+				461DE4F02EFB8C640067E5D9 /* AgendaWidget/MediumWidgetView.swift */,
+				461DE4F12EFB8C640067E5D9 /* AgendaWidget/SmallWidgetView.swift */,
 				B6A4EC1D4B17B9A4AAB743AF /* Tests */,
-				FFC64B03C4A751D29503616F /* StringValidationTests.swift */,
-				E2B6CB7C392E0E63ECE28E21 /* AuthViewModelTests.swift */,
-				177358FDC21A1522A4507225 /* FinancialReportViewModelTests.swift */,
-				DB146C06FD006579FEFFD772 /* InactivePatientsViewModelTests.swift */,
-				4976895632993F9F81CAF2E2 /* ResetPasswordViewModelTests.swift */,
-				D8B5A6DC0ABC3D156133F9C4 /* MockSupabaseManager.swift */,
+				FFC64B03C4A751D29503616F /* Tests/Extensions/StringValidationTests.swift */,
+				E2B6CB7C392E0E63ECE28E21 /* Tests/ViewModels/AuthViewModelTests.swift */,
+				177358FDC21A1522A4507225 /* Tests/ViewModels/FinancialReportViewModelTests.swift */,
+				DB146C06FD006579FEFFD772 /* Tests/ViewModels/InactivePatientsViewModelTests.swift */,
+				4976895632993F9F81CAF2E2 /* Tests/ViewModels/ResetPasswordViewModelTests.swift */,
+				D8B5A6DC0ABC3D156133F9C4 /* Tests/Mocks/MockSupabaseManager.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -374,7 +364,7 @@
 			isa = PBXGroup;
 			children = (
 				461DE4FE2EFB93F80067E5D9 /* Appointment+Widget.swift */,
-				461DE4FA2EFB91370067E5D9 /* WidgetAppointment.swift */,
+				461DE4FA2EFB91370067E5D9 /* Shared/WidgetAppointment.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -382,7 +372,7 @@
 		46FBAE6C2EF7892400B61C41 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				TEMP_C336612F-F832-4058-8D26-0617954A1D7A /* AgendaHofApp.swift */,
+				"TEMP_C336612F-F832-4058-8D26-0617954A1D7A" /* AgendaHofApp.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -413,7 +403,7 @@
 		6CDF55EC742AE16281287E63 /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
-				27E7F5ABE818869F37223CFA /* Constants.swift */,
+				27E7F5ABE818869F37223CFA /* Core/Constants.swift */,
 				CE779576690594C23259C5B5 /* CalendarDayView.swift */,
 				72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */,
 				59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */,
@@ -431,7 +421,7 @@
 		78811F8D4F9400C598DF9CB5 /* Logic */ = {
 			isa = PBXGroup;
 			children = (
-				CEB0311DFC71B10247FC76A5 /* SubscriptionLogic.swift */,
+				CEB0311DFC71B10247FC76A5 /* Core/Logic/SubscriptionLogic.swift */,
 			);
 			name = Logic;
 			sourceTree = "<group>";
@@ -539,7 +529,6 @@
 				B9A4AE4774692DBAB731A75D /* Mocks */,
 				CB44D3EC4B095EB91C4A2C2A /* Core */,
 			);
-			name = Tests;
 			path = Tests;
 			sourceTree = "<group>";
 		};
@@ -590,7 +579,7 @@
 		E40B80352BFC39CA505560D6 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
-				6CD88A37337109F45CC1D4C1 /* Constants.swift */,
+				6CD88A37337109F45CC1D4C1 /* Core/Constants.swift */,
 				F0EFD11C2D863D92345B11C5 /* AppLogger.swift */,
 			);
 			path = Utils;
@@ -768,12 +757,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				461DE4F22EFB8C640067E5D9 /* LargeWidgetView.swift in Sources */,
-				461DE4F32EFB8C640067E5D9 /* MediumWidgetView.swift in Sources */,
-				461DE4F42EFB8C640067E5D9 /* SmallWidgetView.swift in Sources */,
-				461DE4F52EFB8C640067E5D9 /* AgendaWidgetProvider.swift in Sources */,
-				461DE4FD2EFB91370067E5D9 /* WidgetAppointment.swift in Sources */,
-				461DE4F62EFB8C640067E5D9 /* AgendaWidget.swift in Sources */,
+				461DE4F22EFB8C640067E5D9 /* AgendaWidget/LargeWidgetView.swift in Sources */,
+				461DE4F32EFB8C640067E5D9 /* AgendaWidget/MediumWidgetView.swift in Sources */,
+				461DE4F42EFB8C640067E5D9 /* AgendaWidget/SmallWidgetView.swift in Sources */,
+				461DE4F52EFB8C640067E5D9 /* AgendaWidget/AgendaWidgetProvider.swift in Sources */,
+				461DE4FD2EFB91370067E5D9 /* Shared/WidgetAppointment.swift in Sources */,
+				461DE4F62EFB8C640067E5D9 /* AgendaWidget/AgendaWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -781,12 +770,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F6B962CA08EB770F6D78E326 /* StringValidationTests.swift in Sources */,
-				62A3754916EDFD7F1DC333A9 /* AuthViewModelTests.swift in Sources */,
-				0EEC875D1370AB992DD6EE83 /* FinancialReportViewModelTests.swift in Sources */,
-				47F61CC81741986876F5D668 /* InactivePatientsViewModelTests.swift in Sources */,
-				10D5BD4613DFAE49D44FF09A /* ResetPasswordViewModelTests.swift in Sources */,
-				5791F49E98B067BBCEF1C1AA /* MockSupabaseManager.swift in Sources */,
+				F6B962CA08EB770F6D78E326 /* Tests/Extensions/StringValidationTests.swift in Sources */,
+				62A3754916EDFD7F1DC333A9 /* Tests/ViewModels/AuthViewModelTests.swift in Sources */,
+				0EEC875D1370AB992DD6EE83 /* Tests/ViewModels/FinancialReportViewModelTests.swift in Sources */,
+				47F61CC81741986876F5D668 /* Tests/ViewModels/InactivePatientsViewModelTests.swift in Sources */,
+				10D5BD4613DFAE49D44FF09A /* Tests/ViewModels/ResetPasswordViewModelTests.swift in Sources */,
+				5791F49E98B067BBCEF1C1AA /* Tests/Mocks/MockSupabaseManager.swift in Sources */,
 				0B72FB840A11EFEB0DAC1EDF /* SubscriptionLogicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -838,7 +827,7 @@
 				F2206DC6A7BBC77AE9EAE2A5 /* SignUpView.swift in Sources */,
 				BB361370EAD56AFAA2F30D55 /* String+Extensions.swift in Sources */,
 				81254EF39B930733F018D114 /* SupabaseManager.swift in Sources */,
-				461DE4FC2EFB91370067E5D9 /* WidgetAppointment.swift in Sources */,
+				461DE4FC2EFB91370067E5D9 /* Shared/WidgetAppointment.swift in Sources */,
 				29395804B6E90539A7716659 /* ToastView.swift in Sources */,
 				46F449B92EF9ADFF004E29FC /* PasswordStrengthIndicator.swift in Sources */,
 				46F449BA2EF9ADFF004E29FC /* ResetPasswordView.swift in Sources */,
@@ -853,7 +842,7 @@
 				7910661548B0124711A4DB5C /* SubscriptionTypes.swift in Sources */,
 				8D666026C67F5DFEB33A8F28 /* UserSubscription.swift in Sources */,
 				49DA72E56FDFEECC6C97276C /* SubscriptionManager.swift in Sources */,
-				2612B13EC8A663375BD51A7C /* SubscriptionLogic.swift in Sources */,
+				2612B13EC8A663375BD51A7C /* Core/Logic/SubscriptionLogic.swift in Sources */,
 				D331AC44347DBFD146AD9FC2 /* CalendarConstants.swift in Sources */,
 				B0A3F9337888AE39C4283072 /* SupportView.swift in Sources */,
 				02D476C23B9DC498921106C9 /* WeekDayColumnView.swift in Sources */,
@@ -966,7 +955,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 5;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				INFOPLIST_FILE = Info.plist;
@@ -1150,7 +1139,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 5;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				ENABLE_TESTABILITY = YES;

@@ -145,16 +145,24 @@ class NotificationManager: ObservableObject {
         }
     }
 
-    /// Reagendar resumo diário para garantir dados atualizados
-    func refreshDailySummary() async {
+    /// Reagendar todas as notificações dinâmicas (Resumo + Lembretes) para garantir dados atualizados
+    func refreshNotifications() async {
         guard isAuthorized else { return }
         let defaults = UserDefaults.standard
+        
+        AppLogger.log("🔄 [Notification] Atualizando todas as notificações dinâmicas...", category: .notification)
+        
+        // 1. Atualizar Resumo Diário
         if defaults.bool(forKey: "daily_summary_enabled") {
             let hour = defaults.integer(forKey: "daily_summary_hour")
             let minute = defaults.integer(forKey: "daily_summary_minute")
-            
-            AppLogger.log("🔄 [Notification] Atualizando resumo diário com dados recentes...", category: .notification)
             await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
+        }
+        
+        // 2. Atualizar Lembretes de Agendamentos
+        if defaults.bool(forKey: "appointment_reminder_enabled") {
+            let reminderMinutes = defaults.integer(forKey: "appointment_reminder_minutes")
+            await scheduleAppointmentReminders(minutesBefore: reminderMinutes == 0 ? 30 : reminderMinutes)
         }
     }
     
@@ -314,9 +322,9 @@ class NotificationManager: ObservableObject {
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return }
+        let tomorrow = calendar.date(byAdding: .day, value: 7, to: today)! // Buscar próximos 7 dias para garantir cobertura
         
-        // Buscar agendamentos apenas futuros de hoje
+        // Buscar agendamentos futuros
         let appointments = await fetchAppointments(from: now, to: tomorrow)
         
         for appointment in appointments {

@@ -15,6 +15,7 @@ class AuthViewModel: ObservableObject {
     @Published var rememberMe = false
     @Published var showPassword = false
     @Published var isLoading = false
+    @Published var errorTitle = "Erro" // Novo campo para o título do erro
     @Published var errorMessage: String?
     @Published var showError = false
     @Published var showSuccess = false
@@ -74,7 +75,11 @@ class AuthViewModel: ObservableObject {
             }
 
         } catch {
-            showError(message: error.authErrorMessage)
+            if let nsError = error as NSError?, nsError.code == 403 {
+                showError(message: nsError.localizedDescription, title: "Plano não encontrado")
+            } else {
+                showError(message: error.authErrorMessage)
+            }
         }
 
         isLoading = false
@@ -226,7 +231,8 @@ class AuthViewModel: ObservableObject {
         keychain.deletePassword(for: email)
     }
 
-    private func showError(message: String) {
+    private func showError(message: String, title: String = "Erro") {
+        self.errorTitle = title
         self.errorMessage = message
         self.showError = true
     }

@@ -151,7 +151,8 @@ class AppointmentService: ObservableObject {
         // #if DEBUG block removed for cleanup
 
         // 🔔 Atualizar notificações
-        Task { await NotificationManager.shared.refreshDailySummary() }
+        // 🔔 Atualizar notificações
+        Task { await NotificationManager.shared.refreshNotifications() }
 
         return result
     }
@@ -166,7 +167,8 @@ class AppointmentService: ObservableObject {
             .execute()
             
         // 🔔 Atualizar notificações
-        Task { await NotificationManager.shared.refreshDailySummary() }
+        // 🔔 Atualizar notificações
+        Task { await NotificationManager.shared.refreshNotifications() }
     }
 
     // MARK: - Update Status
@@ -191,7 +193,8 @@ class AppointmentService: ObservableObject {
             .execute()
             
         // 🔔 Atualizar notificações
-        Task { await NotificationManager.shared.refreshDailySummary() }
+        // 🔔 Atualizar notificações
+        Task { await NotificationManager.shared.refreshNotifications() }
     }
 
     // MARK: - Fetch by Patient

@@ -45,7 +45,7 @@ struct LoginView: View {
                 isAppearing = true
             }
         }
-        .alert("Erro", isPresented: $viewModel.showError) {
+        .alert(viewModel.errorTitle, isPresented: $viewModel.showError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(viewModel.errorMessage ?? "Erro desconhecido")

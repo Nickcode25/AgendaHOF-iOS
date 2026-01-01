@@ -75,9 +75,7 @@ struct ContentView: View {
             } else if supabase.isAuthenticated {
                 MainTabView()
             } else {
-                NavigationStack {
-                    LoginView()
-                }
+                WelcomeView()
             }
         }
         .animation(.easeInOut(duration: 0.3), value: supabase.isAuthenticated)
@@ -147,4 +145,92 @@ struct ContentView: View {
 
 extension Notification.Name {
     static let dismissAllSheets = Notification.Name("dismissAllSheets")
+}
+
+// MARK: - Welcome View
+
+struct WelcomeView: View {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var animateGradient = false
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                // Background Gradient
+                // Gradiente Midnight Fire
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.04, green: 0.04, blue: 0.04),  // #0a0a0a
+                        Color(red: 0.12, green: 0.07, blue: 0.03),  // #1f1107
+                        Color(red: 0.98, green: 0.45, blue: 0.09)   // #f97316
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                .overlay(
+                    // Subtle noise or overlay for texture if needed
+                    Color.black.opacity(0.1)
+                )
+                
+                VStack {
+                    Spacer()
+                    
+                    // Centralized Logo
+                    brandingSection
+                    
+                    Spacer()
+                    
+                    // Bottom Actions
+                    VStack(spacing: 20) {
+                        // Login Button
+                        NavigationLink(destination: LoginView()) {
+                            Text("Entrar")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.black) // High contrast against white
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color.white)
+                                .clipShape(Capsule())
+                                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                        }
+                        
+                        // Sign Up Button
+                        NavigationLink(destination: SignUpView()) {
+                            Text("Criar conta")
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 60) // Safe area padding
+                }
+            }
+        }
+    }
+    
+    private var brandingSection: some View {
+        VStack(spacing: 16) {
+            // Logo Logic reusing current assets
+            let logoURL = "https://AgendaHOF.b-cdn.net/logo-light.png"
+            
+            AsyncImage(url: URL(string: logoURL)) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else if phase.error != nil {
+                    // Fallback
+                    Image(systemName: "stethoscope")
+                        .font(.system(size: 60, weight: .light))
+                        .foregroundColor(.white)
+                } else {
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+            .frame(width: 280, height: 160)
+            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+        }
+    }
 }

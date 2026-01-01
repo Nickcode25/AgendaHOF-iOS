@@ -58,19 +58,66 @@ struct PatientsListView: View {
                 }
             }
         }
-        .actionSheet(isPresented: $showMenu) {
-            ActionSheet(
-                title: Text("Opções"),
-                buttons: [
-                    .default(Text("Novo Paciente")) {
-                        showNewPatient = true
-                    },
-                    .default(Text("Importar Contatos")) {
-                        showContactPicker = true
-                    },
-                    .cancel(Text("Cancelar"))
-                ]
-            )
+        .sheet(isPresented: $showMenu) {
+            VStack(spacing: 24) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.2))
+                    .frame(width: 40, height: 4)
+                    .padding(.top, 12)
+                
+                VStack(spacing: 16) {
+                    Button {
+                        showMenu = false
+                        // Aguardar o fechamento do menu antes de abrir o próximo sheet
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showNewPatient = true
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.badge.plus")
+                                .font(.system(size: 20))
+                            Text("Novo Paciente")
+                                .font(.headline)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        showMenu = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showContactPicker = true
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .font(.system(size: 20))
+                            Text("Importar Contatos")
+                                .font(.headline)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+            }
+            .background(Color(.systemGroupedBackground))
+            .presentationDetents([.height(250)])
+            .presentationDragIndicator(.hidden)
         }
         .sheet(isPresented: $showContactPicker) {
             ContactPicker { contact in

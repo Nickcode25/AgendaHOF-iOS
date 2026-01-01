@@ -85,7 +85,7 @@ class SupabaseManager: ObservableObject {
             self.isAuthenticated = false
             AppLogger.log("🚫 [Auth] Login negado. Sem plano ativo.", category: .auth)
             throw NSError(domain: "AgendaHOF", code: 403, userInfo: [
-                NSLocalizedDescriptionKey: "Sua conta não possui um plano ativo. Entre em contato com o suporte para renovar sua assinatura."
+                NSLocalizedDescriptionKey: "Esta conta não possui uma assinatura vigente. Por favor, acesse o site agendahof.com para gerenciar seu plano e reativar suas funcionalidades."
             ])
         }
     }
