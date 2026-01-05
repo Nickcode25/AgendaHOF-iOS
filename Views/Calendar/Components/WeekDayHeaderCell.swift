@@ -98,6 +98,5 @@ struct WeekDayHeaderCell: View {
             onTap: {}
         )
     }
-    .previewLayout(.sizeThatFits)
     .padding()
 }

@@ -105,7 +105,7 @@ class NotificationManager: ObservableObject {
             
             // Ignorar dias passados (se hora já passou hoje)
             let now = Date()
-            var triggerDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date)!
+            let triggerDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date)!
             if triggerDate < now {
                 // Se já passou o horário hoje, não agendar para hoje (ou agendar para amanhã? não, o loop já cobre amanhã)
                 continue 

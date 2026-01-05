@@ -22,7 +22,7 @@ class InactivePatientsViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            guard let userId = supabase.currentUser?.id.uuidString else {
+            guard let userId = supabase.effectiveUserId else {
                 errorMessage = "Usuário não autenticado"
                 isLoading = false
                 return
