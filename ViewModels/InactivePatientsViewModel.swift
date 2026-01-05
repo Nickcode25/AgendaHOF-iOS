@@ -192,18 +192,6 @@ class InactivePatientsViewModel: ObservableObject {
         }
     }
 
-    /// Abrir WhatsApp com o paciente
-    func openWhatsApp(for patient: InactivePatient) {
-        guard let phone = patient.phone else { return }
-
-        // Usa helper do Constants para gerar URL do WhatsApp
-        let whatsappURL = Constants.whatsAppURL(for: phone)
-
-        if let url = URL(string: whatsappURL) {
-            UIApplication.shared.open(url)
-        }
-    }
-
     /// Tenta parsear uma string de data em múltiplos formatos
     private func parseDateString(_ dateString: String) -> Date? {
         // Formato 1: ISO8601 com fração de segundos

@@ -73,11 +73,10 @@ struct InactivePatientsView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.filteredPatients) { patient in
-                    InactivePatientCard(patient: patient) {
-                        selectedPatient = patient
-                    } onWhatsAppTap: {
-                        viewModel.openWhatsApp(for: patient)
-                    }
+                    InactivePatientCard(patient: patient)
+                        .onTapGesture {
+                            selectedPatient = patient
+                        }
                 }
             }
             .padding(.horizontal, 16)
@@ -123,8 +122,6 @@ struct InactivePatientsView: View {
 
 struct InactivePatientCard: View {
     let patient: InactivePatient
-    let onCardTap: () -> Void
-    let onWhatsAppTap: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
@@ -159,41 +156,17 @@ struct InactivePatientCard: View {
 
             Spacer()
 
-            // Ações - WhatsApp e Ver Ficha
-            HStack(spacing: 10) {
-                // Botão WhatsApp - Verde
-                Button(action: onWhatsAppTap) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: "message.fill")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                // Botão Ver Ficha - Azul
-                Button(action: onCardTap) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: "person.text.rectangle.fill")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
+            // Indicador visual (chevron)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.quaternary)
         }
-        .padding(14)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
     }
 
     /// Cor do status de inatividade (laranja -> vermelho conforme tempo)
@@ -219,131 +192,92 @@ struct PatientDetailSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Avatar e Nome
-                    VStack(spacing: 12) {
+            List {
+                // Header com avatar e nome
+                Section {
+                    HStack(spacing: 16) {
+                        // Avatar
                         ZStack {
                             Circle()
                                 .fill(Color(hex: "ff6b00").opacity(0.15))
-                                .frame(width: 100, height: 100)
+                                .frame(width: 70, height: 70)
 
                             Text(patient.initials)
-                                .font(.system(size: 36, weight: .bold))
+                                .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(Color(hex: "ff6b00"))
                         }
 
-                        Text(patient.name)
-                            .font(.title2)
-                            .fontWeight(.bold)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(patient.name)
+                                .font(.title2)
+                                .fontWeight(.bold)
 
-                        Text(patient.inactiveStatus)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 6)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(8)
+                            Text(patient.inactiveStatus)
+                                .font(.subheadline)
+                                .foregroundColor(inactiveStatusColor)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .background(inactiveStatusColor.opacity(0.1))
+                                .cornerRadius(6)
+                        }
                     }
-                    .padding(.top, 20)
+                    .padding(.vertical, 8)
+                }
 
-                    // Informações
-                    VStack(alignment: .leading, spacing: 16) {
-                        if let phone = patient.phone {
-                            InfoRow(icon: "phone.fill", title: "Telefone", value: phone.formattedPhone)
+                // Contato
+                Section("Contato") {
+                    if let phone = patient.phone, !phone.isEmpty {
+                        // Link para ligar
+                        Link(destination: URL(string: "tel:\(phone.filter { $0.isNumber })")!) {
+                            Label(phone.formattedPhone, systemImage: "phone.fill")
                         }
 
-                        InfoRow(
-                            icon: "calendar",
-                            title: "Último Procedimento",
-                            value: patient.lastProcedureDateFormatted
-                        )
-
-                        InfoRow(
-                            icon: "clock.fill",
-                            title: "Tempo de Inatividade",
-                            value: "\(patient.daysSinceLastProcedure) dias"
-                        )
-                    }
-                    .padding(.horizontal, 20)
-
-                    // Ações
-                    VStack(spacing: 12) {
-                        if patient.phone != nil {
-                            Button {
-                                openWhatsApp()
-                            } label: {
-                                Label("Enviar WhatsApp", systemImage: "message.fill")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.green)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(12)
-                                    .fontWeight(.semibold)
+                        // Link para WhatsApp
+                        Link(destination: URL(string: "https://wa.me/55\(phone.filter { $0.isNumber })")!) {
+                            HStack {
+                                Image("whatsapp")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                Text("WhatsApp")
                             }
+                            .foregroundColor(.green)
                         }
-
-                        Button {
-                            dismiss()
-                        } label: {
-                            Text("Fechar")
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .foregroundColor(.primary)
-                                .cornerRadius(12)
-                                .fontWeight(.medium)
-                        }
+                    } else {
+                        Text("Nenhum telefone cadastrado")
+                            .foregroundColor(.secondary)
+                            .font(.subheadline)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
+                }
+
+                // Último Procedimento
+                Section("Último Procedimento") {
+                    Text(patient.lastProcedureDateFormatted)
+                        .font(.subheadline)
                 }
             }
             .navigationTitle("Detalhes do Paciente")
             .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private func openWhatsApp() {
-        guard let phone = patient.phone else { return }
-        let cleanPhone = phone.filter { $0.isNumber }
-        let whatsappURL = "https://wa.me/55\(cleanPhone)"
-
-        if let url = URL(string: whatsappURL) {
-            UIApplication.shared.open(url)
-        }
-    }
-}
-
-// MARK: - Info Row
-
-struct InfoRow: View {
-    let icon: String
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(Color(hex: "ff6b00"))
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Text(value)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.primary)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Fechar") {
+                        dismiss()
+                    }
+                }
             }
-
-            Spacer()
         }
-        .padding(12)
-        .background(Color(.systemGray6))
-        .cornerRadius(10)
+    }
+
+    private var inactiveStatusColor: Color {
+        let days = patient.daysSinceLastProcedure
+
+        if days >= 365 {
+            return .red
+        } else if days >= 270 {
+            return Color.orange.mix(with: .red, by: 0.5)
+        } else {
+            return Color(hex: "ff6b00")
+        }
     }
 }
 
