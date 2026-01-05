@@ -17,7 +17,7 @@ struct AgendaView: View {
 
     /// Detecta tamanho da tela baseado na largura real
     /// - iPhone SE, mini, 8: ~375pt ou menos
-    /// - iPhone 11, 12, 13, 14, 15, 16: ~390-393pt
+    /// - iPhone 11, 12, 13, 14, 15, 16: ~390-414pt (414pt em zoom)
     /// - iPhone Plus/Pro Max: ~428-440pt
     /// - iPad: 768pt+
     private var screenSize: ScreenSize {
@@ -26,8 +26,8 @@ struct AgendaView: View {
         }
         if screenWidth <= 375 {
             return .small      // iPhone SE, mini, 8
-        } else if screenWidth <= 393 {
-            return .medium     // iPhone 11, 12, 13, 14, 15, 16
+        } else if screenWidth <= 420 {
+            return .medium     // iPhone 11, 12, 13, 14, 15, 16 (inclui zoom mode 414pt)
         } else {
             return .large      // iPhone Plus, Pro Max
         }
@@ -139,21 +139,7 @@ struct AgendaView: View {
                             .fontWeight(.semibold)
                     }
 
-                    // Botão Hoje (apenas em telas pequenas/médias quando não for hoje)
-                    if screenSize != .large && screenSize != .iPad && !Calendar.current.isDateInToday(viewModel.selectedDate) {
-                        Button {
-                            viewModel.goToToday()
-                        } label: {
-                            Text("Hoje")
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(Color.appPrimary.opacity(0.1))
-                                .foregroundColor(.appPrimary)
-                                .cornerRadius(6)
-                        }
-                    }
+
                 }
             }
 
@@ -183,10 +169,11 @@ struct AgendaView: View {
                 }
             }
 
+
             // TRAILING: Ações principais (sempre visíveis)
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: toolbarSpacing) {
-                    // Hoje (apenas em telas grandes e se não for hoje)
+                    // Hoje (apenas em telas grandes e iPad quando não for hoje)
                     if (screenSize == .large || screenSize == .iPad) && !Calendar.current.isDateInToday(viewModel.selectedDate) {
                         Button {
                             viewModel.goToToday()
