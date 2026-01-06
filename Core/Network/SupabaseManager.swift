@@ -24,6 +24,7 @@ class SupabaseManager: ObservableObject {
             options: SupabaseClientOptions(
                 auth: .init(
                     flowType: .pkce,
+                    autoRefreshToken: true,
                     emitLocalSessionAsInitialSession: true
                 )
             )

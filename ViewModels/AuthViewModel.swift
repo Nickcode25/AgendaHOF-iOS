@@ -183,6 +183,23 @@ class AuthViewModel: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - Delete Account
+
+    func deleteAccount() async throws {
+        guard await supabase.currentUser != nil else {
+            throw NSError(domain: "Auth", code: 401, userInfo: [
+                NSLocalizedDescriptionKey: "Usuário não autenticado"
+            ])
+        }
+
+        // Delete user account via Supabase RPC function
+        try await supabase.client.rpc("delete_my_account").execute()
+
+        // Sign out after successful deletion
+        try await supabase.signOut()
+        clearSavedCredentials()
+    }
+
     // MARK: - Reset Password
 
     func resetPassword() async {

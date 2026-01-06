@@ -5,6 +5,9 @@ struct SettingsView: View {
     @StateObject private var authViewModel = AuthViewModel()
 
     @State private var showLogoutConfirmation = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
     @State private var showProfile = false
     @State private var showNotifications = false
     @State private var showFinancialReport = false
@@ -102,6 +105,20 @@ struct SettingsView: View {
                 }
             }
 
+            // Conta
+            Section {
+                Button(role: .destructive) {
+                    showDeleteAccountConfirmation = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Excluir minha conta")
+                            .fontWeight(.medium)
+                        Spacer()
+                    }
+                }
+            }
+
             // Logout
             Section {
                 Button(role: .destructive) {
@@ -117,6 +134,14 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Ajustes")
+        .alert("Excluir Conta?", isPresented: $showDeleteAccountConfirmation) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Excluir", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+        } message: {
+            Text("Esta ação é irreversível. Todos os seus dados de pacientes e agendamentos serão apagados permanentemente. Tem certeza?")
+        }
         .alert("Sair da Conta", isPresented: $showLogoutConfirmation) {
             Button("Cancelar", role: .cancel) {}
             Button("Sair", role: .destructive) {
@@ -125,6 +150,15 @@ struct SettingsView: View {
         } message: {
             Text("Tem certeza que deseja sair da sua conta?")
         }
+        .alert("Erro ao Excluir Conta", isPresented: Binding(
+            get: { deleteAccountError != nil },
+            set: { if !$0 { deleteAccountError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteAccountError ?? "")
+        }
+        .loadingOverlay(isLoading: isDeletingAccount, text: "Excluindo conta...")
         .sheet(isPresented: $showProfile) {
             ProfileView()
         }
@@ -143,6 +177,18 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showSupport) {
             SupportView()
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeletingAccount = true
+
+        do {
+            try await authViewModel.deleteAccount()
+            // Logout will happen automatically via deleteAccount()
+        } catch {
+            isDeletingAccount = false
+            deleteAccountError = error.localizedDescription
         }
     }
 }
