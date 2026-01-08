@@ -17,6 +17,7 @@ class NotificationManager: ObservableObject {
     private enum NotificationID {
         static let dailySummary = "daily_summary"
         static let weeklySummary = "weekly_summary"
+        static let dailyFinancialSummary = "daily_financial_summary"
         static let birthdayPrefix = "birthday_"
         static let appointmentReminderPrefix = "appointment_reminder_"
     }
@@ -68,6 +69,11 @@ class NotificationManager: ObservableObject {
             let hour = defaults.integer(forKey: "daily_summary_hour")
             let minute = defaults.integer(forKey: "daily_summary_minute")
             await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
+        }
+        
+        if defaults.bool(forKey: "daily_financial_summary_enabled") && supabase.isOwner {
+             // Agendar para 21:00
+             await scheduleDailyFinancialSummary()
         }
         
         if defaults.bool(forKey: "weekly_summary_enabled") {
@@ -144,6 +150,86 @@ class NotificationManager: ObservableObject {
         addRequest(request, description: "Resumo diário para \(date.formatted(.dateTime.day().month()))")
         }
     }
+    
+    // MARK: - Daily Financial Summary (Owner Only)
+    
+    func scheduleDailyFinancialSummary() async {
+        AppLogger.log("💰 Tentando agendar Resumo Financeiro...", category: .notification)
+        
+        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailyFinancialSummary])
+        
+        guard supabase.isOwner else {
+            AppLogger.log("💰 Usuário não é Owner. Cancelando.", category: .notification)
+            return
+        }
+        
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        
+        let now = Date()
+        let todayStart = calendar.startOfDay(for: now)
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+        
+        // Agendar para 21:00
+        guard let triggerDate = calendar.date(bySettingHour: 21, minute: 00, second: 0, of: todayStart) else { return }
+        
+        // Se já passou das 21:00, não agendar para hoje
+        if triggerDate < now {
+             // AppLogger.log("💰 Horário já passou hoje (\(triggerDate) < \(now)). Ignorando.", category: .notification)
+             return
+        }
+        
+        // Buscar agendamentos CONCLUÍDOS/REALIZADOS do dia
+        AppLogger.log("💰 Buscando agendamentos entre \(todayStart) e \(tomorrowStart)...", category: .notification)
+        let appointments = await fetchAppointments(from: todayStart, to: tomorrowStart)
+        
+        // Filtrar apenas os que contam para faturamento (Realizados/Concluídos/Confirmados?)
+        // TESTE: Considerando TODOS os não cancelados para garantir que a notificação apareça
+        // (attendedAppointments agora inclui scheduled/confirmed tb)
+        
+        let attendedAppointments = appointments
+        
+        // Log para debug dos status
+        let statuses = attendedAppointments.map { $0.status.rawValue }
+        AppLogger.log("💰 Status encontrados: \(statuses)", category: .notification)
+        
+        let patientCount = attendedAppointments.count
+        AppLogger.log("💰 Pacientes atendidos (Total hoje): \(patientCount)", category: .notification)
+        
+        // Se não tiver pacientes, não enviar
+        if patientCount == 0 {
+            AppLogger.log("💰 Nenhum paciente atendido. Notificação não será enviada.", category: .notification)
+            return
+        }
+        
+        // Calcular Faturamento usando a lógica do Relatório Financeiro (buscando procedimentos nos pacientes)
+        AppLogger.log("💰 Calculando faturamento via Procedures (Patients)...", category: .notification)
+        let totalRevenue = await calculateDailyRevenue(date: now)
+        AppLogger.log("💰 Faturamento Total Calculado: \(totalRevenue)", category: .notification)
+        
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "pt_BR")
+        let revenueString = formatter.string(from: NSNumber(value: totalRevenue)) ?? "R$ 0,00"
+        
+        // Criar Conteúdo
+        let content = UNMutableNotificationContent()
+        content.title = "Resumo do dia"
+        content.body = "Você atendeu \(patientCount) pacientes e faturou \(revenueString) Parabéns!"
+        content.sound = .default
+        
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+        
+        let request = UNNotificationRequest(
+            identifier: NotificationID.dailyFinancialSummary, // Identificador fixo para sobrescrever
+            content: content,
+            trigger: trigger
+        )
+        
+        addRequest(request, description: "Resumo Financeiro Diário")
+        AppLogger.log("✅ Resumo Financeiro agendado para 21:00", category: .notification)
+    }
 
     /// Reagendar todas as notificações dinâmicas (Resumo + Lembretes) para garantir dados atualizados
     func refreshNotifications() async {
@@ -163,6 +249,11 @@ class NotificationManager: ObservableObject {
         if defaults.bool(forKey: "appointment_reminder_enabled") {
             let reminderMinutes = defaults.integer(forKey: "appointment_reminder_minutes")
             await scheduleAppointmentReminders(minutesBefore: reminderMinutes == 0 ? 30 : reminderMinutes)
+        }
+        
+        // 3. Atualizar Resumo Financeiro (Owner)
+        if defaults.bool(forKey: "daily_financial_summary_enabled") && supabase.isOwner {
+             await scheduleDailyFinancialSummary()
         }
     }
     
@@ -402,6 +493,319 @@ class NotificationManager: ObservableObject {
         } catch {
             print("❌ Erro ao buscar aniversariantes: \(error)")
             return []
+        }
+    }
+    
+    /// Calcula a receita do dia baseado nos procedimentos dos pacientes (lógica do FinancialReportViewModel)
+    private func calculateDailyRevenue(date: Date) async -> Double {
+        guard let userId = supabase.effectiveUserId else { return 0 }
+        
+        // Definir limites do dia (São Paulo)
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        AppLogger.log("💰 Buscando receita total (Procedimentos + Vendas + Assinaturas + Cursos) entre \(startOfDay) e \(endOfDay)", category: .notification)
+        
+        // 1. Procedimentos
+        let proceduresRevenue = await fetchProceduresRevenue(userId: userId, start: startOfDay, end: endOfDay)
+        
+        // 2. Vendas
+        let salesRevenue = await fetchSalesRevenue(userId: userId, start: startOfDay, end: endOfDay)
+        AppLogger.log("💰 Receita de Vendas: R$ \(salesRevenue)", category: .notification)
+        
+        // 3. Assinaturas
+        let subscriptionsRevenue = await fetchSubscriptionsRevenue(userId: userId, start: startOfDay, end: endOfDay)
+        AppLogger.log("💰 Receita de Assinaturas: R$ \(subscriptionsRevenue)", category: .notification)
+        
+        // 4. Cursos
+        let coursesRevenue = await fetchCoursesRevenue(userId: userId, start: startOfDay, end: endOfDay)
+        AppLogger.log("💰 Receita de Cursos: R$ \(coursesRevenue)", category: .notification)
+        
+        let total = proceduresRevenue + salesRevenue + subscriptionsRevenue + coursesRevenue
+        AppLogger.log("💰 RECEITA TOTAL BRUTA: R$ \(total)", category: .notification)
+        
+        return total
+    }
+    
+    // MARK: - Revenue Helpers
+    
+    private func fetchProceduresRevenue(userId: String, start: Date, end: Date) async -> Double {
+        do {
+            // Lógica idêntica ao FinancialReportView (v3.0)
+            let patients: [Patient] = try await supabase.client
+                .from("patients") // Busca todos e filtra localmente
+                .select()
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo") // Importante: Mesmo TZ do View
+            
+            let startDateStr = formatter.string(from: start)
+            let endDateStr = formatter.string(from: end)
+            
+            var total: Double = 0
+            
+            for patient in patients {
+                guard let procedures = patient.plannedProcedures else { continue }
+                
+                for procedure in procedures {
+                    // REGRA 1: Status completed
+                    guard procedure.status?.lowercased() == "completed" else { continue }
+                    
+                    // REGRA 2: Data de realização ou conclusão
+                    guard let dateStr = procedure.performedAt ?? procedure.completedAt else { continue }
+                    
+                    // REGRA 3: Extrair YYYY-MM-DD
+                    let dateOnly = String(dateStr.prefix(10))
+                    guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
+                    
+                    // REGRA 4: Comparação de strings
+                    if dateOnly >= startDateStr && dateOnly < endDateStr {
+                        // REGRA 5: Payment Splits (Prioridade)
+                        if let splits = procedure.paymentSplits, !splits.isEmpty {
+                            let splitTotal = splits.reduce(0.0) { $0 + ($1.amount ?? 0) }
+                            total += splitTotal
+                        } else {
+                            // REGRA 6: Total Value
+                            total += (procedure.totalValue ?? 0)
+                        }
+                    }
+                }
+            }
+            
+            return total
+        } catch {
+            AppLogger.error("Erro ao buscar procedimentos/pacientes", error: error)
+            return 0
+        }
+    }
+    
+    private func fetchSalesRevenue(userId: String, start: Date, end: Date) async -> Double {
+        do {
+            // Lógica replicada do FinancialReportView (v6.0)
+            let allSales: [ProductSaleRecord] = try await supabase.client
+                .from("sales")
+                .select("total_amount, sold_at, created_at, payment_status")
+                .eq("user_id", value: userId)
+                .eq("payment_status", value: "paid")
+                .execute()
+                .value
+
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo") // Importante: Mesmo TZ do View
+            
+            let startDateStr = formatter.string(from: start)
+            let endDateStr = formatter.string(from: end) // Note: end é o início de amanhã, então a string é OK para < comparação?
+            // No View, ele usa <= endDateStr. Se end for 2026-01-08 00:00, a string será 2026-01-08.
+            // Se comparar <= 2026-01-08, inclui vendas de amanhã?
+            // O Report usa startStr e endStr baseados no range selecionado.
+            // Para "Hoje", o Report usa startOfToday e endOfToday (23:59:59).
+            // AQUI, recebemos start (00:00) e end (00:00 amanhã).
+            // Então devemos comparar: date >= startStr && date < endDateStr.
+            
+            let targetDateStr = startDateStr // Para dia específico, queremos match exato ou range? Vamos assumir range de 1 dia.
+            
+            var total: Double = 0
+            
+            for sale in allSales {
+                guard let dateStr = sale.soldAt ?? sale.createdAt else { continue }
+                let dateOnly = String(dateStr.prefix(10))
+                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
+                
+                // Filtro: >= start (hoje) E < end (amanhã). Como são strings YYYY-MM-DD:
+                // Se hoje é 07, start=07, end=08.
+                // dateOnly >= "2026-01-07" AND dateOnly < "2026-01-08" -> ou seja, dateOnly == "2026-01-07"
+                
+                if dateOnly >= startDateStr && dateOnly < endDateStr {
+                    total += (sale.totalAmount ?? 0)
+                }
+            }
+            
+            return total
+        } catch {
+            AppLogger.error("Erro ao buscar vendas (sales table)", error: error)
+            return 0
+        }
+    }
+    
+    private func fetchSubscriptionsRevenue(userId: String, start: Date, end: Date) async -> Double {
+        do {
+            // Lógica replicada do FinancialReportView (v4.0)
+            // 1. Buscar IDs no patient_subscriptions
+            let subscriptions: [PatientSubscriptionRecord] = try await supabase.client
+                .from("patient_subscriptions")
+                .select("id, patient_id")
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+            
+            if subscriptions.isEmpty { return 0 }
+            
+            let subscriptionIds = subscriptions.map { $0.id }
+            
+            // 2. Buscar pagamentos
+            let allPayments: [SubscriptionPaymentRecord] = try await supabase.client
+                .from("subscription_payments")
+                .select("amount, paid_at, subscription_id")
+                .in("subscription_id", values: subscriptionIds) // Codable array values funciona no client novo?
+                // Se .in falhar com [String], tentar lista manual. Mas supabase-swift costuma aceitar.
+                // O ReportView usa .in("subscription_id", values: subscriptionIds)
+                .eq("status", value: "paid")
+                .execute()
+                .value
+                
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+            let startDateStr = formatter.string(from: start)
+            let endDateStr = formatter.string(from: end)
+            
+            var total: Double = 0
+            
+            for payment in allPayments {
+                guard let dateStr = payment.paidAt else { continue }
+                let dateOnly = String(dateStr.prefix(10))
+                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
+                
+                if dateOnly >= startDateStr && dateOnly < endDateStr {
+                    total += (payment.amount ?? 0)
+                }
+            }
+            
+            return total
+        } catch {
+            AppLogger.error("Erro ao buscar assinaturas (nova lógica)", error: error)
+            return 0
+        }
+    }
+    
+    private func fetchCoursesRevenue(userId: String, start: Date, end: Date) async -> Double {
+        do {
+            // Lógica replicada do FinancialReportView (v3.0) -> Tabela 'enrollments'
+            let allEnrollments: [EnrollmentRecord] = try await supabase.client
+                .from("enrollments")
+                .select("amount_paid, enrollment_date")
+                .eq("user_id", value: userId)
+                .gt("amount_paid", value: 0)
+                .execute()
+                .value
+                
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+            let startDateStr = formatter.string(from: start)
+            let endDateStr = formatter.string(from: end)
+            
+            var total: Double = 0
+            
+            for enrollment in allEnrollments {
+                guard let dateStr = enrollment.enrollmentDate else { continue }
+                let dateOnly = String(dateStr.prefix(10))
+                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
+                
+                if dateOnly >= startDateStr && dateOnly < endDateStr {
+                    total += (enrollment.amountPaid ?? 0)
+                }
+            }
+            
+            return total
+        } catch {
+            // Tabela pode não existir (erro comum no log do user)
+            // AppLogger.log("Info: Erro ao buscar enrollments (provável inexistência)", category: .notification)
+            return 0
+        }
+    }
+    
+    private func parseDate(_ dateString: String) -> Date? {
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso8601.date(from: dateString) { return date }
+        
+        iso8601.formatOptions = [.withInternetDateTime]
+        if let date = iso8601.date(from: dateString) { return date }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.date(from: dateString)
+    }
+    
+    private func fetchProcedures(ids: [String]) async -> [String: Procedure] {
+        guard !ids.isEmpty, let userId = supabase.effectiveUserId else { return [:] }
+        
+        let uniqueIds = Array(Set(ids)) // Remover duplicatas
+        
+        do {
+            // Supabase postgrest-swift não tem 'in' fácil, vamos fazer or ou vários requests?
+            // "in" operator: .in("id", value: ids)
+            
+            let result: [Procedure] = try await supabase.client
+                .from("procedures")
+                .select()
+                .eq("user_id", value: userId)
+                .in("id", value: uniqueIds) // Correção para usar operador IN
+                .execute()
+                .value
+            
+            return Dictionary(uniqueKeysWithValues: result.map { ($0.id, $0) })
+            
+        } catch {
+            print("❌ Erro ao buscar procedimentos (Notifications): \(error)")
+            return [:]
+        }
+    }
+
+    // MARK: - Database Models (Replicated from FinancialReportView)
+    
+    private struct ProductSaleRecord: Codable {
+        let totalAmount: Double?
+        let soldAt: String?
+        let createdAt: String?
+        let paymentStatus: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case totalAmount = "total_amount"
+            case soldAt = "sold_at"
+            case createdAt = "created_at"
+            case paymentStatus = "payment_status"
+        }
+    }
+
+    private struct PatientSubscriptionRecord: Codable {
+        let id: String
+        let patientId: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case id
+            case patientId = "patient_id"
+        }
+    }
+
+    private struct SubscriptionPaymentRecord: Codable {
+        let amount: Double?
+        let paidAt: String?
+        let subscriptionId: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case amount
+            case paidAt = "paid_at"
+            case subscriptionId = "subscription_id"
+        }
+    }
+
+    private struct EnrollmentRecord: Codable {
+        let amountPaid: Double?
+        let enrollmentDate: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case amountPaid = "amount_paid"
+            case enrollmentDate = "enrollment_date"
         }
     }
     

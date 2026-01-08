@@ -175,6 +175,9 @@ struct AppointmentDetailSheet: View {
     var onUpdate: () -> Void
 
     @StateObject private var appointmentService = AppointmentService()
+    @StateObject private var patientService = PatientService() // ✅ Service para buscar paciente
+    @State private var fetchedPatient: Patient? // ✅ Estado para armazenar paciente com telefone
+    
     @State private var showCancelConfirmation = false
     @State private var showDeleteConfirmation = false
     @State private var showEditSheet = false
@@ -308,6 +311,22 @@ struct AppointmentDetailSheet: View {
                     }
                 }
 
+                // ✅ Botão WhatsApp (No final do card)
+                if let patient = fetchedPatient, let phone = patient.phone, !phone.isEmpty {
+                    Section {
+                        Button {
+                            openWhatsApp(phone: phone)
+                        } label: {
+                            Label("Conversar no WhatsApp", systemImage: "message.circle.fill")
+                                .font(bodyFont)
+                                .fontWeight(.medium)
+                                .foregroundColor(.green)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 4)
+                        }
+                    }
+                }
+                
                 // Ações de Edição
                 Section {
                     Button {
@@ -370,6 +389,12 @@ struct AppointmentDetailSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(false)
+        .task {
+            // ✅ Buscar dados completos do paciente (incluindo telefone)
+            if let patientId = appointment.patientId {
+                fetchedPatient = await patientService.fetchPatient(id: patientId)
+            }
+        }
     }
 
     private var statusColor: Color {
@@ -411,6 +436,27 @@ struct AppointmentDetailSheet: View {
             print("Erro ao excluir agendamento: \(error)")
         }
         isLoading = false
+    }
+    
+    // ✅ Helper para abrir WhatsApp
+    private func openWhatsApp(phone: String) {
+        let cleanPhone = phone.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        
+        // Assumindo Brasil (55) se não tiver DDI. 
+        // Lógica simples: se tem 10 ou 11 dígitos, adiciona 55.
+        var finalPhone = cleanPhone
+        if cleanPhone.count >= 10 && cleanPhone.count <= 11 {
+            finalPhone = "55" + cleanPhone
+        }
+        
+        if let url = URL(string: "https://wa.me/\(finalPhone)") {
+            if UIApplication.shared.canOpenURL(url) {
+                UIApplication.shared.open(url)
+            } else {
+                // Tenta abrir no navegador se o app não estiver instalado (o link wa.me redireciona)
+                UIApplication.shared.open(url)
+            }
+        }
     }
 }
 

@@ -5,9 +5,6 @@ struct SettingsView: View {
     @StateObject private var authViewModel = AuthViewModel()
 
     @State private var showLogoutConfirmation = false
-    @State private var showDeleteAccountConfirmation = false
-    @State private var isDeletingAccount = false
-    @State private var deleteAccountError: String?
     @State private var showProfile = false
     @State private var showNotifications = false
     @State private var showFinancialReport = false
@@ -105,19 +102,7 @@ struct SettingsView: View {
                 }
             }
 
-            // Conta
-            Section {
-                Button(role: .destructive) {
-                    showDeleteAccountConfirmation = true
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text("Excluir minha conta")
-                            .fontWeight(.medium)
-                        Spacer()
-                    }
-                }
-            }
+
 
             // Logout
             Section {
@@ -134,14 +119,6 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Ajustes")
-        .alert("Excluir Conta?", isPresented: $showDeleteAccountConfirmation) {
-            Button("Cancelar", role: .cancel) {}
-            Button("Excluir", role: .destructive) {
-                Task { await deleteAccount() }
-            }
-        } message: {
-            Text("Esta ação é irreversível. Todos os seus dados de pacientes e agendamentos serão apagados permanentemente. Tem certeza?")
-        }
         .alert("Sair da Conta", isPresented: $showLogoutConfirmation) {
             Button("Cancelar", role: .cancel) {}
             Button("Sair", role: .destructive) {
@@ -150,15 +127,6 @@ struct SettingsView: View {
         } message: {
             Text("Tem certeza que deseja sair da sua conta?")
         }
-        .alert("Erro ao Excluir Conta", isPresented: Binding(
-            get: { deleteAccountError != nil },
-            set: { if !$0 { deleteAccountError = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(deleteAccountError ?? "")
-        }
-        .loadingOverlay(isLoading: isDeletingAccount, text: "Excluindo conta...")
         .sheet(isPresented: $showProfile) {
             ProfileView()
         }
@@ -180,17 +148,7 @@ struct SettingsView: View {
         }
     }
 
-    private func deleteAccount() async {
-        isDeletingAccount = true
 
-        do {
-            try await authViewModel.deleteAccount()
-            // Logout will happen automatically via deleteAccount()
-        } catch {
-            isDeletingAccount = false
-            deleteAccountError = error.localizedDescription
-        }
-    }
 }
 
 // MARK: - Settings Row
@@ -232,7 +190,11 @@ struct SettingsRow: View {
 struct ProfileView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var supabase: SupabaseManager
+    @StateObject private var authViewModel = AuthViewModel()
     @State private var showEditProfile = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
 
     var body: some View {
         NavigationStack {
@@ -309,6 +271,20 @@ struct ProfileView: View {
                         }
                     }
                 }
+                
+                // Excluir Conta
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteAccountConfirmation = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("Excluir minha conta")
+                                .fontWeight(.medium)
+                            Spacer()
+                        }
+                    }
+                }
             }
             .navigationTitle("Perfil")
             .navigationBarTitleDisplayMode(.inline)
@@ -322,6 +298,36 @@ struct ProfileView: View {
             .sheet(isPresented: $showEditProfile) {
                 EditProfileView()
             }
+            .alert("Excluir Conta?", isPresented: $showDeleteAccountConfirmation) {
+                Button("Cancelar", role: .cancel) {}
+                Button("Excluir", role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+            } message: {
+                Text("Esta ação é irreversível. Todos os seus dados de pacientes e agendamentos serão apagados permanentemente. Tem certeza?")
+            }
+            .alert("Erro ao Excluir Conta", isPresented: Binding(
+                get: { deleteAccountError != nil },
+                set: { if !$0 { deleteAccountError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deleteAccountError ?? "")
+            }
+            .loadingOverlay(isLoading: isDeletingAccount, text: "Excluindo conta...")
+        }
+    }
+
+    
+    private func deleteAccount() async {
+        isDeletingAccount = true
+
+        do {
+            try await authViewModel.deleteAccount()
+            // Logout will happen automatically via deleteAccount()
+        } catch {
+            isDeletingAccount = false
+            deleteAccountError = error.localizedDescription
         }
     }
 }
@@ -505,10 +511,12 @@ struct EditProfileView: View {
 
 struct NotificationsSettingsView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var supabase: SupabaseManager
     @StateObject private var notificationManager = NotificationManager.shared
 
     // Apenas toggles de ativação (horários são fixos no backend)
     @AppStorage("daily_summary_enabled") private var dailySummaryEnabled = false
+    @AppStorage("daily_financial_summary_enabled") private var dailyFinancialSummaryEnabled = false
     @AppStorage("weekly_summary_enabled") private var weeklySummaryEnabled = false
     @AppStorage("birthday_notifications_enabled") private var birthdayNotificationsEnabled = false
     @AppStorage("appointment_reminder_enabled") private var appointmentReminderEnabled = false
@@ -536,6 +544,9 @@ struct NotificationsSettingsView: View {
                                     // Ativar todas as notificações automaticamente
                                     dailySummaryEnabled = true
                                     weeklySummaryEnabled = true
+                                    if supabase.isOwner {
+                                        dailyFinancialSummaryEnabled = true
+                                    }
                                     birthdayNotificationsEnabled = true
                                     appointmentReminderEnabled = true
                                     
@@ -561,6 +572,20 @@ struct NotificationsSettingsView: View {
                     Label("Resumo Diário", systemImage: "sun.max.fill")
                 } footer: {
                     Text("Um resumo dos seus agendamentos, entregue todas as manhãs às 08:00.")
+                }
+                
+                // Resumo Financeiro (Owner Only)
+                if supabase.isOwner {
+                    Section {
+                        Toggle("Resumo Financeiro Diário", isOn: $dailyFinancialSummaryEnabled)
+                            .onChange(of: dailyFinancialSummaryEnabled) { _, _ in
+                                scheduleNotifications()
+                            }
+                    } header: {
+                        Label("Faturamento do Dia", systemImage: "dollarsign.circle.fill")
+                    } footer: {
+                        Text("Receba um resumo do seu faturamento e atendimentos do dia, às 21:00.")
+                    }
                 }
 
                 // Resumo Semanal
