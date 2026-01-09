@@ -4,10 +4,10 @@ import SwiftUI
 /// Implementa layout similar ao Apple Calendar / Google Calendar
 struct CalendarDayView: View {
     @ObservedObject var viewModel: AgendaViewModel
-    @State private var selectedAppointment: Appointment?
-    @State private var selectedRecurringBlock: RecurringBlock?
-
+    
     private var isToday: Bool {
+
+
         Calendar.current.isDateInToday(viewModel.selectedDate)
     }
 
@@ -48,16 +48,6 @@ struct CalendarDayView: View {
                 }
             }
         }
-        .sheet(item: $selectedAppointment) { appointment in
-            AppointmentDetailSheet(appointment: appointment) {
-                Task { await viewModel.loadData() }
-            }
-        }
-        .sheet(item: $selectedRecurringBlock) { block in
-            EditRecurringBlockView(block: block) {
-                Task { await viewModel.loadData() }
-            }
-        }
     }
 
     // MARK: - Recurring Blocks Layer
@@ -77,7 +67,7 @@ struct CalendarDayView: View {
                     block: block,
                     availableWidth: width
                 ) {
-                    selectedRecurringBlock = block
+                    viewModel.activeSheet = .editRecurringBlock(block)
                 }
             }
         }
@@ -168,7 +158,7 @@ struct CalendarDayView: View {
                 positioned: positioned,
                 availableWidth: width
             ) {
-                selectedAppointment = positioned.appointment
+                viewModel.activeSheet = .appointmentDetails(positioned.appointment)
             }
         }
     }

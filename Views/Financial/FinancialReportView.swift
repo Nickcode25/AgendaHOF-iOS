@@ -43,7 +43,7 @@ struct FinancialReportView: View {
                     emptyView
                 }
             }
-            .background(Color(.systemBackground))
+            .background(Color(.systemGroupedBackground)) // Mudança para GroupedBackground
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -108,7 +108,7 @@ struct FinancialReportView: View {
                     }
                 }
             }
-            .background(Color(.systemGray6))
+            .background(Color(.tertiarySystemGroupedBackground)) // Melhor contraste no header
             .cornerRadius(10)
         }
         .padding(.horizontal, 32)
@@ -172,8 +172,9 @@ struct FinancialReportView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
-            .background(Color(.systemGray6).opacity(0.5))
+            .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
 
             // Cards de receita e despesa
             HStack(spacing: 12) {
@@ -181,45 +182,47 @@ struct FinancialReportView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: "arrow.up.circle")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.green)
+                        .font(.system(size: 20))
+                        .foregroundStyle(.green)
                         Spacer()
                     }
 
                     Text("Receita Total")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                     Text(formatCurrency(data.totalRevenue))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.primary)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.primary)
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.5))
+                .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
 
                 // Despesas
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: "arrow.down.circle")
-                            .font(.system(size: 20))
-                            .foregroundColor(.red)
+                        .font(.system(size: 20))
+                        .foregroundColor(.red)
                         Spacer()
                     }
 
                     Text("Despesas")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                     Text(formatCurrency(data.totalExpenses))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.primary)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.primary)
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.5))
+                .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
             }
         }
     }
@@ -231,7 +234,8 @@ struct FinancialReportView: View {
             Text("Receitas por categoria")
                 .font(.subheadline)
                 .fontWeight(.medium)
-                .foregroundStyle(.primary)
+                .foregroundStyle(.secondary) // Texto secundário fica melhor no grouped
+                .padding(.leading, 4)
 
             VStack(spacing: 0) {
                 RevenueRow(
@@ -271,8 +275,9 @@ struct FinancialReportView: View {
                     )
                 }
             }
-            .background(Color(.systemGray6).opacity(0.5))
+            .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
         }
     }
 
@@ -283,7 +288,8 @@ struct FinancialReportView: View {
             Text("Despesas")
                 .font(.subheadline)
                 .fontWeight(.medium)
-                .foregroundStyle(.primary)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 4)
 
             VStack(spacing: 0) {
                 ForEach(Array(data.expensesByCategory.enumerated()), id: \.element.category) { index, expense in
@@ -294,10 +300,12 @@ struct FinancialReportView: View {
                     )
                 }
             }
-            .background(Color(.systemGray6).opacity(0.5))
+            .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
         }
     }
+
 
     // MARK: - Loading View
 

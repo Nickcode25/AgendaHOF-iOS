@@ -29,23 +29,41 @@ struct NewAppointmentView: View {
     @StateObject private var professionalService = ProfessionalService()
     @StateObject private var appointmentService = AppointmentService()
 
-    init(selectedDate: Date, isPersonal: Bool = false, onSave: @escaping () -> Void) {
+    init(selectedDate: Date, initialTime: Date? = nil, initialEndTime: Date? = nil, isPersonal: Bool = false, onSave: @escaping () -> Void) {
         self.selectedDate = selectedDate
         self.isPersonal = isPersonal
         self.onSave = onSave
 
         let calendar = Calendar.current
-        let now = Date()
-        let startOfDay = calendar.startOfDay(for: selectedDate)
+        
+        // Se fornecido horário inicial (drag-to-create), usa ele
+        if let start = initialTime {
+            _date = State(initialValue: start)
+            _startTime = State(initialValue: start)
+            
+            // Se tiver fim específico (arraste), usa. Senão +1h
+            if let end = initialEndTime {
+                _endTime = State(initialValue: end)
+            } else {
+                _endTime = State(initialValue: calendar.date(byAdding: .hour, value: 1, to: start) ?? start)
+            }
+        } else {
+            // Lógica padrão: próxima hora cheia
+            let now = Date()
+            let startOfDay = calendar.startOfDay(for: selectedDate)
+            let currentHour = calendar.component(.hour, from: now)
+            
+            // Se a data selecionada for hoje, sugere próxima hora. Se for futuro, sugere 08:00
+            let isToday = calendar.isDateInToday(selectedDate)
+            let defaultHour = isToday ? max(currentHour + 1, 8) : 8
+            
+            let defaultStartTime = calendar.date(bySettingHour: defaultHour, minute: 0, second: 0, of: startOfDay)!
+            let defaultEndTime = calendar.date(byAdding: .hour, value: 1, to: defaultStartTime)!
 
-        // Horário inicial: próxima hora cheia
-        let currentHour = calendar.component(.hour, from: now)
-        let defaultStartTime = calendar.date(bySettingHour: max(currentHour + 1, 8), minute: 0, second: 0, of: startOfDay)!
-        let defaultEndTime = calendar.date(byAdding: .hour, value: 1, to: defaultStartTime)!
-
-        _date = State(initialValue: selectedDate)
-        _startTime = State(initialValue: defaultStartTime)
-        _endTime = State(initialValue: defaultEndTime)
+            _date = State(initialValue: selectedDate)
+            _startTime = State(initialValue: defaultStartTime)
+            _endTime = State(initialValue: defaultEndTime)
+        }
     }
 
     var body: some View {
@@ -95,6 +113,15 @@ struct NewAppointmentView: View {
                     professionals: professionalService.professionals,
                     selectedProfessional: $selectedProfessional
                 ) {}
+            }
+            .sheet(isPresented: $showNewProfessionalSheet) {
+                NewProfessionalView(existingProfessionals: professionalService.professionals, onSave: { newProfessional in
+                    // Reload list and select the new one
+                    Task {
+                        await professionalService.fetchProfessionals()
+                        selectedProfessional = newProfessional
+                    }
+                })
             }
             .task {
                 await patientService.fetchPatients()
@@ -152,6 +179,10 @@ struct NewAppointmentView: View {
 
     // MARK: - Common Fields
 
+    @State private var showNewProfessionalSheet = false
+
+    // MARK: - Common Fields
+
     private var commonFields: some View {
         Group {
             Section("Data e Horário") {
@@ -162,36 +193,47 @@ struct NewAppointmentView: View {
                 DatePicker("Término", selection: $endTime, displayedComponents: .hourAndMinute)
             }
 
-            if !professionalService.professionals.isEmpty {
-                Section("Profissional") {
-                    Button {
-                        showProfessionalPicker = true
-                    } label: {
-                        HStack {
-                            if let professional = selectedProfessional {
-                                AvatarView(name: professional.name, size: 36)
-                                VStack(alignment: .leading) {
-                                    Text(professional.name)
-                                        .foregroundColor(.primary)
-                                    if let specialty = professional.specialty {
-                                        Text(specialty)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
+            Section("Profissional") {
+            Section("Profissional") {
+                Button {
+                    showProfessionalPicker = true
+                } label: {
+                    HStack {
+                        if let professional = selectedProfessional {
+                            AvatarView(name: professional.name, size: 36)
+                            VStack(alignment: .leading) {
+                                Text(professional.name)
+                                    .foregroundColor(.primary)
+                                if let specialty = professional.specialty {
+                                    Text(specialty)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
-                            } else {
-                                Image(systemName: "person.crop.circle")
-                                    .foregroundColor(.appPrimary)
-                                Text("Selecionar Profissional")
-                                    .foregroundColor(.appPrimary)
                             }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        } else {
+                            Image(systemName: "person.crop.circle")
+                                .foregroundColor(.appPrimary)
+                            Text("Selecionar Profissional")
+                                .foregroundColor(.appPrimary)
                         }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
+                
+                Button {
+                    showNewProfessionalSheet = true
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle")
+                            .foregroundColor(.appPrimary)
+                        Text("Cadastrar Novo Profissional")
+                            .foregroundColor(.appPrimary)
+                    }
+                }
+            }
             }
         }
     }
@@ -332,4 +374,226 @@ struct PatientPickerView: View {
 #Preview("Compromisso") {
     NewAppointmentView(selectedDate: Date(), isPersonal: true) {}
         .environmentObject(SupabaseManager.shared)
+}
+import SwiftUI
+
+struct NewProfessionalView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var supabase: SupabaseManager
+    
+    // Callbacks
+    var onSave: ((Professional) -> Void)?
+    
+    // Services
+    @StateObject private var service = ProfessionalService()
+    
+    // Form States
+    @State private var name = ""
+    @State private var specialty = ""
+    @State private var cro = ""
+    @State private var cpf = ""
+    @State private var phone = ""
+    @State private var email = ""
+    
+    // Address
+    @State private var cep = ""
+    @State private var street = ""
+    @State private var number = ""
+    @State private var complement = ""
+    @State private var neighborhood = ""
+    @State private var city = ""
+    @State private var state = ""
+    
+    // Other
+    @State private var notes = ""
+    
+    // UI
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    @State private var showError = false
+    
+    // Existing list for validation
+    var existingProfessionals: [Professional] = []
+
+    init(existingProfessionals: [Professional] = [], onSave: ((Professional) -> Void)? = nil) {
+        self.existingProfessionals = existingProfessionals
+        self.onSave = onSave
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Dados Pessoais") {
+                    TextField("Nome Completo *", text: $name)
+                        .textInputAutocapitalization(.words)
+                    
+                    TextField("Especialidade (ex: Dentista)", text: $specialty)
+                        .textInputAutocapitalization(.sentences)
+                    
+                    TextField("CRO / Registro", text: $cro)
+                        .textInputAutocapitalization(.characters)
+                    
+                    TextField("CPF", text: $cpf)
+                        .keyboardType(.numberPad)
+                        .onChange(of: cpf) { newValue in
+                             cpf = formatCPF(newValue)
+                        }
+                }
+                
+                Section("Contato") {
+                    TextField("Telefone / Celular", text: $phone)
+                        .keyboardType(.phonePad)
+                        .onChange(of: phone) { newValue in
+                             phone = formatPhone(newValue)
+                        }
+                    
+                    TextField("Email", text: $email)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                }
+                
+                Section("Endereço") {
+                    TextField("CEP", text: $cep)
+                        .keyboardType(.numberPad)
+                        .onChange(of: cep) { newValue in
+                            cep = formatCEP(newValue)
+                            if newValue.count >= 9 { // 12345-678
+                                fetchAddress()
+                            }
+                        }
+                    
+                    if !street.isEmpty || !city.isEmpty {
+                        TextField("Rua", text: $street)
+                        HStack {
+                            TextField("Número", text: $number)
+                                .keyboardType(.numberPad)
+                            Divider()
+                            TextField("Comp.", text: $complement)
+                        }
+                        TextField("Bairro", text: $neighborhood)
+                        HStack {
+                            TextField("Cidade", text: $city)
+                            Divider()
+                            TextField("UF", text: $state)
+                                .frame(width: 50)
+                        }
+                    } else if isLoading {
+                        ProgressView()
+                    }
+                }
+                
+                Section("Observações") {
+                    TextEditor(text: $notes)
+                        .frame(height: 80)
+                }
+            }
+            .navigationTitle("Novo Profissional")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancelar") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Salvar") {
+                        Task { await save() }
+                    }
+                    .disabled(name.isEmpty || isLoading)
+                    .fontWeight(.bold)
+                }
+            }
+            .loadingOverlay(isLoading: isLoading, text: "Salvando...")
+            .alert("Erro", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
+        }
+    }
+    
+    // MARK: - Actions
+    
+    private func save() async {
+        guard let userId = supabase.effectiveUserId else { return }
+        
+        // 1. Validar Campos Obrigatórios
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+            errorMessage = "O nome é obrigatório."
+            showError = true
+            return
+        }
+        
+        // 2. Validar Duplicidade Local
+        let cleanName = name.trimmingCharacters(in: .whitespaces).lowercased()
+        if existingProfessionals.contains(where: { $0.name.trimmingCharacters(in: .whitespaces).lowercased() == cleanName }) {
+            errorMessage = "Já existe um profissional com este nome."
+            showError = true
+            return
+        }
+        
+        // (Opcional) Validar CPF/CRO duplicado se preenchido
+        // ...
+        
+        isLoading = true
+        
+        let newProfessional = Professional.Insert(
+            userId: userId,
+            name: name,
+            specialty: specialty.isEmpty ? nil : specialty,
+            cro: cro.isEmpty ? nil : cro,
+            phone: phone.isEmpty ? nil : phone,
+            email: email.isEmpty ? nil : email,
+            cpf: cpf.isEmpty ? nil : cpf,
+            zipCode: cep.isEmpty ? nil : cep,
+            street: street.isEmpty ? nil : street,
+            number: number.isEmpty ? nil : number,
+            complement: complement.isEmpty ? nil : complement,
+            neighborhood: neighborhood.isEmpty ? nil : neighborhood,
+            city: city.isEmpty ? nil : city,
+            state: state.isEmpty ? nil : state,
+            notes: notes.isEmpty ? nil : notes,
+            photoUrl: nil, // Upload not implemented here yet
+            isActive: true
+        )
+        
+        do {
+            let created = try await service.createProfessional(newProfessional)
+            onSave?(created)
+            dismiss()
+        } catch {
+            errorMessage = "Erro ao salvar: \(error.localizedDescription)"
+            showError = true
+        }
+        
+        isLoading = false
+    }
+    
+    private func fetchAddress() {
+        // Mocked or simple implementation for now, user guideline said logic is optional/integration.
+        // For keeping it simple in this step, I'm just leaving the hook. 
+        // If the user wants ViaCEP integrated, I can add it, but for now I focus on saving flow.
+    }
+    
+    // MARK: - Formatters
+    
+    private func formatCPF(_ cpf: String) -> String {
+        let numbers = cpf.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        if numbers.count > 11 { return String(numbers.prefix(11)) }
+        // Simple masking XXX.XXX.XXX-XX could apply here
+        return numbers
+    }
+    
+    private func formatPhone(_ phone: String) -> String {
+        let numbers = phone.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        if numbers.count > 11 { return String(numbers.prefix(11)) }
+        return numbers
+    }
+    
+    private func formatCEP(_ cep: String) -> String {
+         let numbers = cep.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+         if numbers.count > 8 { return String(numbers.prefix(8)) }
+         return numbers
+    }
 }

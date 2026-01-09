@@ -4,11 +4,6 @@ struct AgendaView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @StateObject private var viewModel = AgendaViewModel()
     @StateObject private var professionalService = ProfessionalService()
-    @State private var showNewAppointment = false
-    @State private var showNewPersonalAppointment = false
-    @State private var showNewRecurringBlock = false
-    @State private var showDatePicker = false
-    @State private var showProfessionalPicker = false
 
     /// Largura da tela em pontos
     private var screenWidth: CGFloat {
@@ -72,28 +67,65 @@ struct AgendaView: View {
                     Spacer()
                 }
             } else {
-                // Vista direta sem paginação lateral
-                ZStack {
-                    switch viewModel.viewMode {
-                    case .day:
-                        CalendarDayView(viewModel: viewModel)
-                    case .week:
-                        CalendarWeekView(viewModel: viewModel)
+                // Vista direta sem paginação lateral (agora num ZStack principal)
+                ZStack(alignment: .bottomTrailing) { // Alinhamento para o FAB
+                    
+                    // Conteúdo (Calendário)
+                    ZStack {
+                        switch viewModel.viewMode {
+                        case .day:
+                            CalendarDayView(viewModel: viewModel)
+                        case .week:
+                            CalendarWeekView(viewModel: viewModel)
+                        }
+
+                        // Loading sutil durante transições (não bloqueia a tela)
+                        if viewModel.isLoading {
+                            VStack {
+                                Spacer()
+                                ProgressView()
+                                    .controlSize(.regular)
+                                    .tint(.gray)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color(.systemGroupedBackground).opacity(0.5))
+                            .allowsHitTesting(false)
+                        }
                     }
 
-                    // Loading sutil durante transições (não bloqueia a tela)
-                    if viewModel.isLoading {
-                        VStack {
-                            Spacer()
-                            ProgressView()
-                                .controlSize(.regular)
-                                .tint(.gray)
-                            Spacer()
+                    // Floating Action Button (FAB) - Menu
+                    Menu {
+                        Button {
+                            viewModel.activeSheet = .newAppointment
+                        } label: {
+                            Label("Agendamento", systemImage: "calendar.badge.plus")
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemGroupedBackground).opacity(0.5))
-                        .allowsHitTesting(false)
+
+                        Button {
+                            viewModel.activeSheet = .newPersonalAppointment
+                        } label: {
+                            Label("Compromisso Pessoal", systemImage: "person.fill.badge.plus")
+                        }
+
+                        Button {
+                            viewModel.activeSheet = .newRecurringBlock
+                        } label: {
+                            Label("Bloqueio Recorrente", systemImage: "clock.badge.xmark")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(
+                                Circle()
+                                    .fill(Color.appPrimary)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 4)
+                            )
                     }
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 24)
                 }
             }
         }
@@ -118,7 +150,7 @@ struct AgendaView: View {
 
                     // Data - tap para abrir picker
                     Button {
-                        showDatePicker = true
+                        viewModel.activeSheet = .datePicker
                     } label: {
                         Text(viewModel.compactDateTitle)
                             .font(screenSize == .small ? .caption : .subheadline)
@@ -192,7 +224,7 @@ struct AgendaView: View {
                     // Filtro de profissional (apenas ícone)
                     if !professionalService.professionals.isEmpty {
                         Button {
-                            showProfessionalPicker = true
+                            viewModel.activeSheet = .professionalPicker
                         } label: {
                             Image(systemName: viewModel.selectedProfessional != nil ? "person.crop.circle.fill" : "person.crop.circle")
                                 .foregroundColor(viewModel.selectedProfessional != nil ? .appPrimary : .primary)
@@ -211,57 +243,46 @@ struct AgendaView: View {
                     }
 
                     // Menu de adicionar (SEMPRE visível)
-                    Menu {
-                        Button {
-                            showNewAppointment = true
-                        } label: {
-                            Label("Agendamento", systemImage: "calendar.badge.plus")
-                        }
 
-                        Button {
-                            showNewPersonalAppointment = true
-                        } label: {
-                            Label("Compromisso Pessoal", systemImage: "person.fill.badge.plus")
-                        }
-
-                        Button {
-                            showNewRecurringBlock = true
-                        } label: {
-                            Label("Bloqueio Recorrente", systemImage: "clock.badge.xmark")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .fontWeight(.semibold)
-                    }
                 }
             }
         }
-        .sheet(isPresented: $showNewAppointment) {
-            NewAppointmentView(selectedDate: viewModel.selectedDate, isPersonal: false) {
-                Task { await viewModel.loadData() }
-            }
-        }
-        .sheet(isPresented: $showNewPersonalAppointment) {
-            NewAppointmentView(selectedDate: viewModel.selectedDate, isPersonal: true) {
-                Task { await viewModel.loadData() }
-            }
-        }
-        .sheet(isPresented: $showNewRecurringBlock) {
-            NewRecurringBlockView {
-                Task { await viewModel.loadData() }
-            }
-        }
-        .sheet(isPresented: $showDatePicker) {
-            DatePickerSheet(selectedDate: $viewModel.selectedDate) {
-                Task { await viewModel.loadData() }
-            }
-        }
-        .sheet(isPresented: $showProfessionalPicker) {
-            ProfessionalPickerSheet(
-                professionals: professionalService.professionals,
-                selectedProfessional: $viewModel.selectedProfessional
-            ) {
-                Task { await viewModel.loadData() }
+        .sheet(item: $viewModel.activeSheet) { sheet in
+            switch sheet {
+            case .newAppointment:
+                NewAppointmentView(
+                    selectedDate: viewModel.selectedDate,
+                    isPersonal: false
+                ) {
+                    Task { await viewModel.loadData() }
+                }
+            case .newPersonalAppointment:
+                NewAppointmentView(selectedDate: viewModel.selectedDate, isPersonal: true) {
+                    Task { await viewModel.loadData() }
+                }
+            case .newRecurringBlock:
+                NewRecurringBlockView {
+                    Task { await viewModel.loadData() }
+                }
+            case .datePicker:
+                DatePickerSheet(selectedDate: $viewModel.selectedDate) {
+                    Task { await viewModel.loadData() }
+                }
+            case .professionalPicker:
+                ProfessionalPickerSheet(
+                    professionals: professionalService.professionals,
+                    selectedProfessional: $viewModel.selectedProfessional
+                ) {
+                    Task { await viewModel.loadData() }
+                }
+            case .appointmentDetails(let appointment):
+                AppointmentDetailSheet(appointment: appointment) {
+                    Task { await viewModel.loadData() }
+                }
+            case .editRecurringBlock(let block):
+                EditRecurringBlockView(block: block) {
+                    Task { await viewModel.loadData() }
+                }
             }
         }
         .task {
@@ -373,6 +394,8 @@ struct ProfessionalPickerSheet: View {
         .presentationDetents([.medium, .large])
     }
 }
+
+
 
 #Preview {
     NavigationStack {

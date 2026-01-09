@@ -20,8 +20,6 @@ import SwiftUI
 struct CalendarWeekView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @ObservedObject var viewModel: AgendaViewModel
-    @State private var selectedAppointment: Appointment?
-    @State private var selectedRecurringBlock: RecurringBlock?
     @State private var refreshID = UUID() // Trigger para forçar re-render
 
     /// Número de dias visíveis na semana
@@ -30,7 +28,7 @@ struct CalendarWeekView: View {
     /// Dias da semana atual
     private var weekDates: [Date] {
         var calendar = Calendar.current
-        calendar.firstWeekday = 2 // Segunda-feira (1 = Domingo, 2 = Segunda)
+        calendar.firstWeekday = 1 // Domingo
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: viewModel.selectedDate)?.start ?? viewModel.selectedDate
 
         return (0..<7).compactMap { dayOffset in
@@ -58,16 +56,6 @@ struct CalendarWeekView: View {
             }
         }
         .background(Color(.systemGroupedBackground))
-        .sheet(item: $selectedAppointment) { appointment in
-            AppointmentDetailSheet(appointment: appointment) {
-                Task { await viewModel.loadData() }
-            }
-        }
-        .sheet(item: $selectedRecurringBlock) { block in
-            EditRecurringBlockView(block: block) {
-                Task { await viewModel.loadData() }
-            }
-        }
     }
 
     // MARK: - Layout Calculations
@@ -133,10 +121,10 @@ struct CalendarWeekView: View {
                         width: dayColumnWidth,
                         isCompact: sizeClass != .regular,
                         onAppointmentTap: { appointment in
-                            selectedAppointment = appointment
+                            viewModel.activeSheet = .appointmentDetails(appointment)
                         },
                         onRecurringBlockTap: { block in
-                            selectedRecurringBlock = block
+                            viewModel.activeSheet = .editRecurringBlock(block)
                         }
                     )
                 }

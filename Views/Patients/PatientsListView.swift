@@ -6,8 +6,11 @@ struct PatientsListView: View {
     @State private var showNewPatient = false
     @State private var showContactPicker = false
     @State private var selectedPatient: Patient?
-    @State private var importedContact: ContactInfo?
     @State private var showMenu = false
+    
+    // Batch Import State
+    @State private var isImporting = false
+    @State private var importProgress = 0
 
     var filteredPatients: [Patient] {
         if searchText.isEmpty {
@@ -119,17 +122,18 @@ struct PatientsListView: View {
             .presentationDetents([.height(250)])
             .presentationDragIndicator(.hidden)
         }
+
         .sheet(isPresented: $showContactPicker) {
-            ContactPicker { contact in
-                importedContact = contact
+            CustomContactPickerView { contacts in
                 showContactPicker = false
-                showNewPatient = true
+                Task {
+                    await handleBatchImport(contacts)
+                }
             }
         }
         .sheet(isPresented: $showNewPatient) {
-            NewPatientView(importedContact: importedContact) {
-                Task { await patientService.fetchPatients() }
-                importedContact = nil
+            NewPatientView(service: patientService) {
+                // Callback if needed
             }
         }
         .sheet(item: $selectedPatient) { patient in
@@ -147,6 +151,7 @@ struct PatientsListView: View {
         .refreshable {
             await patientService.fetchPatients()
         }
+        .loadingOverlay(isLoading: isImporting, text: "Importando \(importProgress) contatos...")
     }
 
     private var patientsList: some View {
@@ -315,41 +320,22 @@ struct NewPatientView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var supabase: SupabaseManager
 
-    var importedContact: ContactInfo?
+    @ObservedObject var service: PatientService
+    var importedContact: ContactInfo? = nil
     var onSave: () -> Void
 
     @State private var name = ""
     @State private var phone = ""
-    @State private var birthDate: Date?
-    @State private var hasBirthDate: Bool
+    @State private var birthDate: Date? = nil
+    @State private var hasBirthDate: Bool = false
     @State private var showContactPicker = false
 
     @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
 
-    @StateObject private var patientService = PatientService()
+    // Removido init customizado que causava bug de estado
 
-    init(importedContact: ContactInfo? = nil, onSave: @escaping () -> Void) {
-        self.importedContact = importedContact
-        self.onSave = onSave
-
-        // Preencher campos com dados do contato importado
-        if let contact = importedContact {
-            _name = State(initialValue: contact.name)
-            _phone = State(initialValue: contact.phone ?? "")
-            if let birthday = contact.birthday {
-                _birthDate = State(initialValue: birthday)
-                _hasBirthDate = State(initialValue: true)
-            } else {
-                _birthDate = State(initialValue: nil)
-                _hasBirthDate = State(initialValue: false)
-            }
-        } else {
-            _birthDate = State(initialValue: nil)
-            _hasBirthDate = State(initialValue: false)
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -433,11 +419,23 @@ struct NewPatientView: View {
                 }
             }
         }
+        .onAppear {
+            populateFields()
+        }
+        .onChange(of: importedContact) { _, _ in
+             populateFields()
+        }
     }
 
     // Formata telefone no padrão brasileiro (XX) XXXXX-XXXX
     private func formatPhoneBrazil(_ value: String) -> String {
-        let numbers = value.filter { $0.isNumber }
+        var numbers = value.filter { $0.isNumber }
+        
+        // Remove DDI 55 se vier formatado com ele (ex: 55319...)
+        if numbers.hasPrefix("55") && numbers.count > 11 {
+            numbers = String(numbers.dropFirst(2))
+        }
+        
         var result = ""
 
         for (index, char) in numbers.prefix(11).enumerated() {
@@ -454,6 +452,19 @@ struct NewPatientView: View {
         }
 
         return result
+    }
+
+    private func populateFields() {
+        if let contact = importedContact {
+            name = contact.name
+            if let contactPhone = contact.phone {
+                phone = formatPhoneBrazil(contactPhone)
+            }
+            if let birthday = contact.birthday {
+                birthDate = birthday
+                hasBirthDate = true
+            }
+        }
     }
 
     private func save() async {
@@ -473,7 +484,7 @@ struct NewPatientView: View {
                 phone: phone.isEmpty ? nil : phone
             )
 
-            _ = try await patientService.createPatient(patient)
+            _ = try await service.createPatient(patient)
             onSave()
             dismiss()
         } catch {
@@ -482,6 +493,84 @@ struct NewPatientView: View {
         }
 
         isLoading = false
+    }
+}
+
+// MARK: - Batch Import Logic extension
+extension PatientsListView {
+    private func handleBatchImport(_ contacts: [ContactInfo]) async {
+        guard !contacts.isEmpty else { return }
+        guard let userId = SupabaseManager.shared.effectiveUserId else { return }
+
+        isImporting = true
+        importProgress = 0
+        
+        // Iterar e salvar um por um (simples e eficaz)
+        var successCount = 0
+        
+        // Carregar lista atual para verificação de duplicidade (caso não esteja atualizada)
+        let existingPatients = patientService.patients
+        
+        for (index, contact) in contacts.enumerated() {
+            importProgress = index + 1
+            
+            // Format phone
+            let formattedPhone = contact.phone.map { formatPhoneBrazil($0) }
+            let name = contact.name.trimmingCharacters(in: .whitespaces)
+            
+            // Verificação de duplicidade simples (Nome E (Telefone OU Sem Telefone))
+            // Evita criar o mesmo paciente várias vezes se clicar em importar de novo
+            let alreadyExists = existingPatients.contains { patient in
+                let sameName = patient.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+                let samePhone = (patient.phone == formattedPhone)
+                return sameName && (formattedPhone == nil || samePhone)
+            }
+            
+            if alreadyExists {
+                print("Paciente \(name) já existe. Ignorando.")
+                continue
+            }
+            
+            let newPatient = Patient.Insert(
+                userId: userId,
+                name: name,
+                birthDate: contact.birthday,
+                phone: formattedPhone
+            )
+            
+            do {
+                _ = try await patientService.createPatient(newPatient)
+                successCount += 1
+            } catch {
+                print("Erro ao importar contato \(contact.name): \(error)")
+            }
+        }
+        
+        isImporting = false
+        // Atualizar lista após importar
+        if successCount > 0 {
+            await patientService.fetchPatients()
+        }
+    }
+    
+    // Helper local para formatar telefone
+    private func formatPhoneBrazil(_ value: String) -> String {
+        var numbers = value.filter { $0.isNumber }
+        
+        // Remove DDI 55 se vier com ele (ex: 55319...)
+        if numbers.hasPrefix("55") && numbers.count > 11 {
+            numbers = String(numbers.dropFirst(2))
+        }
+        
+        var result = ""
+
+        for (index, char) in numbers.prefix(11).enumerated() {
+            if index == 0 { result += "(" }
+            if index == 2 { result += ") " }
+            if index == 7 { result += "-" }
+            result += String(char)
+        }
+        return result
     }
 }
 

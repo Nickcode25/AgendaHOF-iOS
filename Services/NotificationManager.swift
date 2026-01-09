@@ -18,7 +18,6 @@ class NotificationManager: ObservableObject {
         static let dailySummary = "daily_summary"
         static let weeklySummary = "weekly_summary"
         static let dailyFinancialSummary = "daily_financial_summary"
-        static let birthdayPrefix = "birthday_"
         static let appointmentReminderPrefix = "appointment_reminder_"
     }
     
@@ -33,15 +32,56 @@ class NotificationManager: ObservableObject {
     // MARK: - Authorization
     
     /// Solicita permissão paara enviar notificações
+    /// Solicita permissão paara enviar notificações
     func requestAuthorization() async -> Bool {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
             isAuthorized = granted
+            
+            if granted {
+                await enableDefaultNotifications()
+                await scheduleAllNotifications()
+            }
+            
             return granted
         } catch {
             AppLogger.error("Erro ao solicitar permissão de notificações", error: error)
             return false
         }
+    }
+    
+    /// Habilita todas as notificações por padrão se ainda não foram configuradas
+    private func enableDefaultNotifications() async {
+        let defaults = UserDefaults.standard
+        
+        // Helper para definir true apenas se a chave não existir
+        func setTrueIfNotSet(_ key: String) {
+            if defaults.object(forKey: key) == nil {
+                defaults.set(true, forKey: key)
+            }
+        }
+        
+        // 1. Resumo Diário
+        setTrueIfNotSet("daily_summary_enabled")
+        if defaults.object(forKey: "daily_summary_hour") == nil {
+            defaults.set(8, forKey: "daily_summary_hour")
+            defaults.set(0, forKey: "daily_summary_minute")
+        }
+        
+        // 2. Resumo Financeiro
+        setTrueIfNotSet("daily_financial_summary_enabled")
+        
+        // 3. Resumo Semanal
+        setTrueIfNotSet("weekly_summary_enabled")
+        
+
+        // 5. Lembretes
+        setTrueIfNotSet("appointment_reminder_enabled")
+        if defaults.object(forKey: "appointment_reminder_minutes") == nil {
+            defaults.set(30, forKey: "appointment_reminder_minutes")
+        }
+        
+        AppLogger.log("✅ Todas as notificações habilitadas por padrão (Setup Inicial)", category: .notification)
     }
     
     /// Verifica o status atual de autorização
@@ -81,10 +121,7 @@ class NotificationManager: ObservableObject {
             await scheduleWeeklySummary(dayOfWeek: 1, hour: 20)
         }
         
-        if defaults.bool(forKey: "birthday_notifications_enabled") {
-            await scheduleBirthdayNotifications()
-        }
-        
+
         if defaults.bool(forKey: "appointment_reminder_enabled") {
             let reminderMinutes = defaults.integer(forKey: "appointment_reminder_minutes")
             await scheduleAppointmentReminders(minutesBefore: reminderMinutes == 0 ? 30 : reminderMinutes)
@@ -351,62 +388,7 @@ class NotificationManager: ObservableObject {
         }.joined(separator: ", ")
     }
     
-    // MARK: - Birthday Notifications
-    
-    func scheduleBirthdayNotifications() async {
-        let patients = await fetchPatientsWithBirthdays()
-        let calendar = Calendar.current
-        let now = Date()
-        let today = calendar.startOfDay(for: now)
-        
-        for patient in patients {
-            guard let birthDate = patient.birthDate else { continue }
-            
-            // Calcular próximo aniversário
-            var birthdayComponents = calendar.dateComponents([.month, .day], from: birthDate)
-            birthdayComponents.year = calendar.component(.year, from: now)
-            
-            guard var nextBirthday = calendar.date(from: birthdayComponents) else { continue }
-            
-            // Ajustar para próximo ano se já passou
-            let nextBirthdayStart = calendar.startOfDay(for: nextBirthday)
-            if nextBirthdayStart < today {
-                birthdayComponents.year = (birthdayComponents.year ?? 0) + 1
-                nextBirthday = calendar.date(from: birthdayComponents) ?? nextBirthday
-            }
-            
-            // Verificar intervalo (30 dias)
-            guard let daysUntilBirthday = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: nextBirthday)).day,
-                  daysUntilBirthday >= 0 && daysUntilBirthday <= 30 else {
-                continue
-            }
-            
-            // Calcular idade
-            let age = calendar.dateComponents([.year], from: birthDate, to: nextBirthday).year ?? 0
-            
-            let content = UNMutableNotificationContent()
-            content.title = "🎂 Aniversário!"
-            
-            if daysUntilBirthday == 0 {
-                content.body = "\(patient.name) faz \(age) anos HOJE! 🎉 Não esqueça de parabenizar."
-            } else if daysUntilBirthday == 1 {
-                content.body = "\(patient.name) faz \(age) anos amanhã! Prepare-se para parabenizar."
-            } else {
-                content.body = "\(patient.name) fará \(age) anos em \(daysUntilBirthday) dias!"
-            }
-            content.sound = .default
-            
-            var triggerComponents = calendar.dateComponents([.year, .month, .day], from: nextBirthday)
-            triggerComponents.hour = 8 // Fixo às 08:00
-            triggerComponents.minute = 0
-            
-            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
-            let request = UNNotificationRequest(identifier: "\(NotificationID.birthdayPrefix)\(patient.id)", content: content, trigger: trigger)
-            
-            addRequest(request, description: "Aniversário \(patient.name)")
-        }
-    }
-    
+
     // MARK: - Appointment Reminders
     
     func scheduleAppointmentReminders(minutesBefore: Int) async {
@@ -476,26 +458,7 @@ class NotificationManager: ObservableObject {
         }
     }
     
-    private func fetchPatientsWithBirthdays() async -> [Patient] {
-        guard let userId = supabase.effectiveUserId else { return [] }
-        
-        do {
-            let result: [Patient] = try await supabase.client
-                .from("patients")
-                .select()
-                .eq("user_id", value: userId)
-                .eq("is_active", value: true)
-                .not("birth_date", operator: .is, value: "null")
-                .execute()
-                .value
-            
-            return result
-        } catch {
-            print("❌ Erro ao buscar aniversariantes: \(error)")
-            return []
-        }
-    }
-    
+
     /// Calcula a receita do dia baseado nos procedimentos dos pacientes (lógica do FinancialReportViewModel)
     private func calculateDailyRevenue(date: Date) async -> Double {
         guard let userId = supabase.effectiveUserId else { return 0 }

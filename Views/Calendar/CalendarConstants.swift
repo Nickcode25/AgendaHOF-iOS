@@ -103,6 +103,28 @@ enum CalendarConstants {
     static var totalGridHeight: CGFloat {
         CGFloat(totalHours) * hourHeight
     }
+
+    // MARK: - Conversão Inversa (Y -> Data)
+
+    /// Converte uma posição Y no grid para uma Data (horário)
+    static func date(for yPosition: CGFloat, baseDate: Date) -> Date {
+        // 1. Calcular horas totais baseadas na posição Y
+        let totalHoursFromStart = yPosition / hourHeight
+
+        // 2. Separar horas e minutos
+        let hour = Int(totalHoursFromStart)
+        let minutes = Int((totalHoursFromStart - CGFloat(hour)) * 60)
+
+        // 3. Somar à hora inicial (7:00)
+        let finalHour = startHour + hour
+        let finalMinutes = (minutes / 15) * 15 // Arredondar para 15 min
+
+        // 4. Criar data
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone.current
+
+        return calendar.date(bySettingHour: finalHour, minute: finalMinutes, second: 0, of: baseDate) ?? baseDate
+    }
 }
 
 // MARK: - Extensões de Data

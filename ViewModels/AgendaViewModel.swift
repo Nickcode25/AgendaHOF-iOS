@@ -12,6 +12,7 @@ class AgendaViewModel: ObservableObject {
     @Published var error: String?
     @Published var viewMode: ViewMode = .day
     @Published var selectedProfessional: Professional?
+    @Published var activeSheet: SheetType?
 
     // MARK: - Private
 
@@ -51,7 +52,8 @@ class AgendaViewModel: ObservableObject {
             return formatter.string(from: selectedDate).capitalized
 
         case .week:
-            let calendar = Calendar.current
+            var calendar = Calendar.current
+            calendar.firstWeekday = 1 // Domingo
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
             let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek)!
 
@@ -79,7 +81,7 @@ class AgendaViewModel: ObservableObject {
 
         case .week:
             var calendar = Calendar.current
-            calendar.firstWeekday = 2 // Segunda-feira (1 = Domingo, 2 = Segunda)
+            calendar.firstWeekday = 1 // Domingo
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
             let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek)!
 
@@ -237,5 +239,29 @@ class AgendaViewModel: ObservableObject {
             }
         }
         return false
+    }
+
+    // MARK: - Sheet Types
+    
+    enum SheetType: Identifiable {
+        case newAppointment
+        case newPersonalAppointment
+        case newRecurringBlock
+        case datePicker
+        case professionalPicker
+        case appointmentDetails(Appointment)
+        case editRecurringBlock(RecurringBlock)
+        
+        var id: String {
+            switch self {
+            case .newAppointment: return "newAppointment"
+            case .newPersonalAppointment: return "newPersonalAppointment"
+            case .newRecurringBlock: return "newRecurringBlock"
+            case .datePicker: return "datePicker"
+            case .professionalPicker: return "professionalPicker"
+            case .appointmentDetails(let appt): return "details-\(appt.id)"
+            case .editRecurringBlock(let block): return "editBlock-\(block.id)"
+            }
+        }
     }
 }

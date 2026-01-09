@@ -52,27 +52,8 @@ struct SettingsView: View {
                 }
             }
 
-            // Recursos
-            Section("Recursos") {
-                // Notificações
-                SettingsRow(
-                    icon: "bell.fill",
-                    iconColor: .red,
-                    title: "Notificações"
-                ) {
-                    showNotifications = true
-                }
-                
-                // Pacientes Inativos (+6 meses)
-                SettingsRow(
-                    icon: "person.badge.clock.fill",
-                    iconColor: Color(hex: "ff6b00"),
-                    title: "Pacientes Inativos (+6 meses)"
-                ) {
-                    showInactivePatients = true
-                }
-
-                // Relatório Financeiro (apenas owner)
+            // Gestão (Prioridade)
+            Section("Gestão") {
                 // Relatório Financeiro (apenas owner)
                 if supabase.isOwner {
                     SettingsRow(
@@ -84,6 +65,30 @@ struct SettingsView: View {
                     }
                 }
                 
+                // Pacientes Inativos (+6 meses)
+                SettingsRow(
+                    icon: "person.badge.clock.fill",
+                    iconColor: Color(hex: "ff6b00"),
+                    title: "Pacientes Inativos (+6 meses)"
+                ) {
+                    showInactivePatients = true
+                }
+            }
+
+            // Configurações
+            Section("Configurações") {
+                // Notificações
+                SettingsRow(
+                    icon: "bell.fill",
+                    iconColor: .red,
+                    title: "Notificações"
+                ) {
+                    showNotifications = true
+                }
+            }
+            
+            // Ajuda & Sobre
+            Section("Ajuda & Sobre") {
                 // Suporte
                 SettingsRow(
                     icon: "headphones.circle.fill",
@@ -92,10 +97,7 @@ struct SettingsView: View {
                 ) {
                     showSupport = true
                 }
-            }
-
-            // Sobre
-            Section("Sobre") {
+                
                 LabeledContent("Versão") {
                     Text(Constants.appVersion)
                         .foregroundColor(.secondary)
@@ -518,7 +520,7 @@ struct NotificationsSettingsView: View {
     @AppStorage("daily_summary_enabled") private var dailySummaryEnabled = false
     @AppStorage("daily_financial_summary_enabled") private var dailyFinancialSummaryEnabled = false
     @AppStorage("weekly_summary_enabled") private var weeklySummaryEnabled = false
-    @AppStorage("birthday_notifications_enabled") private var birthdayNotificationsEnabled = false
+
     @AppStorage("appointment_reminder_enabled") private var appointmentReminderEnabled = false
     @AppStorage("appointment_reminder_minutes") private var appointmentReminderMinutes = 30
 
@@ -547,7 +549,7 @@ struct NotificationsSettingsView: View {
                                     if supabase.isOwner {
                                         dailyFinancialSummaryEnabled = true
                                     }
-                                    birthdayNotificationsEnabled = true
+
                                     appointmentReminderEnabled = true
                                     
                                     // Agendar todas as notificações
@@ -600,17 +602,6 @@ struct NotificationsSettingsView: View {
                     Text("Um panorama completo da sua semana, enviado todo domingo às 20:00.")
                 }
 
-                // Aniversários
-                Section {
-                    Toggle("Notificações de Aniversário", isOn: $birthdayNotificationsEnabled)
-                        .onChange(of: birthdayNotificationsEnabled) { _, _ in
-                            scheduleNotifications()
-                        }
-                } header: {
-                    Label("Aniversários", systemImage: "gift.fill")
-                } footer: {
-                    Text("Lembretes automáticos dos aniversários dos seus pacientes, às 08:00.")
-                }
 
                 // Lembretes de Agendamentos
                 Section {

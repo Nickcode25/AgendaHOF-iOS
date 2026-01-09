@@ -9,6 +9,15 @@ struct Professional: Identifiable, Codable, Hashable {
     var cro: String?
     var phone: String?
     var email: String?
+    var cpf: String?
+    var zipCode: String?
+    var street: String?
+    var number: String?
+    var complement: String?
+    var neighborhood: String?
+    var city: String?
+    var state: String?
+    var notes: String?
     var photoUrl: String?
     var isActive: Bool
 
@@ -19,6 +28,9 @@ struct Professional: Identifiable, Codable, Hashable {
         case name, specialty, cro, phone, email
         case photoUrl = "photo_url"
         case isActive = "is_active"
+        case cpf
+        case zipCode = "zip_code"
+        case street, number, complement, neighborhood, city, state, notes
     }
 
     // Para criar novo profissional
@@ -29,6 +41,15 @@ struct Professional: Identifiable, Codable, Hashable {
         var cro: String?
         var phone: String?
         var email: String?
+        var cpf: String?
+        var zipCode: String?
+        var street: String?
+        var number: String?
+        var complement: String?
+        var neighborhood: String?
+        var city: String?
+        var state: String?
+        var notes: String?
         var photoUrl: String?
         var isActive: Bool = true
 
@@ -37,6 +58,9 @@ struct Professional: Identifiable, Codable, Hashable {
             case name, specialty, cro, phone, email
             case photoUrl = "photo_url"
             case isActive = "is_active"
+            case cpf
+            case zipCode = "zip_code"
+            case street, number, complement, neighborhood, city, state, notes
         }
     }
 

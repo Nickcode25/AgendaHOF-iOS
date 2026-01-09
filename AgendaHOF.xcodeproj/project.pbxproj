@@ -25,6 +25,7 @@
 		303A15293BDBCDCAEF40C95C /* PatientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7406443AB8C320235B1C62E /* PatientDetailView.swift */; };
 		32E156FA3190480EB6E13A8E /* InactivePatient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9B51CC8C2D43E0A3E4080D /* InactivePatient.swift */; };
 		3639628225DE4338B76015C2 /* InactivePatientsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADB6B765F36408AAA954645 /* InactivePatientsViewModel.swift */; };
+		37209A5C2F1067F0000E350C /* CustomContactPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */; };
 		39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */; };
 		40D6767BA87A7A9C8458CF63 /* WeekRecurringBlockSegmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */; };
 		41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEC53DCF046BB187ADD590 /* AgendaView.swift */; };
@@ -142,6 +143,7 @@
 		2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		2F3B06252E1D7DE86BB4C459 /* SubscriptionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		342A68FE597DAC780C42BEC5 /* DeepLinkManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkManager.swift; sourceTree = "<group>"; };
+		37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomContactPickerView.swift; sourceTree = "<group>"; };
 		39E5BF262FBAEAC2BCCD0960 /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MockSupabaseManager.swift; sourceTree = "<group>"; };
 		3A9578000F01CFD33A2E9583 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
 		3BAEC53DCF046BB187ADD590 /* AgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaView.swift; sourceTree = "<group>"; };
@@ -479,6 +481,7 @@
 		9B0411BEB392E1F72436F7AF /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */,
 				D0C3888277E836B839C08367 /* AvatarView.swift */,
 				127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */,
 				5D5F7B7E6BE3B1EEE2228758 /* LoadingView.swift */,
@@ -836,6 +839,7 @@
 				32E156FA3190480EB6E13A8E /* InactivePatient.swift in Sources */,
 				3639628225DE4338B76015C2 /* InactivePatientsViewModel.swift in Sources */,
 				C2D1F763B2A948ADAA00EB94 /* InactivePatientsView.swift in Sources */,
+				37209A5C2F1067F0000E350C /* CustomContactPickerView.swift in Sources */,
 				1B0CFA65642C1546F6587BF1 /* Constants.swift in Sources */,
 				95474FC041985A9B7A14B521 /* DeepLinkManager.swift in Sources */,
 				8B9440454BC0C5B0F5C51519 /* AppLogger.swift in Sources */,
@@ -955,7 +959,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				INFOPLIST_FILE = Info.plist;
@@ -1139,7 +1143,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				ENABLE_TESTABILITY = YES;
