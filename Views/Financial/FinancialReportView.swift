@@ -1024,6 +1024,15 @@ struct FinancialReportData {
     let totalExpenses: Decimal
     let netProfit: Decimal
     let expensesByCategory: [ExpenseCategory]
+    
+    /// Formata valor monetário em formato brasileiro
+    func formatCurrency(_ value: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.currencySymbol = "R$"
+        return formatter.string(from: value as NSDecimalNumber) ?? "R$ 0,00"
+    }
 }
 
 struct ExpenseCategory: Identifiable {

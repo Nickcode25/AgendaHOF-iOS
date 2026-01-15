@@ -274,7 +274,7 @@ struct NewAppointmentView: View {
         }
 
         // Verificar conflitos
-        let hasConflict = await appointmentService.hasConflict(start: start, end: end, professional: professional.name)
+        let hasConflict = await appointmentService.hasConflict(start: start, end: end, professionalId: professional.id, professional: professional.name)
         if hasConflict {
             errorMessage = "Já existe um agendamento neste horário para este profissional"
             showError = true
@@ -283,12 +283,21 @@ struct NewAppointmentView: View {
         }
 
         do {
+            guard let patientId = isPersonal ? userId : selectedPatient?.id,
+                  let patientName = isPersonal ? title : selectedPatient?.name else {
+                errorMessage = "Dados do paciente incompletos"
+                showError = true
+                isLoading = false
+                return
+            }
+            
             let appointment = Appointment.Insert(
                 userId: userId,
-                patientId: isPersonal ? userId : selectedPatient!.id,
-                patientName: isPersonal ? title : selectedPatient!.name,
+                patientId: patientId,
+                patientName: patientName,
                 procedure: isPersonal ? "Compromisso Pessoal" : procedure,
                 professional: professional.name,
+                professionalId: professional.id,
                 start: start,
                 end: end,
                 notes: nil,

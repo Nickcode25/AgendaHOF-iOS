@@ -149,7 +149,8 @@ enum OverlapLayoutEngine {
                 columnEnds.append(appointment.end)
             }
 
-            assignments.append((appointment, assignedColumn!))
+            guard let column = assignedColumn else { continue }
+            assignments.append((appointment, column))
         }
 
         // Calcular o número máximo de colunas simultâneas

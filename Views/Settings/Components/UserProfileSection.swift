@@ -66,7 +66,7 @@ extension UserProfileSection {
     init(supabase: SupabaseManager, onTap: @escaping () -> Void) {
         self.userName = supabase.userProfile?.nameForDisplay ?? "Usuário"
         self.userEmail = supabase.currentUser?.email
-        self.userRole = supabase.userProfile?.role?.displayName
+        self.userRole = supabase.userProfile?.role.displayName
         self.profilePhotoURL = supabase.userProfile?.profilePhoto
         self.onTap = onTap
     }

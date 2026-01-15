@@ -82,8 +82,21 @@ struct FinancialReportView_Refactored: View {
 
     // MARK: - Data View
 
-    private func dataView(_ data: FinancialReportData) -> some View {
-        ScrollView {
+    private func dataView(_ viewModelData: FinancialReportViewModelData) -> some View {
+        // Convert ViewModel data to View data format
+        let data = FinancialReportData(
+            proceduresRevenue: viewModelData.proceduresRevenue,
+            salesRevenue: viewModelData.salesRevenue,
+            subscriptionsRevenue: viewModelData.subscriptionsRevenue,
+            coursesRevenue: viewModelData.coursesRevenue,
+            otherRevenue: 0,
+            totalRevenue: viewModelData.totalRevenue,
+            totalExpenses: viewModelData.totalExpenses,
+            netProfit: viewModelData.profit,
+            expensesByCategory: []
+        )
+        
+        return ScrollView {
             VStack(spacing: 20) {
                 // Cards de resumo (Receita, Despesas, Lucro)
                 FinancialSummaryCards(data: data)

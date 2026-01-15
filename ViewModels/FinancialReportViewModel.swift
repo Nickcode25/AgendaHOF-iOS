@@ -12,7 +12,7 @@ class FinancialReportViewModel: ObservableObject {
 
     @Published var selectedPeriod: PeriodFilter = .month
     @Published var isLoading = true
-    @Published var reportData: FinancialReportData?
+    @Published var reportData: FinancialReportViewModelData?
     @Published var errorMessage: String?
 
     // MARK: - Private Properties
@@ -21,8 +21,13 @@ class FinancialReportViewModel: ObservableObject {
 
     // MARK: - Initialization
 
-    init(supabase: SupabaseManager = .shared) {
+    nonisolated init(supabase: SupabaseManager) {
         self.supabase = supabase
+    }
+    
+    @MainActor
+    convenience init() {
+        self.init(supabase: .shared)
     }
 
     // MARK: - Data Loading
@@ -38,59 +43,51 @@ class FinancialReportViewModel: ObservableObject {
             return
         }
 
-        do {
-            let (start, end) = dateRange(for: selectedPeriod)
+        let (start, end) = dateRange(for: selectedPeriod)
 
-            #if DEBUG
-            print("📊 [FinancialReport] Carregando dados...")
-            print("   Período: \(selectedPeriod.displayName)")
-            print("   Início: \(start)")
-            print("   Fim: \(end)")
-            #endif
+        #if DEBUG
+        print("📊 [FinancialReport] Carregando dados...")
+        print("   Período: \(selectedPeriod.displayName)")
+        print("   Início: \(start)")
+        print("   Fim: \(end)")
+        #endif
 
-            // Carregar dados em paralelo para melhor performance
-            async let proceduresTask = fetchProceduresRevenue(userId: userId, start: start, end: end)
-            async let salesTask = fetchSalesRevenue(userId: userId, start: start, end: end)
-            async let subscriptionsTask = fetchSubscriptionsRevenue(userId: userId, start: start, end: end)
-            async let coursesTask = fetchCoursesRevenue(userId: userId, start: start, end: end)
-            async let expensesTask = fetchExpenses(userId: userId, start: start, end: end)
+        // Carregar dados em paralelo para melhor performance
+        async let proceduresTask = fetchProceduresRevenue(userId: userId, start: start, end: end)
+        async let salesTask = fetchSalesRevenue(userId: userId, start: start, end: end)
+        async let subscriptionsTask = fetchSubscriptionsRevenue(userId: userId, start: start, end: end)
+        async let coursesTask = fetchCoursesRevenue(userId: userId, start: start, end: end)
+        async let expensesTask = fetchExpenses(userId: userId, start: start, end: end)
 
-            let (procedures, sales, subscriptions, courses, expenses) = await (
-                proceduresTask,
-                salesTask,
-                subscriptionsTask,
-                coursesTask,
-                expensesTask
-            )
+        let (procedures, sales, subscriptions, courses, expenses) = await (
+            proceduresTask,
+            salesTask,
+            subscriptionsTask,
+            coursesTask,
+            expensesTask
+        )
 
-            // Calcular totais
-            let totalRevenue = procedures + sales + subscriptions + courses
-            let totalExpenses = expenses
-            let profit = totalRevenue - totalExpenses
+        // Calcular totais
+        let totalRevenue = procedures + sales + subscriptions + courses
+        let totalExpenses = expenses
+        let profit = totalRevenue - totalExpenses
 
-            reportData = FinancialReportData(
-                totalRevenue: totalRevenue,
-                totalExpenses: totalExpenses,
-                profit: profit,
-                proceduresRevenue: procedures,
-                salesRevenue: sales,
-                subscriptionsRevenue: subscriptions,
-                coursesRevenue: courses
-            )
+        reportData = FinancialReportViewModelData(
+            totalRevenue: totalRevenue,
+            totalExpenses: totalExpenses,
+            profit: profit,
+            proceduresRevenue: procedures,
+            salesRevenue: sales,
+            subscriptionsRevenue: subscriptions,
+            coursesRevenue: courses
+        )
 
-            #if DEBUG
-            print("✅ [FinancialReport] Dados carregados com sucesso")
-            print("   Receita Total: R$ \(totalRevenue.formatted())")
-            print("   Despesas: R$ \(totalExpenses.formatted())")
-            print("   Lucro: R$ \(profit.formatted())")
-            #endif
-
-        } catch {
-            errorMessage = "Erro ao carregar dados: \(error.localizedDescription)"
-            #if DEBUG
-            print("❌ [FinancialReport] Erro: \(error)")
-            #endif
-        }
+        #if DEBUG
+        print("✅ [FinancialReport] Dados carregados com sucesso")
+        print("   Receita Total: R$ \(totalRevenue.formatted())")
+        print("   Despesas: R$ \(totalExpenses.formatted())")
+        print("   Lucro: R$ \(profit.formatted())")
+        #endif
 
         isLoading = false
     }
@@ -118,8 +115,8 @@ class FinancialReportViewModel: ObservableObject {
                     guard let performedAt = parseDate(performedAtStr) else { continue }
 
                     if performedAt >= start && performedAt < end {
-                        if let valueStr = procedure.value, let value = Decimal(string: valueStr) {
-                            total += value
+                        if let value = procedure.value {
+                            total += Decimal(value)
                         }
                     }
                 }
@@ -151,7 +148,7 @@ class FinancialReportViewModel: ObservableObject {
             }
 
             return filtered.reduce(Decimal(0)) { total, sale in
-                total + (Decimal(string: sale.totalValue) ?? 0)
+                total + Decimal(sale.totalValue)
             }
 
         } catch {
@@ -178,7 +175,7 @@ class FinancialReportViewModel: ObservableObject {
             }
 
             return filtered.reduce(Decimal(0)) { total, sub in
-                total + (Decimal(string: sub.monthlyValue) ?? 0)
+                total + Decimal(sub.monthlyValue)
             }
 
         } catch {
@@ -205,7 +202,7 @@ class FinancialReportViewModel: ObservableObject {
             }
 
             return filtered.reduce(Decimal(0)) { total, course in
-                total + (Decimal(string: course.totalValue) ?? 0)
+                total + Decimal(course.totalValue)
             }
 
         } catch {
@@ -232,7 +229,7 @@ class FinancialReportViewModel: ObservableObject {
             }
 
             return filtered.reduce(Decimal(0)) { total, expense in
-                total + (Decimal(string: expense.value) ?? 0)
+                total + Decimal(expense.value)
             }
 
         } catch {
@@ -325,9 +322,11 @@ enum PeriodFilter: String, CaseIterable {
 }
 
 // MARK: - Financial Report Data Model
+// ⚠️ FinancialReportData is defined in FinancialReportView.swift
+// This ViewModel uses a simplified version defined locally
 
-/// Modelo de dados do relatório financeiro
-struct FinancialReportData {
+/// Modelo de dados do relatório financeiro (versão simplificada para o ViewModel)
+struct FinancialReportViewModelData {
     let totalRevenue: Decimal
     let totalExpenses: Decimal
     let profit: Decimal
@@ -350,7 +349,7 @@ struct FinancialReportData {
 
 struct ProductSaleDB: Codable {
     let saleDate: String
-    let totalValue: String
+    let totalValue: Double
 
     enum CodingKeys: String, CodingKey {
         case saleDate = "sale_date"
@@ -360,7 +359,7 @@ struct ProductSaleDB: Codable {
 
 struct PatientSubscriptionDB: Codable {
     let startDate: String
-    let monthlyValue: String
+    let monthlyValue: Double
 
     enum CodingKeys: String, CodingKey {
         case startDate = "start_date"
@@ -370,7 +369,7 @@ struct PatientSubscriptionDB: Codable {
 
 struct CourseEnrollmentDB: Codable {
     let enrollmentDate: String
-    let totalValue: String
+    let totalValue: Double
 
     enum CodingKeys: String, CodingKey {
         case enrollmentDate = "enrollment_date"
@@ -380,5 +379,5 @@ struct CourseEnrollmentDB: Codable {
 
 struct ExpenseDB: Codable {
     let date: String
-    let value: String
+    let value: Double
 }

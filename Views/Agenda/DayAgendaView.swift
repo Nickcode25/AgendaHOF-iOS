@@ -613,9 +613,10 @@ struct EditAppointmentView: View {
         }
 
         let professionalName = selectedProfessional?.name ?? appointment.professional
+        let professionalId = selectedProfessional?.id ?? appointment.professionalId
 
         // Verificar conflitos (excluindo o próprio agendamento)
-        let hasConflict = await appointmentService.hasConflict(start: start, end: end, professional: professionalName, excludingId: appointment.id)
+        let hasConflict = await appointmentService.hasConflict(start: start, end: end, professionalId: professionalId, professional: professionalName, excludingId: appointment.id)
         if hasConflict {
             errorMessage = "Já existe um agendamento neste horário para este profissional"
             showError = true
@@ -627,7 +628,8 @@ struct EditAppointmentView: View {
             var updates: [String: AnyEncodable] = [
                 "start": AnyEncodable(start),
                 "end": AnyEncodable(end),
-                "professional": AnyEncodable(professionalName)
+                "professional": AnyEncodable(professionalName),
+                "professional_id": AnyEncodable(professionalId)
             ]
 
             if appointment.isPersonalAppointment {

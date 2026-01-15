@@ -26,4 +26,10 @@ struct AppLogger {
             print("\(LogCategory.error.rawValue) \(message)")
         }
     }
+    
+    static func warning(_ message: String) {
+        #if DEBUG
+        print("⚠️ [WARNING] \(message)")
+        #endif
+    }
 }

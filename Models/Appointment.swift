@@ -11,6 +11,7 @@ struct Appointment: Identifiable, Codable, Hashable {
     var procedureId: String?
     var selectedProducts: String?
     var professional: String
+    var professionalId: String?  // ID do profissional para filtros precisos
     var room: String?
     var start: Date
     var end: Date
@@ -29,7 +30,9 @@ struct Appointment: Identifiable, Codable, Hashable {
         case procedure
         case procedureId = "procedure_id"
         case selectedProducts = "selected_products"
-        case professional, room, start, end, notes, status
+        case professional
+        case professionalId = "professional_id"
+        case room, start, end, notes, status
         case isPersonal = "is_personal"
         case title
     }
@@ -46,6 +49,7 @@ struct Appointment: Identifiable, Codable, Hashable {
         procedureId: String? = nil,
         selectedProducts: String? = nil,
         professional: String,
+        professionalId: String? = nil,
         room: String? = nil,
         start: Date,
         end: Date,
@@ -64,6 +68,7 @@ struct Appointment: Identifiable, Codable, Hashable {
         self.procedureId = procedureId
         self.selectedProducts = selectedProducts
         self.professional = professional
+        self.professionalId = professionalId
         self.room = room
         self.start = start
         self.end = end
@@ -102,6 +107,7 @@ struct Appointment: Identifiable, Codable, Hashable {
         }
 
         professional = try container.decode(String.self, forKey: .professional)
+        professionalId = try container.decodeIfPresent(String.self, forKey: .professionalId)
         room = try container.decodeIfPresent(String.self, forKey: .room)
         start = try container.decode(Date.self, forKey: .start)
         end = try container.decode(Date.self, forKey: .end)
@@ -154,6 +160,7 @@ struct Appointment: Identifiable, Codable, Hashable {
         var procedureId: String?
         var selectedProducts: String?
         var professional: String
+        var professionalId: String?  // ID do profissional
         var room: String?
         var start: Date
         var end: Date
@@ -169,7 +176,9 @@ struct Appointment: Identifiable, Codable, Hashable {
             case procedure
             case procedureId = "procedure_id"
             case selectedProducts = "selected_products"
-            case professional, room, start, end, notes, status
+            case professional
+            case professionalId = "professional_id"
+            case room, start, end, notes, status
             case isPersonal = "is_personal"
             case title
         }

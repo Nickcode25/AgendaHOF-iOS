@@ -228,20 +228,24 @@ struct PatientDetailSheet: View {
                 Section("Contato") {
                     if let phone = patient.phone, !phone.isEmpty {
                         // Link para ligar
-                        Link(destination: URL(string: "tel:\(phone.filter { $0.isNumber })")!) {
-                            Label(phone.formattedPhone, systemImage: "phone.fill")
+                        if let telURL = URL(string: "tel:\(phone.filter { $0.isNumber })") {
+                            Link(destination: telURL) {
+                                Label(phone.formattedPhone, systemImage: "phone.fill")
+                            }
                         }
 
                         // Link para WhatsApp
-                        Link(destination: URL(string: "https://wa.me/55\(phone.filter { $0.isNumber })")!) {
-                            HStack {
-                                Image("whatsapp")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 20, height: 20)
-                                Text("WhatsApp")
+                        if let waURL = URL(string: "https://wa.me/55\(phone.filter { $0.isNumber })") {
+                            Link(destination: waURL) {
+                                HStack {
+                                    Image("whatsapp")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 20, height: 20)
+                                    Text("WhatsApp")
+                                }
+                                .foregroundColor(.green)
                             }
-                            .foregroundColor(.green)
                         }
                     } else {
                         Text("Nenhum telefone cadastrado")

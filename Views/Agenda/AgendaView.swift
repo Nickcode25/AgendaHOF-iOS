@@ -56,197 +56,95 @@ struct AgendaView: View {
     }
 
     var body: some View {
-        // Conteúdo principal - calendário ocupa toda a tela
-        Group {
-            if let error = viewModel.error {
-                VStack {
-                    Spacer()
-                    EmptyStateView.error(message: error) {
-                        Task { await viewModel.loadData() }
-                    }
-                    Spacer()
+        VStack(spacing: 0) {
+            // Header customizado com 2 linhas
+            AgendaHeaderView(
+                viewModel: viewModel,
+                professionals: professionalService.professionals,
+                onDatePickerTap: {
+                    viewModel.activeSheet = .datePicker
+                },
+                onProfessionalPickerTap: {
+                    viewModel.activeSheet = .professionalPicker
                 }
-            } else {
-                // Vista direta sem paginação lateral (agora num ZStack principal)
-                ZStack(alignment: .bottomTrailing) { // Alinhamento para o FAB
-                    
-                    // Conteúdo (Calendário)
-                    ZStack {
-                        switch viewModel.viewMode {
-                        case .day:
-                            CalendarDayView(viewModel: viewModel)
-                        case .week:
-                            CalendarWeekView(viewModel: viewModel)
+            )
+            
+            // Conteúdo principal - calendário ocupa toda a tela
+            Group {
+                if let error = viewModel.error {
+                    VStack {
+                        Spacer()
+                        EmptyStateView.error(message: error) {
+                            Task { await viewModel.loadData() }
                         }
-
-                        // Loading sutil durante transições (não bloqueia a tela)
-                        if viewModel.isLoading {
-                            VStack {
-                                Spacer()
-                                ProgressView()
-                                    .controlSize(.regular)
-                                    .tint(.gray)
-                                Spacer()
+                        Spacer()
+                    }
+                } else {
+                    // Vista direta sem paginação lateral (agora num ZStack principal)
+                    ZStack(alignment: .bottomTrailing) { // Alinhamento para o FAB
+                        
+                        // Conteúdo (Calendário)
+                        ZStack {
+                            switch viewModel.viewMode {
+                            case .day:
+                                CalendarDayView(viewModel: viewModel)
+                            case .week:
+                                CalendarWeekView(viewModel: viewModel)
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(.systemGroupedBackground).opacity(0.5))
-                            .allowsHitTesting(false)
+
+                            // Loading sutil durante transições (não bloqueia a tela)
+                            if viewModel.isLoading {
+                                VStack {
+                                    Spacer()
+                                    ProgressView()
+                                        .controlSize(.regular)
+                                        .tint(.gray)
+                                    Spacer()
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(Color(.systemGroupedBackground).opacity(0.5))
+                                .allowsHitTesting(false)
+                            }
                         }
+
+                        // Floating Action Button (FAB) - Menu
+                        Menu {
+                            Button {
+                                viewModel.activeSheet = .newAppointment
+                            } label: {
+                                Label("Agendamento", systemImage: "calendar.badge.plus")
+                            }
+
+                            Button {
+                                viewModel.activeSheet = .newPersonalAppointment
+                            } label: {
+                                Label("Compromisso Pessoal", systemImage: "person.fill.badge.plus")
+                            }
+
+                            Button {
+                                viewModel.activeSheet = .newRecurringBlock
+                            } label: {
+                                Label("Bloqueio Recorrente", systemImage: "clock.badge.xmark")
+                            }
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(
+                                    Circle()
+                                        .fill(Color.appPrimary)
+                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 4)
+                                )
+                        }
+                        .padding(.trailing, 24)
+                        .padding(.bottom, 24)
                     }
-
-                    // Floating Action Button (FAB) - Menu
-                    Menu {
-                        Button {
-                            viewModel.activeSheet = .newAppointment
-                        } label: {
-                            Label("Agendamento", systemImage: "calendar.badge.plus")
-                        }
-
-                        Button {
-                            viewModel.activeSheet = .newPersonalAppointment
-                        } label: {
-                            Label("Compromisso Pessoal", systemImage: "person.fill.badge.plus")
-                        }
-
-                        Button {
-                            viewModel.activeSheet = .newRecurringBlock
-                        } label: {
-                            Label("Bloqueio Recorrente", systemImage: "clock.badge.xmark")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(
-                                Circle()
-                                    .fill(Color.appPrimary)
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 4)
-                            )
-                    }
-                    .padding(.trailing, 24)
-                    .padding(.bottom, 24)
                 }
             }
         }
         .background(Color(.systemGroupedBackground))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // LEADING: Navegação de data compacta
-            ToolbarItem(placement: .navigationBarLeading) {
-                HStack(spacing: screenSize == .small ? 2 : 4) {
-                    // Botão anterior
-                    Button {
-                        if viewModel.viewMode == .day {
-                            viewModel.goToPreviousDay()
-                        } else {
-                            viewModel.goToPreviousWeek()
-                        }
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                    }
-
-                    // Data - tap para abrir picker
-                    Button {
-                        viewModel.activeSheet = .datePicker
-                    } label: {
-                        Text(viewModel.compactDateTitle)
-                            .font(screenSize == .small ? .caption : .subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                    }
-
-                    // Botão próximo
-                    Button {
-                        if viewModel.viewMode == .day {
-                            viewModel.goToNextDay()
-                        } else {
-                            viewModel.goToNextWeek()
-                        }
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                    }
-
-
-                }
-            }
-
-            // PRINCIPAL: Filtro do profissional (quando selecionado)
-            ToolbarItem(placement: .principal) {
-                if let professional = viewModel.selectedProfessional {
-                    Button {
-                        viewModel.selectedProfessional = nil
-                        Task { await viewModel.loadData() }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(professional.name.components(separatedBy: " ").first ?? professional.name)
-                                .font(.caption)
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption2)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.appPrimary.opacity(0.15))
-                        .foregroundColor(.appPrimary)
-                        .cornerRadius(12)
-                    }
-                } else if (screenSize == .large || screenSize == .iPad) && Calendar.current.isDateInToday(viewModel.selectedDate) && viewModel.viewMode == .day {
-                    Text("Hoje")
-                        .font(.headline)
-                        .foregroundColor(.appPrimary)
-                }
-            }
-
-
-            // TRAILING: Ações principais (sempre visíveis)
-            ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: toolbarSpacing) {
-                    // Hoje (apenas em telas grandes e iPad quando não for hoje)
-                    if (screenSize == .large || screenSize == .iPad) && !Calendar.current.isDateInToday(viewModel.selectedDate) {
-                        Button {
-                            viewModel.goToToday()
-                        } label: {
-                            Text("Hoje")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.appPrimary.opacity(0.1))
-                                .foregroundColor(.appPrimary)
-                                .cornerRadius(8)
-                        }
-                    }
-
-                    // Filtro de profissional (apenas ícone)
-                    if !professionalService.professionals.isEmpty {
-                        Button {
-                            viewModel.activeSheet = .professionalPicker
-                        } label: {
-                            Image(systemName: viewModel.selectedProfessional != nil ? "person.crop.circle.fill" : "person.crop.circle")
-                                .foregroundColor(viewModel.selectedProfessional != nil ? .appPrimary : .primary)
-                        }
-                    }
-
-                    // Toggle view mode - Segmented Control
-                    Picker("", selection: $viewModel.viewMode) {
-                        Text("Dia").tag(AgendaViewModel.ViewMode.day)
-                        Text("Sem").tag(AgendaViewModel.ViewMode.week)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: segmentedWidth)
-                    .onChange(of: viewModel.viewMode) { _, _ in
-                        Task { await viewModel.loadData() }
-                    }
-
-                    // Menu de adicionar (SEMPRE visível)
-
-                }
-            }
-        }
+        .navigationBarHidden(true)
         .sheet(item: $viewModel.activeSheet) { sheet in
             switch sheet {
             case .newAppointment:

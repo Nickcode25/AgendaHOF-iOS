@@ -21,28 +21,28 @@ struct RevenueBreakdownSection: View {
 
             // Cards de receita por categoria
             VStack(spacing: 12) {
-                RevenueRow(
+                RevenueBreakdownRow(
                     title: "Procedimentos",
                     value: data.formatCurrency(data.proceduresRevenue),
                     icon: "stethoscope",
                     color: .blue
                 )
 
-                RevenueRow(
+                RevenueBreakdownRow(
                     title: "Vendas de Produtos",
                     value: data.formatCurrency(data.salesRevenue),
                     icon: "cart.fill",
                     color: .purple
                 )
 
-                RevenueRow(
+                RevenueBreakdownRow(
                     title: "Mensalidades",
                     value: data.formatCurrency(data.subscriptionsRevenue),
                     icon: "calendar.badge.clock",
                     color: .green
                 )
 
-                RevenueRow(
+                RevenueBreakdownRow(
                     title: "Cursos",
                     value: data.formatCurrency(data.coursesRevenue),
                     icon: "book.fill",
@@ -63,10 +63,10 @@ struct RevenueBreakdownSection: View {
     }
 }
 
-// MARK: - Revenue Row
+// MARK: - Revenue Breakdown Row
 
 /// Linha individual de receita no breakdown
-struct RevenueRow: View {
+struct RevenueBreakdownRow: View {
 
     // MARK: - Properties
 
@@ -111,16 +111,18 @@ struct RevenueRow: View {
 
 #Preview {
     let sampleData = FinancialReportData(
-        totalRevenue: 15450.00,
-        totalExpenses: 3200.00,
-        profit: 12250.00,
         proceduresRevenue: 8500.00,
         salesRevenue: 3200.00,
         subscriptionsRevenue: 2500.00,
-        coursesRevenue: 1250.00
+        coursesRevenue: 1250.00,
+        otherRevenue: 0,
+        totalRevenue: 15450.00,
+        totalExpenses: 3200.00,
+        netProfit: 12250.00,
+        expensesByCategory: []
     )
 
-    return VStack {
+    VStack {
         RevenueBreakdownSection(data: sampleData)
             .padding()
 

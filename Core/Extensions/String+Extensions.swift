@@ -220,4 +220,51 @@ extension String {
         formatter.locale = Locale(identifier: "pt_BR")
         return formatter.date(from: self)
     }
+
+    // MARK: - Normalização
+
+    /// Normaliza a string para comparação (remove acentos, espaços extras e converte para minúsculas)
+    var normalized: String {
+        self.folding(options: .diacriticInsensitive, locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+    
+    /// Remove prefixos comuns de títulos profissionais
+    private var withoutProfessionalPrefix: String {
+        let prefixes = ["dr.", "dra.", "dr ", "dra ", "prof.", "prof ", "doutor ", "doutora "]
+        var result = self.normalized
+        for prefix in prefixes {
+            if result.hasPrefix(prefix) {
+                result = String(result.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return result
+    }
+    
+    /// Compara se duas strings são "iguais" ignorando case, diacríticos e prefixos profissionais (Dr./Dra.)
+    func isRoughlyEqual(to other: String) -> Bool {
+        let selfNormalized = self.normalized
+        let otherNormalized = other.normalized
+        
+        // Comparação exata normalizada
+        if selfNormalized == otherNormalized {
+            return true
+        }
+        
+        // Comparação sem prefixos profissionais (Dr./Dra.)
+        let selfWithoutPrefix = self.withoutProfessionalPrefix
+        let otherWithoutPrefix = other.withoutProfessionalPrefix
+        
+        if selfWithoutPrefix == otherWithoutPrefix {
+            return true
+        }
+        
+        // Uma contém a outra (para casos onde nome foi alterado)
+        if selfNormalized.contains(otherNormalized) || otherNormalized.contains(selfNormalized) {
+            return true
+        }
+        
+        return false
+    }
 }

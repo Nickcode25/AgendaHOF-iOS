@@ -10,7 +10,13 @@ class AppointmentService: ObservableObject {
 
     // MARK: - Fetch by Date Range
 
-    func fetchAppointments(from startDate: Date, to endDate: Date, professional: String? = nil) async {
+    /// Busca agendamentos por intervalo de datas e opcionalmente por profissional
+    /// - Parameters:
+    ///   - startDate: Data inicial
+    ///   - endDate: Data final
+    ///   - professionalId: ID do profissional (preferencial, mais preciso)
+    ///   - professional: Nome do profissional (fallback para compatibilidade)
+    func fetchAppointments(from startDate: Date, to endDate: Date, professionalId: String? = nil, professional: String? = nil) async {
         guard let userId = supabase.effectiveUserId else {
             error = "Usuário não autenticado"
             return
@@ -20,8 +26,10 @@ class AppointmentService: ObservableObject {
         error = nil
         
         // Log de diagnóstico
-        if let prof = professional {
-            AppLogger.log("📅 [Appointments] Filtro Profissional: \(prof)", category: .business)
+        if let profId = professionalId {
+            AppLogger.log("📅 [Appointments] Filtro Profissional por ID: \(profId)", category: .business)
+        } else if let prof = professional {
+            AppLogger.log("📅 [Appointments] Filtro Profissional por Nome (fallback): \(prof)", category: .business)
         }
 
         do {
@@ -29,29 +37,39 @@ class AppointmentService: ObservableObject {
             let startString = formatter.string(from: startDate)
             let endString = formatter.string(from: endDate)
 
-            let result: [Appointment]
+            var result: [Appointment]
 
-            if let professional = professional {
-                result = try await supabase.client
-                    .from("appointments")
-                    .select()
-                    .eq("user_id", value: userId)
-                    .eq("professional", value: professional)
-                    .gte("start", value: startString)
-                    .lte("start", value: endString)
-                    .order("start", ascending: true)
-                    .execute()
-                    .value
+            // Buscar todos os agendamentos no intervalo
+            let allAppointmentsInDateRange: [Appointment] = try await supabase.client
+                .from("appointments")
+                .select()
+                .eq("user_id", value: userId)
+                .gte("start", value: startString)
+                .lte("start", value: endString)
+                .order("start", ascending: true)
+                .execute()
+                .value
+            
+            // ✅ PRIORIDADE: Filtrar por professional_id (mais preciso)
+            if let professionalId = professionalId {
+                result = allAppointmentsInDateRange.filter { appointment in
+                    appointment.professionalId == professionalId
+                }
+                AppLogger.log("✅ [Appointments] Filtrado por ID: \(result.count) agendamentos", category: .business)
+            }
+            // Fallback: Filtrar por nome (para compatibilidade)
+            else if let professional = professional {
+                result = allAppointmentsInDateRange.filter { appointment in
+                    appointment.professional.isRoughlyEqual(to: professional)
+                }
+                
+                // Log se encontrou divergências
+                let exactMatches = allAppointmentsInDateRange.filter { $0.professional == professional }
+                if result.count > exactMatches.count {
+                    AppLogger.warning("⚠️ [Appointments] Encontrados \(result.count - exactMatches.count) agendamentos com divergência de nome para \(professional)")
+                }
             } else {
-                result = try await supabase.client
-                    .from("appointments")
-                    .select()
-                    .eq("user_id", value: userId)
-                    .gte("start", value: startString)
-                    .lte("start", value: endString)
-                    .order("start", ascending: true)
-                    .execute()
-                    .value
+                result = allAppointmentsInDateRange
             }
             
             appointments = result
@@ -94,17 +112,17 @@ class AppointmentService: ObservableObject {
 
     // MARK: - Fetch for Day
 
-    func fetchAppointmentsForDay(_ date: Date, professional: String? = nil) async {
+    func fetchAppointmentsForDay(_ date: Date, professionalId: String? = nil, professional: String? = nil) async {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
 
-        await fetchAppointments(from: startOfDay, to: endOfDay, professional: professional)
+        await fetchAppointments(from: startOfDay, to: endOfDay, professionalId: professionalId, professional: professional)
     }
 
     // MARK: - Fetch for Week
 
-    func fetchAppointmentsForWeek(of date: Date, professional: String? = nil) async {
+    func fetchAppointmentsForWeek(of date: Date, professionalId: String? = nil, professional: String? = nil) async {
         var calendar = Calendar.current
         calendar.firstWeekday = 2 // Forçar segunda-feira como início da semana para alinhar com a View
         
@@ -113,7 +131,7 @@ class AppointmentService: ObservableObject {
         
         AppLogger.log("📅 [Service] Fetching Week: \(startOfWeek) to \(endOfWeek)", category: .business)
 
-        await fetchAppointments(from: startOfWeek, to: endOfWeek, professional: professional)
+        await fetchAppointments(from: startOfWeek, to: endOfWeek, professionalId: professionalId, professional: professional)
     }
 
     // MARK: - Fetch One
@@ -224,7 +242,7 @@ class AppointmentService: ObservableObject {
 
     // MARK: - Check Conflicts
 
-    func hasConflict(start: Date, end: Date, professional: String, excludingId: String? = nil) async -> Bool {
+    func hasConflict(start: Date, end: Date, professionalId: String? = nil, professional: String, excludingId: String? = nil) async -> Bool {
         guard let userId = supabase.effectiveUserId else { return false }
 
         do {
@@ -235,9 +253,8 @@ class AppointmentService: ObservableObject {
             if let excludingId = excludingId {
                 result = try await supabase.client
                     .from("appointments")
-                    .select("id")
+                    .select("id, professional, professional_id")
                     .eq("user_id", value: userId)
-                    .eq("professional", value: professional)
                     .neq("status", value: "cancelled")
                     .neq("id", value: excludingId)
                     .lt("start", value: formatter.string(from: end))
@@ -247,17 +264,26 @@ class AppointmentService: ObservableObject {
             } else {
                 result = try await supabase.client
                     .from("appointments")
-                    .select("id")
+                    .select("id, professional, professional_id")
                     .eq("user_id", value: userId)
-                    .eq("professional", value: professional)
                     .neq("status", value: "cancelled")
                     .lt("start", value: formatter.string(from: end))
                     .gt("end", value: formatter.string(from: start))
                     .execute()
                     .value
             }
-
-            return !result.isEmpty
+            
+            // Priorizar filtro por professionalId (mais preciso)
+            if let professionalId = professionalId {
+                return result.contains { appointment in
+                    appointment.professionalId == professionalId
+                }
+            }
+            
+            // Fallback: filtro por nome
+            return result.contains { appointment in
+                appointment.professional.isRoughlyEqual(to: professional)
+            }
         } catch {
             print("Erro ao verificar conflitos: \(error)")
             return false

@@ -70,25 +70,31 @@ struct PatientDetailView: View {
                 // Contato
                 Section("Contato") {
                     if let phone = displayPatient.phone, !phone.isEmpty {
-                        Link(destination: URL(string: "tel:\(phone.replacingOccurrences(of: " ", with: ""))")!) {
-                            Label(phone, systemImage: "phone.fill")
+                        if let telURL = URL(string: "tel:\(phone.replacingOccurrences(of: " ", with: ""))") {
+                            Link(destination: telURL) {
+                                Label(phone, systemImage: "phone.fill")
+                            }
                         }
 
-                        Link(destination: URL(string: "https://wa.me/55\(phone.filter { $0.isNumber })")!) {
-                            HStack {
-                                Image("whatsapp")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 20, height: 20)
-                                Text("WhatsApp")
+                        if let waURL = URL(string: "https://wa.me/55\(phone.filter { $0.isNumber })") {
+                            Link(destination: waURL) {
+                                HStack {
+                                    Image("whatsapp")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 20, height: 20)
+                                    Text("WhatsApp")
+                                }
+                                .foregroundColor(.green)
                             }
-                            .foregroundColor(.green)
                         }
                     }
 
                     if let email = displayPatient.email, !email.isEmpty {
-                        Link(destination: URL(string: "mailto:\(email)")!) {
-                            Label(email, systemImage: "envelope.fill")
+                        if let mailURL = URL(string: "mailto:\(email)") {
+                            Link(destination: mailURL) {
+                                Label(email, systemImage: "envelope.fill")
+                            }
                         }
                     }
 
@@ -390,10 +396,18 @@ struct EditPatientView: View {
         isLoading = true
 
         do {
+            // Handle birthDate safely - use nil coalescing instead of force unwrap
+            let birthDateValue: AnyEncodable
+            if hasBirthDate, let date = birthDate {
+                birthDateValue = AnyEncodable(date)
+            } else {
+                birthDateValue = AnyEncodable(NSNull())
+            }
+            
             let updates: [String: AnyEncodable] = [
                 "name": AnyEncodable(name),
                 "phone": AnyEncodable(phone.isEmpty ? NSNull() : phone),
-                "birth_date": AnyEncodable(hasBirthDate && birthDate != nil ? birthDate! : NSNull()),  // ✅ Salvar null se não informar
+                "birth_date": birthDateValue,
                 "notes": AnyEncodable(notes.isEmpty ? NSNull() : notes)
             ]
 

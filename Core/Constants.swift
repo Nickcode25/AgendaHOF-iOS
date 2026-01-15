@@ -71,6 +71,7 @@ enum Constants {
 
     /// Service name para armazenamento no Keychain
     static let keychainService = "com.agendahof.keychain"
+    static let keychainAccountKey = "userAccount"
 
     // MARK: - User Defaults Keys
 
@@ -106,6 +107,28 @@ enum Constants {
 
     /// Tamanho dos ícones quadrados
     static let squareIconSize: CGFloat = 56
+
+    // MARK: - Date Formats
+    static let dateFormat = "dd/MM/yyyy"
+    static let timeFormat = "HH:mm"
+    static let dateTimeFormat = "dd/MM/yyyy HH:mm"
+
+    // MARK: - Database Tables
+    enum Tables {
+        static let userProfiles = "user_profiles"
+        static let patients = "patients"
+        static let appointments = "appointments"
+        static let professionals = "professionals"
+        static let recurringBlocks = "recurring_blocks"
+        static let financialRecords = "financial_records"
+    }
+
+    // MARK: - Notifications
+    enum Notifications {
+        static let dailySummaryTime = "08:00"
+        static let weeklySummaryDay = 1 // Segunda-feira
+        static let birthdayNotificationTime = "09:00"
+    }
 
     // MARK: - Calendar Constants
 

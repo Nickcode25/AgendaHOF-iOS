@@ -207,7 +207,7 @@ struct CustomContactPickerView: View {
         isLoading = true
         
         // Use detached task to avoid capturing non-sendable types in async context
-        await Task.detached(priority: .userInitiated) {
+        await Task.detached(priority: .userInitiated) { [onContactsSelected] in
             let store = CNContactStore()
             var keys: [Any] = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactBirthdayKey]
             keys.append(CNContactFormatter.descriptorForRequiredKeys(for: .fullName))
@@ -215,7 +215,7 @@ struct CustomContactPickerView: View {
             let request = CNContactFetchRequest(keysToFetch: keys as! [CNKeyDescriptor])
             request.sortOrder = .userDefault
             
-            var fetchedContacts: [ContactInfo] = []
+            var contacts: [ContactInfo] = []
             
             do {
                 try store.enumerateContacts(with: request) { contact, _ in
@@ -228,18 +228,16 @@ struct CustomContactPickerView: View {
                     }
                     
                     if !name.isEmpty {
-                        fetchedContacts.append(ContactInfo(name: name, phone: phone, email: email, birthday: birthday))
+                        contacts.append(ContactInfo(name: name, phone: phone, email: email, birthday: birthday))
                     }
                 }
                 
+                let finalContacts = contacts
                 await MainActor.run {
-                    self.onContactsSelected(fetchedContacts)
+                    onContactsSelected(finalContacts)
                 }
             } catch {
                 print("Erro no auto-import: \(error)")
-                await MainActor.run {
-                    self.isLoading = false
-                }
             }
         }.value
     }

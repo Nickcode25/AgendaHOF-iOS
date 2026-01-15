@@ -124,11 +124,13 @@ class AgendaViewModel: ObservableObject {
         case .day:
             await appointmentService.fetchAppointmentsForDay(
                 selectedDate,
+                professionalId: selectedProfessional?.id,
                 professional: selectedProfessional?.name
             )
         case .week:
             await appointmentService.fetchAppointmentsForWeek(
                 of: selectedDate,
+                professionalId: selectedProfessional?.id,
                 professional: selectedProfessional?.name
             )
         }

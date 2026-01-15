@@ -96,10 +96,10 @@ struct FinancialSummaryCards: View {
                 // Lucro
                 FinancialMetricCard(
                     title: "Lucro",
-                    value: data.formatCurrency(data.profit),
+                    value: data.formatCurrency(data.netProfit),
                     icon: "dollarsign.circle.fill",
-                    iconColor: data.profit >= 0 ? .blue : .red,
-                    valueColor: data.profit >= 0 ? .blue : .red
+                    iconColor: data.netProfit >= 0 ? .blue : .red,
+                    valueColor: data.netProfit >= 0 ? .blue : .red
                 )
             }
         }

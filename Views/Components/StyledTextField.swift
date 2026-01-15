@@ -72,7 +72,7 @@ struct StyledTextField: View {
             TextField(placeholder, text: $text)
                 .keyboardType(keyboardType)
                 .textContentType(textContentType)
-                .autocapitalization(autocapitalization)
+                .textInputAutocapitalization(autocapitalization)
                 .disableAutocorrection(keyboardType == .emailAddress)
         }
     }

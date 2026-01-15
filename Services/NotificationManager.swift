@@ -432,7 +432,7 @@ class NotificationManager: ObservableObject {
     
     // MARK: - Data Fetching (Consolidated)
     
-    /// Busca agendamentos em um intervalo de datas
+    /// Busca agendamentos em um intervalo de datas (excluindo compromissos pessoais)
     private func fetchAppointments(from start: Date, to end: Date) async -> [Appointment] {
         guard let userId = supabase.effectiveUserId else { return [] }
         
@@ -450,8 +450,10 @@ class NotificationManager: ObservableObject {
                 .execute()
                 .value
             
-            // Filtro removido para incluir TODOS os agendamentos (pessoais ou sem paciente) na contagem
-            return result
+            // Filtrar APENAS agendamentos reais (excluir compromissos pessoais)
+            // isPersonal = true são compromissos pessoais
+            // isPersonal = false ou nil são agendamentos de pacientes
+            return result.filter { $0.isPersonal != true }
         } catch {
             print("❌ Erro ao buscar agendamentos (Notifications): \(error)")
             return []
