@@ -6,7 +6,7 @@ struct WeekAgendaView: View {
 
     private var weekDates: [Date] {
         var calendar = Calendar.current
-        calendar.firstWeekday = 2 // Segunda-feira (1 = Domingo, 2 = Segunda)
+        calendar.firstWeekday = 2 // Segunda-feira (1 = Domingo, 2 = Segunda)unda-feira (1 = Domingo, 2 = Segunda)
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: viewModel.selectedDate)?.start ?? viewModel.selectedDate
 
         return (0..<7).compactMap { dayOffset in

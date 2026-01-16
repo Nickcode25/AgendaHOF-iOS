@@ -148,7 +148,7 @@ class NotificationManager: ObservableObject {
             
             // Ignorar dias passados (se hora já passou hoje)
             let now = Date()
-            let triggerDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date)!
+            guard let triggerDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) else { continue }
             if triggerDate < now {
                 // Se já passou o horário hoje, não agendar para hoje (ou agendar para amanhã? não, o loop já cobre amanhã)
                 continue 
@@ -205,7 +205,7 @@ class NotificationManager: ObservableObject {
         
         let now = Date()
         let todayStart = calendar.startOfDay(for: now)
-        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+        guard let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) else { return }
         
         // Agendar para 21:00
         guard let triggerDate = calendar.date(bySettingHour: 21, minute: 00, second: 0, of: todayStart) else { return }
@@ -311,19 +311,20 @@ class NotificationManager: ObservableObject {
         // Calcular intervalo da próxima semana
         var calendar = Calendar.current
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
-        calendar.firstWeekday = 1 // Domingo
+        calendar.firstWeekday = 2 // Segunda-feira
         
         let now = Date()
         let weekday = calendar.component(.weekday, from: now)
-        let daysUntilSunday = weekday == 1 ? 0 : (8 - weekday)
+        // Calcular dias até próxima segunda (weekday 2)
+        let daysUntilMonday = weekday == 2 ? 0 : (9 - weekday) % 7
         
-        guard let nextSunday = calendar.date(byAdding: .day, value: daysUntilSunday, to: calendar.startOfDay(for: now)),
-              let nextSaturday = calendar.date(byAdding: .day, value: 7, to: nextSunday) else {
+        guard let nextMonday = calendar.date(byAdding: .day, value: daysUntilMonday, to: calendar.startOfDay(for: now)),
+              let nextSunday = calendar.date(byAdding: .day, value: 7, to: nextMonday) else {
             return
         }
         
         // Buscar agendamentos
-        let appointments = await fetchAppointments(from: nextSunday, to: nextSaturday)
+        let appointments = await fetchAppointments(from: nextMonday, to: nextSunday)
         let count = appointments.count
         
         if count == 0 {

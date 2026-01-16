@@ -276,7 +276,8 @@ struct WeekPageContent: View {
 
     /// Dias da semana
     private var weekDates: [Date] {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2 // Segunda-feira (1 = Domingo, 2 = Segunda)
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: weekStartDate)?.start ?? weekStartDate
 
         return (0..<7).compactMap { dayOffset in

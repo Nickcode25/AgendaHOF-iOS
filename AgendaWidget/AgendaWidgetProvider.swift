@@ -59,7 +59,7 @@ struct AgendaWidgetProvider: TimelineProvider {
         let entry = AgendaWidgetEntry(date: currentDate, appointments: appointments)
 
         // Atualizar a cada 15 minutos
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: currentDate)!
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: currentDate) ?? currentDate.addingTimeInterval(900)
 
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
         completion(timeline)

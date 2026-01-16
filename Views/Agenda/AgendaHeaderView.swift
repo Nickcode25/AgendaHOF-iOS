@@ -175,7 +175,8 @@ struct AgendaHeaderView: View {
             formatter.dateFormat = "d 'de' MMMM"
         } else {
             // Semana: mostrar intervalo
-            let calendar = Calendar.current
+            var calendar = Calendar.current
+            calendar.firstWeekday = 2 // Segunda-feira
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: viewModel.selectedDate)?.start ?? viewModel.selectedDate
             let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) ?? viewModel.selectedDate
             

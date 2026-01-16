@@ -14,8 +14,16 @@ class SupabaseManager: ObservableObject {
     @Published var isLoading = false
 
     private init() {
-        guard let url = URL(string: Constants.supabaseURL) else {
-            fatalError("❌ CRITICAL: Invalid Supabase URL in Constants. Check your configuration.")
+        // Graceful handling: se URL inválida, não crashar o app
+        // Em vez disso, criar client com URL placeholder que falhará nas requisições
+        // mas permitirá que o app abra e mostre erro tratável ao usuário
+        let url: URL
+        if let validURL = URL(string: Constants.supabaseURL) {
+            url = validURL
+        } else {
+            AppLogger.error("❌ CRITICAL: Invalid Supabase URL in Constants. Check your configuration.")
+            // URL placeholder - requisições falharão com erro tratável, não crash
+            url = URL(string: "https://invalid.supabase.co")!
         }
         
         client = SupabaseClient(

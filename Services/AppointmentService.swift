@@ -94,7 +94,7 @@ class AppointmentService: ObservableObject {
         let now = Date()
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: now)
-        let twoWeeksLater = calendar.date(byAdding: .day, value: 14, to: todayStart)!
+        guard let twoWeeksLater = calendar.date(byAdding: .day, value: 14, to: todayStart) else { return }
 
         // Filtrar apenas agendamentos futuros (hoje em diante) e não cancelados
         let upcomingAppointments = appointments.filter { appointment in

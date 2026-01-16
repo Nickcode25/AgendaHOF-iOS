@@ -28,7 +28,7 @@ struct CalendarWeekView: View {
     /// Dias da semana atual
     private var weekDates: [Date] {
         var calendar = Calendar.current
-        calendar.firstWeekday = 1 // Domingo
+        calendar.firstWeekday = 2 // Segunda-feira (1 = Domingo, 2 = Segunda)
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: viewModel.selectedDate)?.start ?? viewModel.selectedDate
 
         return (0..<7).compactMap { dayOffset in

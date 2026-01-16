@@ -169,10 +169,22 @@ struct CustomContactPickerView: View {
              var keys: [Any] = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactBirthdayKey]
              keys.append(CNContactFormatter.descriptorForRequiredKeys(for: .fullName))
              
-             let request = CNContactFetchRequest(keysToFetch: keys as! [CNKeyDescriptor])
+             guard let keysDescriptor = keys as? [CNKeyDescriptor] else {
+                 print("❌ Erro: Falha ao converter keys para CNKeyDescriptor")
+                 await MainActor.run {
+                     self.isLoading = false
+                 }
+                 return
+             }
+             let request = CNContactFetchRequest(keysToFetch: keysDescriptor)
              request.sortOrder = .userDefault
              
-             var fetchedContacts: [ContactInfo] = []
+             // Use a class-based accumulator to avoid Swift 6 concurrency issues
+             // with captured vars in synchronous enumeration closures
+             final class ContactAccumulator: @unchecked Sendable {
+                 var contacts: [ContactInfo] = []
+             }
+             let accumulator = ContactAccumulator()
              
              do {
                  try store.enumerateContacts(with: request) { contact, _ in
@@ -185,10 +197,11 @@ struct CustomContactPickerView: View {
                      }
                      
                      if !name.isEmpty {
-                         fetchedContacts.append(ContactInfo(name: name, phone: phone, email: email, birthday: birthday))
+                         accumulator.contacts.append(ContactInfo(name: name, phone: phone, email: email, birthday: birthday))
                      }
                  }
                  
+                 let fetchedContacts = accumulator.contacts
                  await MainActor.run {
                      self.contacts = fetchedContacts
                      self.isLoading = false
@@ -212,7 +225,11 @@ struct CustomContactPickerView: View {
             var keys: [Any] = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactBirthdayKey]
             keys.append(CNContactFormatter.descriptorForRequiredKeys(for: .fullName))
             
-            let request = CNContactFetchRequest(keysToFetch: keys as! [CNKeyDescriptor])
+            guard let keysDescriptor = keys as? [CNKeyDescriptor] else {
+                print("❌ Erro: Falha ao converter keys para CNKeyDescriptor (auto-import)")
+                return
+            }
+            let request = CNContactFetchRequest(keysToFetch: keysDescriptor)
             request.sortOrder = .userDefault
             
             var contacts: [ContactInfo] = []

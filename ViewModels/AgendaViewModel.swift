@@ -53,9 +53,9 @@ class AgendaViewModel: ObservableObject {
 
         case .week:
             var calendar = Calendar.current
-            calendar.firstWeekday = 1 // Domingo
+            calendar.firstWeekday = 2 // Segunda-feira
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
-            let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek)!
+            let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) ?? startOfWeek
 
             let dayFormatter = DateFormatter()
             dayFormatter.locale = Locale(identifier: "pt_BR")
@@ -64,6 +64,14 @@ class AgendaViewModel: ObservableObject {
             let monthFormatter = DateFormatter()
             monthFormatter.locale = Locale(identifier: "pt_BR")
             monthFormatter.dateFormat = "MMM"
+            
+            // Ajustar lógica para exibir mês se virar o mês na semana
+            let startMonth = calendar.component(.month, from: startOfWeek)
+            let endMonth = calendar.component(.month, from: endOfWeek)
+            
+            if startMonth != endMonth {
+                 return "\(dayFormatter.string(from: startOfWeek)) \(monthFormatter.string(from: startOfWeek)) - \(dayFormatter.string(from: endOfWeek)) \(monthFormatter.string(from: endOfWeek))"
+            }
 
             return "\(dayFormatter.string(from: startOfWeek)) - \(dayFormatter.string(from: endOfWeek)) \(monthFormatter.string(from: selectedDate))"
         }
@@ -81,9 +89,9 @@ class AgendaViewModel: ObservableObject {
 
         case .week:
             var calendar = Calendar.current
-            calendar.firstWeekday = 1 // Domingo
+            calendar.firstWeekday = 2 // Segunda-feira
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
-            let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek)!
+            let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) ?? startOfWeek
 
             let dayFormatter = DateFormatter()
             dayFormatter.locale = Locale(identifier: "pt_BR")
