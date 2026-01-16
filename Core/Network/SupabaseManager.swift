@@ -194,8 +194,23 @@ class SupabaseManager: ObservableObject {
             let session = try await client.auth.session
             self.currentSession = session
             self.currentUser = session.user
-            self.isAuthenticated = true
             await loadUserProfile()
+            
+            // Verificar acesso via SubscriptionManager
+            await SubscriptionManager.shared.checkAccess()
+            
+            let accessState = SubscriptionManager.shared.accessState
+            if accessState.hasActiveSubscription || accessState.isInTrial {
+                self.isAuthenticated = true
+                AppLogger.log("✅ [Auth] Sessão restaurada. Plano: \(accessState.planType.displayName)", category: .auth)
+            } else {
+                // Trial/assinatura expirou - fazer logout automático
+                AppLogger.log("🚫 [Auth] Sessão expirada. Trial/assinatura não ativa.", category: .auth)
+                self.currentSession = nil
+                self.currentUser = nil
+                self.userProfile = nil
+                self.isAuthenticated = false
+            }
         } catch {
             self.isAuthenticated = false
             AppLogger.log("Nenhuma sessão ativa: \(error.localizedDescription)", category: .auth)
