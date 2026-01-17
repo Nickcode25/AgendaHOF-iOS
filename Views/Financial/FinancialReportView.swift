@@ -458,15 +458,16 @@ struct FinancialReportView: View {
         isLoading = false
     }
 
-    // MARK: - Fetch Procedures Revenue (CORRIGIDO v3.0)
+    // MARK: - Fetch Procedures Revenue (CORRIGIDO v4.0 - Lógica de 3 casos)
 
     private func fetchProceduresRevenue(userId: String, startDate: Date, endDate: Date) async -> Decimal {
         do {
-            // Buscar pacientes com planned_procedures (usando modelo simplificado)
+            // Buscar apenas pacientes ativos com planned_procedures
             let patients: [SimplifiedPatient] = try await supabase.client
                 .from("patients")
                 .select("id, name, planned_procedures")
                 .eq("user_id", value: userId)
+                .eq("is_active", value: true)
                 .execute()
                 .value
 
@@ -494,43 +495,64 @@ struct FinancialReportView: View {
                     // ✅ REGRA 1: Considerar apenas status === 'completed'
                     guard procedure.status?.lowercased() == "completed" else { continue }
 
-                    // ✅ REGRA 2: Usar performedAt ou completedAt
-                    let dateString = procedure.performedAt ?? procedure.completedAt
-                    guard let dateStr = dateString else { continue }
-
-                    // ✅ REGRA 3: Extrair apenas YYYY-MM-DD do dateStr (ignora hora e timezone)
-                    // Suporta formatos: "2025-12-22", "2025-12-22T14:30:00Z", "2025-12-22T14:30:00.000Z"
-                    let dateOnly = String(dateStr.prefix(10))  // Pega apenas YYYY-MM-DD
-
-                    // ✅ Validar formato YYYY-MM-DD
-                    guard dateOnly.count == 10, dateOnly.contains("-") else {
-                        #if DEBUG
-                        print("⚠️ [Procedures] Invalid date format: \(dateStr)")
-                        #endif
-                        continue
-                    }
-
-                    // ✅ REGRA 4: Comparação de strings (igual ao web)
-                    // dateOnly >= startDateStr && dateOnly <= endDateStr
-                    if dateOnly >= startDateStr && dateOnly <= endDateStr {
-                        // ✅ REGRA 5: Considerar paymentSplits se disponível
-                        if let splits = procedure.paymentSplits, !splits.isEmpty {
-                            let splitTotal = splits.reduce(Decimal(0)) { $0 + Decimal($1.amount ?? 0) }
-                            total += splitTotal
-                            #if DEBUG
-                            print("✅ [Procedures] \(patient.name) - \(procedure.displayName)")
-                            print("   Date: \(dateOnly) | Split Total: R$ \(splitTotal)")
-                            #endif
-                        } else {
-                            // ✅ REGRA 6: Somar totalValue
-                            let value = Decimal(procedure.totalValue ?? 0)
-                            total += value
-                            #if DEBUG
-                            print("✅ [Procedures] \(patient.name) - \(procedure.displayName)")
-                            print("   Date: \(dateOnly) | Value: R$ \(value)")
-                            #endif
+                    // Data do procedimento (para casos 2 e 3)
+                    let procedureDateStr = procedure.performedAt ?? procedure.completedAt ?? ""
+                    let procedureDateOnly = String(procedureDateStr.prefix(10))
+                    
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 1: Procedimento com pagamento parcelado (PIX/Dinheiro)
+                    // ══════════════════════════════════════════════════════════
+                    if procedure.permitirParcelado == true,
+                       let pagamentos = procedure.pagamentos,
+                       !pagamentos.isEmpty {
+                        
+                        for pagamento in pagamentos {
+                            let paymentDateOnly = String(pagamento.data.prefix(10))
+                            
+                            if paymentDateOnly >= startDateStr && paymentDateOnly <= endDateStr {
+                                let value = Decimal(pagamento.valor)
+                                total += value
+                                count += 1
+                                
+                                #if DEBUG
+                                print("✅ [Procedures] \(patient.name) - Pagamento de parcela")
+                                print("   Date: \(paymentDateOnly) | Value: R$ \(value)")
+                                #endif
+                            }
                         }
+                    }
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 2: Procedimento com múltiplas formas de pagamento
+                    // ══════════════════════════════════════════════════════════
+                    else if let splits = procedure.paymentSplits,
+                            !splits.isEmpty,
+                            procedureDateOnly.count == 10,
+                            procedureDateOnly >= startDateStr && procedureDateOnly <= endDateStr {
+                        
+                        let splitTotal = splits.reduce(Decimal(0)) { $0 + Decimal($1.amount ?? 0) }
+                        total += splitTotal
                         count += 1
+                        
+                        #if DEBUG
+                        print("✅ [Procedures] \(patient.name) - \(procedure.displayName)")
+                        print("   Date: \(procedureDateOnly) | Split Total: R$ \(splitTotal)")
+                        #endif
+                    }
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 3: Procedimento tradicional (pagamento único)
+                    // ══════════════════════════════════════════════════════════
+                    else if procedure.permitirParcelado != true,
+                            procedureDateOnly.count == 10,
+                            procedureDateOnly >= startDateStr && procedureDateOnly <= endDateStr {
+                        
+                        let value = Decimal(procedure.totalValue ?? procedure.value ?? 0)
+                        total += value
+                        count += 1
+                        
+                        #if DEBUG
+                        print("✅ [Procedures] \(patient.name) - \(procedure.displayName)")
+                        print("   Date: \(procedureDateOnly) | Value: R$ \(value)")
+                        #endif
                     }
                 }
             }
@@ -886,11 +908,23 @@ struct FinancialReportView: View {
             return (startOfDay, endOfDay)
 
         case .week:
-            // ✅ Semana começa na Segunda-feira (weekday 2)
+            // ✅ CORREÇÃO: Semana começa no Domingo (igual à versão web)
+            // weekday: 1 = Domingo, 2 = Segunda, ..., 7 = Sábado
             let weekday = calendar.component(.weekday, from: now)
-            let daysToSubtract = (weekday == 1) ? 6 : (weekday - 2)  // 1 = Domingo
+            let daysToSubtract = weekday - 1  // Voltar até o domingo
             let startOfWeek = calendar.date(byAdding: .day, value: -daysToSubtract, to: calendar.startOfDay(for: now))!
             let endOfWeek = calendar.date(byAdding: DateComponents(day: 7, second: -1), to: startOfWeek)!
+            
+            #if DEBUG
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+            print("📅 [FinancialReport] Período da semana (corrigido):")
+            print("   Hoje: \(dateFormatter.string(from: now)) (weekday: \(weekday))")
+            print("   Início (Domingo): \(dateFormatter.string(from: startOfWeek))")
+            print("   Fim (Sábado): \(dateFormatter.string(from: endOfWeek))")
+            #endif
+            
             return (startOfWeek, endOfWeek)
 
         case .month:

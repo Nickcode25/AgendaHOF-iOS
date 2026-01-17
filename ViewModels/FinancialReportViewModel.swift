@@ -95,12 +95,27 @@ class FinancialReportViewModel: ObservableObject {
     // MARK: - Data Fetching Methods
 
     /// Busca receita de procedimentos realizados
+    /// Implementa a mesma lógica de 3 casos da versão web:
+    /// - Caso 1: Parcelado (permitirParcelado + pagamentos[]) → somar pagamentos por data
+    /// - Caso 2: Múltiplas formas (paymentSplits[]) → somar splits por data do procedimento
+    /// - Caso 3: Tradicional → somar totalValue por data do procedimento
     private func fetchProceduresRevenue(userId: String, start: Date, end: Date) async -> Decimal {
         do {
+            // Formatar datas para comparação de strings (como na web)
+            let startString = formatDateString(start)
+            let endString = formatDateString(end)
+            
+            #if DEBUG
+            print("📊 [FinancialReport] Buscando procedimentos...")
+            print("   Período: \(startString) até \(endString)")
+            #endif
+            
+            // Buscar apenas pacientes ativos
             let patients: [Patient] = try await supabase.client
                 .from("patients")
                 .select()
                 .eq("user_id", value: userId)
+                .eq("is_active", value: true)
                 .execute()
                 .value
 
@@ -108,19 +123,68 @@ class FinancialReportViewModel: ObservableObject {
 
             for patient in patients {
                 guard let procedures = patient.plannedProcedures else { continue }
+                
+                // Filtrar apenas procedimentos concluídos (status == "completed")
+                let completedProcedures = procedures.filter { $0.status == "completed" }
 
-                for procedure in procedures {
-                    // Verificar se foi realizado no período
-                    guard let performedAtStr = procedure.performedAt ?? procedure.completedAt else { continue }
-                    guard let performedAt = parseDate(performedAtStr) else { continue }
-
-                    if performedAt >= start && performedAt < end {
-                        if let value = procedure.value {
-                            total += Decimal(value)
+                for proc in completedProcedures {
+                    let procedureDate = proc.performedAt ?? proc.completedAt ?? ""
+                    let procedureDateOnly = String(procedureDate.prefix(10)) // Extrair YYYY-MM-DD
+                    
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 1: Procedimento com pagamento parcelado (PIX/Dinheiro)
+                    // ══════════════════════════════════════════════════════════
+                    if proc.permitirParcelado == true,
+                       let pagamentos = proc.pagamentos,
+                       !pagamentos.isEmpty {
+                        
+                        for pagamento in pagamentos {
+                            let paymentDate = String(pagamento.data.prefix(10))
+                            if isDateInRange(paymentDate, start: startString, end: endString) {
+                                total += Decimal(pagamento.valor)
+                                
+                                #if DEBUG
+                                print("   💳 [Parcelado] \(proc.displayName) - \(patient.name): R$ \(pagamento.valor) em \(paymentDate)")
+                                #endif
+                            }
                         }
+                    }
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 2: Procedimento com múltiplas formas de pagamento
+                    // ══════════════════════════════════════════════════════════
+                    else if let splits = proc.paymentSplits,
+                            !splits.isEmpty,
+                            isDateInRange(procedureDateOnly, start: startString, end: endString) {
+                        
+                        for split in splits {
+                            if let amount = split.amount {
+                                total += Decimal(amount)
+                                
+                                #if DEBUG
+                                print("   💳 [Split] \(proc.displayName) - \(patient.name): R$ \(amount) (\(split.method ?? "?"))")
+                                #endif
+                            }
+                        }
+                    }
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 3: Procedimento tradicional (pagamento único)
+                    // ══════════════════════════════════════════════════════════
+                    else if proc.permitirParcelado != true,
+                            isDateInRange(procedureDateOnly, start: startString, end: endString) {
+                        
+                        let value = proc.totalValue ?? proc.value ?? 0
+                        total += Decimal(value)
+                        
+                        #if DEBUG
+                        print("   💰 [Tradicional] \(proc.displayName) - \(patient.name): R$ \(value) em \(procedureDateOnly)")
+                        #endif
                     }
                 }
             }
+            
+            #if DEBUG
+            print("   ✅ Total Procedimentos: R$ \(total)")
+            #endif
 
             return total
 
@@ -130,6 +194,19 @@ class FinancialReportViewModel: ObservableObject {
             #endif
             return 0
         }
+    }
+    
+    /// Formata Date para string YYYY-MM-DD no timezone de São Paulo
+    private func formatDateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+        return formatter.string(from: date)
+    }
+    
+    /// Verifica se uma data (string YYYY-MM-DD) está dentro do período
+    private func isDateInRange(_ dateString: String, start: String, end: String) -> Bool {
+        return dateString >= start && dateString <= end
     }
 
     /// Busca receita de vendas de produtos
@@ -243,14 +320,22 @@ class FinancialReportViewModel: ObservableObject {
     // MARK: - Helper Methods
     
     /// Retorna o intervalo de datas para o período selecionado
-    /// Regra de Negócio:
-    /// - Dia: De 00:00 de hoje até 00:00 de amanhã
-    /// - Semana: Da semana atual (Segunda ou Domingo dependendo da Locale)
-    /// - Mês: Do dia 1 do mês atual até dia 1 do próximo mês
-    /// - Ano: Do dia 1 de Jan até 1 de Jan do próximo ano
+    /// Regra de Negócio (sincronizado com a versão web):
+    /// - Dia: De hoje (YYYY-MM-DD)
+    /// - Semana: De domingo a sábado da semana atual
+    /// - Mês: Do dia 1 até o último dia do mês atual
+    /// - Ano: Do dia 1 de Jan até 31 de Dez do ano atual
     private func dateRange(for period: PeriodFilter) -> (start: Date, end: Date) {
-        let calendar = Calendar.current
+        // Usar calendário com timezone de São Paulo para consistência com a web
+        var calendar = Calendar(identifier: .gregorian)
+        let saoPauloTimeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        calendar.timeZone = saoPauloTimeZone
+        calendar.firstWeekday = 1 // Domingo = 1 (como na web)
+        
         let now = Date()
+        
+        // Obter data atual no timezone de São Paulo
+        let todayComponents = calendar.dateComponents([.year, .month, .day, .weekday], from: now)
         
         switch period {
         case .day:
@@ -259,12 +344,37 @@ class FinancialReportViewModel: ObservableObject {
             return (start, end)
             
         case .week:
-            guard let start = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)),
-                  let end = calendar.date(byAdding: .weekOfYear, value: 1, to: start) else {
-                // Fallback seguro se falhar cálculo de calendário
+            // Calcular semana de domingo a sábado (como na web)
+            // weekday: 1 = Domingo, 2 = Segunda, ..., 7 = Sábado
+            let weekday = todayComponents.weekday ?? 1
+            let daysToSunday = weekday - 1 // Quantos dias voltar para chegar ao domingo
+            
+            // Construir o domingo da semana atual
+            var sundayComponents = todayComponents
+            sundayComponents.day = (todayComponents.day ?? 1) - daysToSunday
+            sundayComponents.hour = 0
+            sundayComponents.minute = 0
+            sundayComponents.second = 0
+            sundayComponents.weekday = nil
+            
+            guard let sunday = calendar.date(from: sundayComponents) else {
                 return (now, now)
             }
-            return (start, end)
+            
+            // Sábado é domingo + 6 dias, e o fim é domingo + 7 (início do próximo domingo)
+            guard let nextSunday = calendar.date(byAdding: .day, value: 7, to: sunday) else {
+                return (now, now)
+            }
+            
+            #if DEBUG
+            let saturdayForLog = calendar.date(byAdding: .day, value: 6, to: sunday)!
+            print("📅 [FinancialReport] Período da semana:")
+            print("   Hoje: \(formatDateString(now)) (weekday: \(weekday))")
+            print("   Início (Domingo): \(formatDateString(sunday))")
+            print("   Fim (Sábado): \(formatDateString(saturdayForLog))")
+            #endif
+            
+            return (sunday, nextSunday)
             
         case .month:
             guard let start = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),

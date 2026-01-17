@@ -499,17 +499,18 @@ class NotificationManager: ObservableObject {
     
     private func fetchProceduresRevenue(userId: String, start: Date, end: Date) async -> Double {
         do {
-            // Lógica idêntica ao FinancialReportView (v3.0)
+            // ✅ CORREÇÃO v4.0: Buscar apenas pacientes ativos
             let patients: [Patient] = try await supabase.client
-                .from("patients") // Busca todos e filtra localmente
+                .from("patients")
                 .select()
                 .eq("user_id", value: userId)
+                .eq("is_active", value: true)
                 .execute()
                 .value
 
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo") // Importante: Mesmo TZ do View
+            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
             
             let startDateStr = formatter.string(from: start)
             let endDateStr = formatter.string(from: end)
@@ -523,23 +524,45 @@ class NotificationManager: ObservableObject {
                     // REGRA 1: Status completed
                     guard procedure.status?.lowercased() == "completed" else { continue }
                     
-                    // REGRA 2: Data de realização ou conclusão
-                    guard let dateStr = procedure.performedAt ?? procedure.completedAt else { continue }
+                    // Data do procedimento (para casos 2 e 3)
+                    let procedureDateStr = procedure.performedAt ?? procedure.completedAt ?? ""
+                    let procedureDateOnly = String(procedureDateStr.prefix(10))
                     
-                    // REGRA 3: Extrair YYYY-MM-DD
-                    let dateOnly = String(dateStr.prefix(10))
-                    guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
-                    
-                    // REGRA 4: Comparação de strings
-                    if dateOnly >= startDateStr && dateOnly < endDateStr {
-                        // REGRA 5: Payment Splits (Prioridade)
-                        if let splits = procedure.paymentSplits, !splits.isEmpty {
-                            let splitTotal = splits.reduce(0.0) { $0 + ($1.amount ?? 0) }
-                            total += splitTotal
-                        } else {
-                            // REGRA 6: Total Value
-                            total += (procedure.totalValue ?? 0)
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 1: Procedimento com pagamento parcelado (PIX/Dinheiro)
+                    // ══════════════════════════════════════════════════════════
+                    if procedure.permitirParcelado == true,
+                       let pagamentos = procedure.pagamentos,
+                       !pagamentos.isEmpty {
+                        
+                        for pagamento in pagamentos {
+                            let paymentDateOnly = String(pagamento.data.prefix(10))
+                            
+                            // ✅ Usar < para end (que é o início do próximo dia)
+                            if paymentDateOnly >= startDateStr && paymentDateOnly < endDateStr {
+                                total += pagamento.valor
+                            }
                         }
+                    }
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 2: Procedimento com múltiplas formas de pagamento
+                    // ══════════════════════════════════════════════════════════
+                    else if let splits = procedure.paymentSplits,
+                            !splits.isEmpty,
+                            procedureDateOnly.count == 10,
+                            procedureDateOnly >= startDateStr && procedureDateOnly < endDateStr {
+                        
+                        let splitTotal = splits.reduce(0.0) { $0 + ($1.amount ?? 0) }
+                        total += splitTotal
+                    }
+                    // ══════════════════════════════════════════════════════════
+                    // CASO 3: Procedimento tradicional (pagamento único)
+                    // ══════════════════════════════════════════════════════════
+                    else if procedure.permitirParcelado != true,
+                            procedureDateOnly.count == 10,
+                            procedureDateOnly >= startDateStr && procedureDateOnly < endDateStr {
+                        
+                        total += (procedure.totalValue ?? procedure.value ?? 0)
                     }
                 }
             }

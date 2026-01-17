@@ -231,6 +231,21 @@ struct Patient: Identifiable, Codable, Hashable {
     }
 }
 
+// MARK: - Pagamento Individual (para procedimentos parcelados)
+/// Estrutura para representar cada pagamento individual de um procedimento parcelado
+struct Pagamento: Identifiable, Codable, Hashable {
+    let id: String
+    let data: String           // Formato: YYYY-MM-DD
+    let metodo: String         // "PIX", "Débito", "Crédito", "Dinheiro"
+    let valor: Double
+    let descricao: String?
+    let parcelas: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, data, metodo, valor, descricao, parcelas
+    }
+}
+
 // PlannedProcedure com campos flexíveis para aceitar diferentes formatos do banco
 struct PlannedProcedure: Identifiable, Codable, Hashable {
     let id: String
@@ -250,7 +265,14 @@ struct PlannedProcedure: Identifiable, Codable, Hashable {
     var usedProductName: String?
     var professionalId: String?  // ✅ NOVO: ID do profissional
     var professionalName: String?  // ✅ NOVO: Nome do profissional
-    var paymentSplits: [PaymentSplitData]?  // ✅ NOVO: Divisões de pagamento
+    var paymentSplits: [PaymentSplitData]?  // ✅ Divisões de pagamento
+
+    // ✅ Campos de pagamento parcelado (PIX/Dinheiro)
+    var permitirParcelado: Bool?
+    var valorPago: Double?
+    var saldoRestante: Double?
+    var statusPagamento: String?  // "pago", "parcial", "pendente"
+    var pagamentos: [Pagamento]?
 
     // Campos alternativos que podem vir do banco
     var name: String?
@@ -275,6 +297,7 @@ struct PlannedProcedure: Identifiable, Codable, Hashable {
         case professionalId
         case professionalName
         case paymentSplits
+        case permitirParcelado, valorPago, saldoRestante, statusPagamento, pagamentos
         case name, procedure, value
     }
 
@@ -289,13 +312,15 @@ struct PlannedProcedure: Identifiable, Codable, Hashable {
     }
 }
 
-// ✅ NOVO: Estrutura para divisões de pagamento
+// ✅ Estrutura para divisões de pagamento (múltiplas formas de pagamento)
 struct PaymentSplitData: Codable, Hashable {
     var method: String?  // "cash", "pix", "credit_card", "debit_card", "transfer", "check"
     var amount: Double?
+    var installments: Int?  // Número de parcelas (para cartão de crédito)
 
     enum CodingKeys: String, CodingKey {
         case method
         case amount
+        case installments
     }
 }
