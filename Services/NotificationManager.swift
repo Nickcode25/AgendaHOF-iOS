@@ -207,10 +207,10 @@ class NotificationManager: ObservableObject {
         let todayStart = calendar.startOfDay(for: now)
         guard let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) else { return }
         
-        // Agendar para 21:00
-        guard let triggerDate = calendar.date(bySettingHour: 21, minute: 00, second: 0, of: todayStart) else { return }
+        // Agendar para 22:00
+        guard let triggerDate = calendar.date(bySettingHour: 22, minute: 00, second: 0, of: todayStart) else { return }
         
-        // Se já passou das 21:00, não agendar para hoje
+        // Se já passou das 22:00, não agendar para hoje
         if triggerDate < now {
              // AppLogger.log("💰 Horário já passou hoje (\(triggerDate) < \(now)). Ignorando.", category: .notification)
              return
@@ -233,9 +233,9 @@ class NotificationManager: ObservableObject {
         let patientCount = attendedAppointments.count
         AppLogger.log("💰 Pacientes atendidos (Total hoje): \(patientCount)", category: .notification)
         
-        // Se não tiver pacientes, não enviar
+        // Se não tiver agendamentos no dia, não enviar notificação
         if patientCount == 0 {
-            AppLogger.log("💰 Nenhum paciente atendido. Notificação não será enviada.", category: .notification)
+            AppLogger.log("💰 Nenhum agendamento hoje. Notificação não será enviada.", category: .notification)
             return
         }
         
@@ -265,7 +265,7 @@ class NotificationManager: ObservableObject {
         )
         
         addRequest(request, description: "Resumo Financeiro Diário")
-        AppLogger.log("✅ Resumo Financeiro agendado para 21:00", category: .notification)
+        AppLogger.log("✅ Resumo Financeiro agendado para 22:00", category: .notification)
     }
 
     /// Reagendar todas as notificações dinâmicas (Resumo + Lembretes) para garantir dados atualizados
