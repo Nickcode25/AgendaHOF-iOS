@@ -193,6 +193,9 @@ class NotificationManager: ObservableObject {
     func scheduleDailyFinancialSummary() async {
         AppLogger.log("💰 Tentando agendar Resumo Financeiro...", category: .notification)
         
+        // ✅ Pequeno delay para garantir que os dados foram persistidos no Supabase
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 segundos
+        
         center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailyFinancialSummary])
         
         guard supabase.isOwner else {
@@ -212,26 +215,14 @@ class NotificationManager: ObservableObject {
         
         // Se já passou das 22:00, não agendar para hoje
         if triggerDate < now {
-             // AppLogger.log("💰 Horário já passou hoje (\(triggerDate) < \(now)). Ignorando.", category: .notification)
              return
         }
         
-        // Buscar agendamentos CONCLUÍDOS/REALIZADOS do dia
-        AppLogger.log("💰 Buscando agendamentos entre \(todayStart) e \(tomorrowStart)...", category: .notification)
+        // Buscar agendamentos do dia
         let appointments = await fetchAppointments(from: todayStart, to: tomorrowStart)
-        
-        // Filtrar apenas os que contam para faturamento (Realizados/Concluídos/Confirmados?)
-        // TESTE: Considerando TODOS os não cancelados para garantir que a notificação apareça
-        // (attendedAppointments agora inclui scheduled/confirmed tb)
-        
         let attendedAppointments = appointments
         
-        // Log para debug dos status
-        let statuses = attendedAppointments.map { $0.status.rawValue }
-        AppLogger.log("💰 Status encontrados: \(statuses)", category: .notification)
-        
         let patientCount = attendedAppointments.count
-        AppLogger.log("💰 Pacientes atendidos (Total hoje): \(patientCount)", category: .notification)
         
         // Se não tiver agendamentos no dia, não enviar notificação
         if patientCount == 0 {
@@ -239,10 +230,9 @@ class NotificationManager: ObservableObject {
             return
         }
         
-        // Calcular Faturamento usando a lógica do Relatório Financeiro (buscando procedimentos nos pacientes)
-        AppLogger.log("💰 Calculando faturamento via Procedures (Patients)...", category: .notification)
+        // Calcular Faturamento
         let totalRevenue = await calculateDailyRevenue(date: now)
-        AppLogger.log("💰 Faturamento Total Calculado: \(totalRevenue)", category: .notification)
+        AppLogger.log("💰 Faturamento: R$ \(String(format: "%.2f", totalRevenue)) | Pacientes: \(patientCount)", category: .notification)
         
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
