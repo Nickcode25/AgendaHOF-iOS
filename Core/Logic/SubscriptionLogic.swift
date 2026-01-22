@@ -4,7 +4,7 @@ import Foundation
 struct SubscriptionLogic {
     
     // Configurações
-    static let paidGracePeriodDays = 5
+    static let paidGracePeriodDays = 3 // Atualizado para 3 dias conforme Web
     static let trialDurationDays = 7
     
     // MARK: - Passos de Verificação
@@ -36,17 +36,18 @@ struct SubscriptionLogic {
         }
         
         // Assinatura Paga
-        // Se status for past_due, geralmente bloqueamos ou damos grace period? 
-        // A regra diz: active com grace period.
-        
+        // Se status for pending_cancellation, usuário tem acesso até a data final
         if sub.status == .pendingCancellation {
              guard let nextBilling = sub.nextBillingDate else { return false }
+             // Acesso vai até o fim do período (next_billing_date) EXATO
              return referenceDate <= nextBilling
         }
         
+        // Se status active, tem tolerância de 3 dias
         if sub.status == .active {
             guard let nextBilling = sub.nextBillingDate else { return true } // Se active e sem data, assume valido
             
+            // Tolerância de 3 dias
             let gracePeriod = Calendar.current.date(byAdding: .day, value: paidGracePeriodDays, to: nextBilling) ?? nextBilling
             return referenceDate <= gracePeriod
         }
@@ -56,18 +57,24 @@ struct SubscriptionLogic {
     
     /// Avalia a lista de assinaturas para encontrar a melhor válida
     static func evaluateSubscriptions(_ subscriptions: [UserSubscription], referenceDate: Date = Date()) -> AccessState? {
-        // A filtragem e ordenação (Passo 2) idealmente já vem do banco, mas podemos garantir aqui
-        // Ordem: discount ASC, created DESC
-        let sorted = subscriptions.sorted {
-            if ($0.discountPercentage ?? 0) != ($1.discountPercentage ?? 0) {
-                return ($0.discountPercentage ?? 0) < ($1.discountPercentage ?? 0)
+        // Ordenação conforme Regra Web:
+        // 1. discount_percentage ASC (nulls first) - Paga (0 ou null) < Cortesia (100)
+        // 2. created_at DESC - Mais recente primeiro
+        let sorted = subscriptions.sorted { sub1, sub2 in
+            let d1 = sub1.discountPercentage ?? 0 // Tratando null como 0 (pago total)
+            let d2 = sub2.discountPercentage ?? 0
+            
+            if d1 != d2 {
+                return d1 < d2 // ASC
             }
-            return $0.createdAt > $1.createdAt
+            
+            return sub1.createdAt > sub2.createdAt // DESC
         }
         
         for sub in sorted {
             if validateSubscription(sub, referenceDate: referenceDate) {
-                return .active(plan: sub.planType, expiresAt: sub.nextBillingDate, isCourtesy: sub.isCourtesy)
+                // A struct UserSubscription agora calcula o planType baseado na lógica da Web
+                return .active(plan: sub.planType, expiresAt: sub.nextBillingDate, isCourtesy: sub.isCourtesy, source: .backend)
             }
         }
         

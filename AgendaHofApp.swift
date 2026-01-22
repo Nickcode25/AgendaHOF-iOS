@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import BackgroundTasks  // ✅ NOVO: Para BGTaskScheduler
 
 @main
 struct AgendaHofApp: App {
@@ -24,10 +25,98 @@ struct AgendaHofApp: App {
 // MARK: - App Delegate
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    
+    // Identificador da tarefa de background
+    static let financialRefreshTaskId = "com.agendahof.financialRefresh"
+    
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Configurar delegate de notificações
         UNUserNotificationCenter.current().delegate = self
+        
+        // ✅ NOVO: Registrar tarefa de background para atualizar notificação financeira
+        registerBackgroundTasks()
+        
         return true
+    }
+    
+    // MARK: - Background Tasks
+    
+    /// Registra a tarefa de background para atualização do relatório financeiro
+    private func registerBackgroundTasks() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: AppDelegate.financialRefreshTaskId,
+            using: nil
+        ) { task in
+            self.handleFinancialRefresh(task: task as! BGAppRefreshTask)
+        }
+        
+        // Agendar a primeira execução
+        scheduleFinancialRefresh()
+        print("✅ [BGTask] Tarefa de atualização financeira registrada")
+    }
+    
+    /// Processa a tarefa de background quando executada pelo sistema
+    private func handleFinancialRefresh(task: BGAppRefreshTask) {
+        print("🔄 [BGTask] Executando atualização do relatório financeiro...")
+        
+        // Agendar próxima execução (para amanhã às 21:55)
+        scheduleFinancialRefresh()
+        
+        // Criar uma task para executar a atualização
+        let updateTask = Task {
+            await NotificationManager.shared.scheduleDailyFinancialSummary()
+            print("✅ [BGTask] Notificação financeira atualizada com sucesso")
+        }
+        
+        // Handler de expiração (se o sistema precisar encerrar a tarefa)
+        task.expirationHandler = {
+            updateTask.cancel()
+            print("⚠️ [BGTask] Tarefa expirou antes de completar")
+        }
+        
+        // Aguardar conclusão
+        Task {
+            await updateTask.value
+            task.setTaskCompleted(success: true)
+        }
+    }
+    
+    /// Agenda a próxima execução da tarefa para 21:55
+    func scheduleFinancialRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: AppDelegate.financialRefreshTaskId)
+        
+        // Calcular próximo 21:55 (horário de São Paulo)
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        
+        let now = Date()
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = 21
+        components.minute = 55
+        components.second = 0
+        
+        guard var targetDate = calendar.date(from: components) else {
+            print("❌ [BGTask] Erro ao calcular data alvo")
+            return
+        }
+        
+        // Se já passou das 21:55 hoje, agendar para amanhã
+        if targetDate <= now {
+            targetDate = calendar.date(byAdding: .day, value: 1, to: targetDate) ?? targetDate
+        }
+        
+        request.earliestBeginDate = targetDate
+        
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            
+            let formatter = DateFormatter()
+            formatter.dateFormat = "dd/MM/yyyy HH:mm"
+            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+            print("✅ [BGTask] Próxima atualização agendada para: \(formatter.string(from: targetDate))")
+        } catch {
+            print("❌ [BGTask] Erro ao agendar tarefa: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Universal Links
@@ -64,6 +153,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 struct ContentView: View {
     @EnvironmentObject var supabase: SupabaseManager
     @EnvironmentObject var deepLinkManager: DeepLinkManager
+    @Environment(\.scenePhase) private var scenePhase  // ✅ NOVO: Monitorar ciclo de vida
     
     @State private var isCheckingAuth = true
     @State private var isReadyToShowSheet = false
@@ -86,6 +176,16 @@ struct ContentView: View {
         .onChange(of: isCheckingAuth) { _, newValue in
             if !newValue {
                 isReadyToShowSheet = true
+            }
+        }
+        // ✅ NOVO: Atualizar notificação financeira quando o app voltar ao foreground
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active && supabase.isAuthenticated {
+                Task {
+                    // Reagendar notificação financeira com dados mais recentes do Supabase
+                    await NotificationManager.shared.scheduleDailyFinancialSummary()
+                    print("🔄 [App Active] Notificação financeira atualizada com dados mais recentes")
+                }
             }
         }
         .task {

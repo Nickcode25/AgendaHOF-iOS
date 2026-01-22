@@ -56,8 +56,9 @@ struct PatientsListView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.primary)
                         .frame(width: 32, height: 32)
-                        .background(Color(.systemGray5))
+                        .background(Color.white)
                         .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
                 }
             }
         }

@@ -19,6 +19,51 @@ enum PlanType: String, Codable, CaseIterable {
         case .none: return "Sem Plano"
         }
     }
+    
+    /// ID do produto no App Store Connect
+    var appleProductId: String? {
+        switch self {
+        case .basic: return "com.agendahof.basic"
+        case .pro: return "com.agendahof.pro"
+        case .premium: return "com.agendahof.premium"
+        default: return nil
+        }
+    }
+    
+    /// Mapeia ID do produto Apple para PlanType
+    static func fromAppleProductId(_ productId: String) -> PlanType {
+        switch productId {
+        case "com.agendahof.basic": return .basic
+        case "com.agendahof.pro": return .pro
+        case "com.agendahof.premium": return .premium
+        default: return .none
+        }
+    }
+}
+
+/// Fonte da assinatura ativa
+enum SubscriptionSource: String, Codable {
+    case backend = "backend"  // Stripe via site
+    case apple = "apple"      // IAP via StoreKit 2
+    case none = "none"
+    
+    var displayName: String {
+        switch self {
+        case .backend: return "Site (Stripe)"
+        case .apple: return "Apple"
+        case .none: return "Nenhuma"
+        }
+    }
+}
+
+/// Estado da compra em andamento
+enum PurchaseState: Equatable {
+    case idle
+    case purchasing
+    case restoring
+    case success
+    case failed(String)
+    case cancelled
 }
 
 /// Estado de acesso do usuário após verificação
@@ -28,6 +73,7 @@ struct AccessState {
     let isCourtesy: Bool
     let planType: PlanType
     let expirationDate: Date? // Data de expiração ou próxima cobrança
+    let source: SubscriptionSource
     
     /// Inicializador padrão para estado "sem acesso"
     static let noAccess = AccessState(
@@ -35,7 +81,8 @@ struct AccessState {
         isInTrial: false,
         isCourtesy: false,
         planType: .none,
-        expirationDate: nil
+        expirationDate: nil,
+        source: .none
     )
     
     /// Inicializador para Trial
@@ -45,18 +92,26 @@ struct AccessState {
             isInTrial: true,
             isCourtesy: false,
             planType: .trial,
-            expirationDate: date
+            expirationDate: date,
+            source: .none
         )
     }
     
     /// Inicializador para Assinatura Ativa
-    static func active(plan: PlanType, expiresAt: Date?, isCourtesy: Bool = false) -> AccessState {
+    static func active(plan: PlanType, expiresAt: Date?, isCourtesy: Bool = false, source: SubscriptionSource = .backend) -> AccessState {
         AccessState(
             hasActiveSubscription: true,
             isInTrial: false,
             isCourtesy: isCourtesy,
             planType: plan,
-            expirationDate: expiresAt
+            expirationDate: expiresAt,
+            source: source
         )
     }
+    
+    /// Verifica se o usuário tem acesso ao app (qualquer tipo de assinatura válida)
+    var hasAccess: Bool {
+        hasActiveSubscription || isInTrial
+    }
 }
+

@@ -208,7 +208,6 @@ class NotificationManager: ObservableObject {
         
         let now = Date()
         let todayStart = calendar.startOfDay(for: now)
-        guard let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) else { return }
         
         // Agendar para 22:00
         guard let triggerDate = calendar.date(bySettingHour: 22, minute: 00, second: 0, of: todayStart) else { return }
@@ -218,21 +217,18 @@ class NotificationManager: ObservableObject {
              return
         }
         
-        // Buscar agendamentos do dia
-        let appointments = await fetchAppointments(from: todayStart, to: tomorrowStart)
-        let attendedAppointments = appointments
-        
-        let patientCount = attendedAppointments.count
-        
-        // Se não tiver agendamentos no dia, não enviar notificação
-        if patientCount == 0 {
-            AppLogger.log("💰 Nenhum agendamento hoje. Notificação não será enviada.", category: .notification)
-            return
-        }
+        // ✅ CORREÇÃO: Contar pacientes ATENDIDOS (com procedimentos completed), não agendamentos
+        let patientCount = await countAttendedPatients(date: now)
         
         // Calcular Faturamento
         let totalRevenue = await calculateDailyRevenue(date: now)
-        AppLogger.log("💰 Faturamento: R$ \(String(format: "%.2f", totalRevenue)) | Pacientes: \(patientCount)", category: .notification)
+        AppLogger.log("💰 Faturamento: R$ \(String(format: "%.2f", totalRevenue)) | Pacientes Atendidos: \(patientCount)", category: .notification)
+        
+        // Se não houver pacientes atendidos E faturamento zero, não enviar notificação
+        if patientCount == 0 && totalRevenue == 0 {
+            AppLogger.log("💰 Nenhum paciente atendido e faturamento zero. Notificação não será enviada.", category: .notification)
+            return
+        }
         
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -242,7 +238,7 @@ class NotificationManager: ObservableObject {
         // Criar Conteúdo
         let content = UNMutableNotificationContent()
         content.title = "Resumo do dia"
-        content.body = "Você atendeu \(patientCount) pacientes e faturou \(revenueString) Parabéns!"
+        content.body = "Você atendeu \(patientCount) paciente\(patientCount == 1 ? "" : "s") e faturou \(revenueString). Parabéns!"
         content.sound = .default
         
         let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
@@ -256,6 +252,27 @@ class NotificationManager: ObservableObject {
         
         addRequest(request, description: "Resumo Financeiro Diário")
         AppLogger.log("✅ Resumo Financeiro agendado para 22:00", category: .notification)
+    }
+    
+    // MARK: - Count Attended Patients
+    
+    /// Conta pacientes agendados no dia (baseado na agenda, excluindo compromissos pessoais)
+    private func countAttendedPatients(date: Date) async -> Int {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        let startOfDay = calendar.startOfDay(for: date)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return 0 }
+        
+        // Buscar agendamentos do dia (exclui compromissos pessoais)
+        let appointments = await fetchAppointments(from: startOfDay, to: endOfDay)
+        
+        // Filtrar apenas agendamentos não cancelados de pacientes
+        let patientAppointments = appointments.filter { appointment in
+            appointment.status != .cancelled && appointment.isPersonal != true
+        }
+        
+        AppLogger.log("💰 Pacientes agendados hoje: \(patientAppointments.count)", category: .notification)
+        return patientAppointments.count
     }
 
     /// Reagendar todas as notificações dinâmicas (Resumo + Lembretes) para garantir dados atualizados
@@ -588,7 +605,7 @@ class NotificationManager: ObservableObject {
             // AQUI, recebemos start (00:00) e end (00:00 amanhã).
             // Então devemos comparar: date >= startStr && date < endDateStr.
             
-            let targetDateStr = startDateStr // Para dia específico, queremos match exato ou range? Vamos assumir range de 1 dia.
+            // targetDateStr removido pois não estava sendo usado
             
             var total: Double = 0
             

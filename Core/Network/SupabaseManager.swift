@@ -83,9 +83,9 @@ class SupabaseManager: ObservableObject {
         
         // Permitir acesso apenas se tiver assinatura ou trial
         let accessState = SubscriptionManager.shared.accessState
-        if accessState.hasActiveSubscription || accessState.isInTrial {
+        if accessState.hasAccess {
             self.isAuthenticated = true
-            AppLogger.log("✅ [Auth] Login bem-sucedido. Plano: \(accessState.planType.displayName)", category: .auth)
+            AppLogger.log("✅ [Auth] Login bem-sucedido. Plano: \(accessState.planType.displayName) via \(accessState.source.displayName)", category: .auth)
         } else {
             // Fazer logout se não tiver acesso
             self.currentSession = nil
@@ -200,9 +200,9 @@ class SupabaseManager: ObservableObject {
             await SubscriptionManager.shared.checkAccess()
             
             let accessState = SubscriptionManager.shared.accessState
-            if accessState.hasActiveSubscription || accessState.isInTrial {
+            if accessState.hasAccess {
                 self.isAuthenticated = true
-                AppLogger.log("✅ [Auth] Sessão restaurada. Plano: \(accessState.planType.displayName)", category: .auth)
+                AppLogger.log("✅ [Auth] Sessão restaurada. Plano: \(accessState.planType.displayName) via \(accessState.source.displayName)", category: .auth)
             } else {
                 // Trial/assinatura expirou - fazer logout automático
                 AppLogger.log("🚫 [Auth] Sessão expirada. Trial/assinatura não ativa.", category: .auth)
@@ -212,8 +212,20 @@ class SupabaseManager: ObservableObject {
                 self.isAuthenticated = false
             }
         } catch {
-            self.isAuthenticated = false
-            AppLogger.log("Nenhuma sessão ativa: \(error.localizedDescription)", category: .auth)
+            // Se houver erro de rede ou outro erro ao verificar a sessão,
+            // NÃO deslogar automaticamente. Assumir que a sessão local é válida
+            // até que se prove o contrário (ex: 401 Unauthorized explícito).
+            AppLogger.log("⚠️ Erro ao verificar sessão (mantendo estado anterior): \(error.localizedDescription)", category: .auth)
+            
+            // Manter isAuthenticated = true se já tivermos uma sessão local,
+            // para permitir modo offline ou retry posterior.
+            // Apenas se não houver sessão local é que assumimos false.
+            if self.currentSession != nil {
+                self.isAuthenticated = true
+            } else {
+                // Se não tinha sessão antes e deu erro, aí sim consideramos deslogado
+                self.isAuthenticated = false
+            }
         }
     }
 
