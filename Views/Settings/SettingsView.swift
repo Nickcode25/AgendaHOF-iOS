@@ -89,52 +89,54 @@ struct SettingsView: View {
                 }
             }
             
-            // Assinatura / Plano
-            Section("Plano") {
-                // Status do plano atual
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(planColor.gradient)
-                            .frame(width: 29, height: 29)
+            // Assinatura / Plano (Apenas para Owners)
+            if supabase.isOwner {
+                Section("Plano") {
+                    // Status do plano atual
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(planColor.gradient)
+                                .frame(width: 29, height: 29)
+                            
+                            Image(systemName: planIcon)
+                                .font(.system(size: 15))
+                                .foregroundColor(.white)
+                        }
                         
-                        Image(systemName: planIcon)
-                            .font(.system(size: 15))
-                            .foregroundColor(.white)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(subscriptionManager.accessState.planType.displayName)
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            
+                            if subscriptionManager.accessState.isInTrial {
+                                if let expDate = subscriptionManager.accessState.expirationDate {
+                                    Text("Expira em \(expDate.formatted(date: .abbreviated, time: .omitted))")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                }
+                            } else if subscriptionManager.accessState.source != .none {
+                                Text("Via \(subscriptionManager.accessState.source.displayName)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
                     }
                     
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(subscriptionManager.accessState.planType.displayName)
-                            .font(.body)
-                            .foregroundColor(.primary)
-                        
-                        if subscriptionManager.accessState.isInTrial {
-                            if let expDate = subscriptionManager.accessState.expirationDate {
-                                Text("Expira em \(expDate.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                            }
-                        } else if subscriptionManager.accessState.source != .none {
-                            Text("Via \(subscriptionManager.accessState.source.displayName)")
+                    // Botão para ver/alterar planos
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        HStack {
+                            Text(subscriptionManager.accessState.hasAccess ? "Gerenciar Plano" : "Ver Planos")
+                                .foregroundColor(.blue)
+                            Spacer()
+                            Image(systemName: "chevron.right")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                    }
-                    
-                    Spacer()
-                }
-                
-                // Botão para ver/alterar planos
-                Button {
-                    showPaywall = true
-                } label: {
-                    HStack {
-                        Text(subscriptionManager.accessState.hasAccess ? "Gerenciar Plano" : "Ver Planos")
-                            .foregroundColor(.blue)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                     }
                 }
             }
