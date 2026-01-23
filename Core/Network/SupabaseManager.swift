@@ -196,35 +196,48 @@ class SupabaseManager: ObservableObject {
             self.currentUser = session.user
             await loadUserProfile()
             
-            // Verificar acesso via SubscriptionManager
+            // ✅ IMPORTANTE: Separar autenticação de acesso
+            // A sessão do Supabase é válida = usuário está autenticado
+            // A verificação de subscription é separada (feita no checkAccess)
+            self.isAuthenticated = true
+            
+            // Verificar acesso via SubscriptionManager (para paywall, não logout)
             await SubscriptionManager.shared.checkAccess()
             
             let accessState = SubscriptionManager.shared.accessState
             if accessState.hasAccess {
-                self.isAuthenticated = true
                 AppLogger.log("✅ [Auth] Sessão restaurada. Plano: \(accessState.planType.displayName) via \(accessState.source.displayName)", category: .auth)
             } else {
-                // Trial/assinatura expirou - fazer logout automático
-                AppLogger.log("🚫 [Auth] Sessão expirada. Trial/assinatura não ativa.", category: .auth)
+                // ✅ MUDANÇA: Não fazer logout, apenas logar
+                // O app vai mostrar paywall em vez de deslogar
+                AppLogger.log("⚠️ [Auth] Sessão válida mas sem subscription ativa. Paywall será exibido.", category: .auth)
+            }
+        } catch {
+            // Verificar se é erro de autenticação real (401) ou apenas erro de rede
+            let nsError = error as NSError
+            let isAuthError = nsError.code == 401 || 
+                              error.localizedDescription.lowercased().contains("unauthorized") ||
+                              error.localizedDescription.lowercased().contains("jwt expired") ||
+                              error.localizedDescription.lowercased().contains("invalid token")
+            
+            if isAuthError {
+                // Erro de autenticação real - sessão inválida
+                AppLogger.log("🚫 [Auth] Sessão inválida ou expirada: \(error.localizedDescription)", category: .auth)
                 self.currentSession = nil
                 self.currentUser = nil
                 self.userProfile = nil
                 self.isAuthenticated = false
-            }
-        } catch {
-            // Se houver erro de rede ou outro erro ao verificar a sessão,
-            // NÃO deslogar automaticamente. Assumir que a sessão local é válida
-            // até que se prove o contrário (ex: 401 Unauthorized explícito).
-            AppLogger.log("⚠️ Erro ao verificar sessão (mantendo estado anterior): \(error.localizedDescription)", category: .auth)
-            
-            // Manter isAuthenticated = true se já tivermos uma sessão local,
-            // para permitir modo offline ou retry posterior.
-            // Apenas se não houver sessão local é que assumimos false.
-            if self.currentSession != nil {
-                self.isAuthenticated = true
             } else {
-                // Se não tinha sessão antes e deu erro, aí sim consideramos deslogado
-                self.isAuthenticated = false
+                // Erro de rede ou outro - manter sessão local
+                AppLogger.log("⚠️ [Auth] Erro de rede ao verificar sessão (mantendo estado): \(error.localizedDescription)", category: .auth)
+                
+                // Se já temos uma sessão local, assumimos que ainda é válida
+                if self.currentSession != nil {
+                    self.isAuthenticated = true
+                    AppLogger.log("✅ [Auth] Sessão local mantida (modo offline)", category: .auth)
+                } else {
+                    self.isAuthenticated = false
+                }
             }
         }
     }

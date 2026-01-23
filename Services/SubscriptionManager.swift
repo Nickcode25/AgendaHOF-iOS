@@ -13,6 +13,9 @@ class SubscriptionManager: ObservableObject {
     /// Estado atual de acesso do usuário
     @Published var accessState: AccessState = .noAccess
     
+    /// Estado anterior (para preservar em caso de erro de rede)
+    private var previousAccessState: AccessState = .noAccess
+    
     /// Produtos disponíveis para compra via Apple
     @Published var storeProducts: [Product] = []
     
@@ -158,6 +161,18 @@ class SubscriptionManager: ObservableObject {
             AppLogger.log("⚠️ [Access] Nenhuma assinatura válida encontrada.", category: .business)
             
         } catch {
+            // ✅ MELHORIA: Em caso de erro de rede, preservar estado anterior
+            let isNetworkError = error.localizedDescription.lowercased().contains("network") ||
+                                 error.localizedDescription.lowercased().contains("connection") ||
+                                 error.localizedDescription.lowercased().contains("timeout") ||
+                                 error.localizedDescription.lowercased().contains("offline")
+            
+            if isNetworkError && previousAccessState.hasAccess {
+                AppLogger.log("⚠️ [Access] Erro de rede, mantendo estado anterior: \(previousAccessState.planType.displayName)", category: .business)
+                finalizeAccess(previousAccessState)
+                return
+            }
+            
             AppLogger.error("[Access] Erro ao buscar assinaturas: \(error)")
         }
         
@@ -475,6 +490,10 @@ class SubscriptionManager: ObservableObject {
     // MARK: - Helpers
     
     private func finalizeAccess(_ state: AccessState) {
+        // Salvar estado anterior antes de atualizar (para preservar em erros de rede)
+        if self.accessState.hasAccess {
+            self.previousAccessState = self.accessState
+        }
         self.accessState = state
         self.isLoading = false
     }

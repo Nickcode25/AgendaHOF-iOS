@@ -506,14 +506,16 @@ class NotificationManager: ObservableObject {
     
     private func fetchProceduresRevenue(userId: String, start: Date, end: Date) async -> Double {
         do {
-            // ✅ CORREÇÃO v4.0: Buscar apenas pacientes ativos
+            // ✅ CORREÇÃO v5.0: Buscar com planned_procedures explícito
             let patients: [Patient] = try await supabase.client
                 .from("patients")
-                .select()
+                .select("*, planned_procedures")  // ← Explicitamente incluir JSONB field
                 .eq("user_id", value: userId)
                 .eq("is_active", value: true)
                 .execute()
                 .value
+            
+            AppLogger.log("💰 [fetchProceduresRevenue] Pacientes ativos encontrados: \(patients.count)", category: .notification)
 
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
@@ -522,14 +524,21 @@ class NotificationManager: ObservableObject {
             let startDateStr = formatter.string(from: start)
             let endDateStr = formatter.string(from: end)
             
+            AppLogger.log("💰 [fetchProceduresRevenue] Período: \(startDateStr) até \(endDateStr)", category: .notification)
+            
             var total: Double = 0
+            var proceduresCount = 0
+            var completedCount = 0
+            var matchingDateCount = 0
             
             for patient in patients {
                 guard let procedures = patient.plannedProcedures else { continue }
+                proceduresCount += procedures.count
                 
                 for procedure in procedures {
                     // REGRA 1: Status completed
                     guard procedure.status?.lowercased() == "completed" else { continue }
+                    completedCount += 1
                     
                     // Data do procedimento (para casos 2 e 3)
                     let procedureDateStr = procedure.performedAt ?? procedure.completedAt ?? ""
@@ -548,6 +557,8 @@ class NotificationManager: ObservableObject {
                             // ✅ Usar < para end (que é o início do próximo dia)
                             if paymentDateOnly >= startDateStr && paymentDateOnly < endDateStr {
                                 total += pagamento.valor
+                                matchingDateCount += 1
+                                AppLogger.log("💰 [PARCELADO] +R$ \(pagamento.valor) de \(patient.name ?? "?")", category: .notification)
                             }
                         }
                     }
@@ -561,6 +572,8 @@ class NotificationManager: ObservableObject {
                         
                         let splitTotal = splits.reduce(0.0) { $0 + ($1.amount ?? 0) }
                         total += splitTotal
+                        matchingDateCount += 1
+                        AppLogger.log("💰 [SPLIT] +R$ \(splitTotal) de \(patient.name ?? "?")", category: .notification)
                     }
                     // ══════════════════════════════════════════════════════════
                     // CASO 3: Procedimento tradicional (pagamento único)
@@ -569,10 +582,15 @@ class NotificationManager: ObservableObject {
                             procedureDateOnly.count == 10,
                             procedureDateOnly >= startDateStr && procedureDateOnly < endDateStr {
                         
-                        total += (procedure.totalValue ?? procedure.value ?? 0)
+                        let value = (procedure.totalValue ?? procedure.value ?? 0)
+                        total += value
+                        matchingDateCount += 1
+                        AppLogger.log("💰 [TRADICIONAL] +R$ \(value) de \(patient.name ?? "?") (data: \(procedureDateOnly))", category: .notification)
                     }
                 }
             }
+            
+            AppLogger.log("💰 [fetchProceduresRevenue] Resumo: \(proceduresCount) procedimentos totais, \(completedCount) completed, \(matchingDateCount) no período, Total: R$ \(total)", category: .notification)
             
             return total
         } catch {
