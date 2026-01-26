@@ -311,33 +311,73 @@ class NotificationManager: ObservableObject {
         // Remover anterior
         center.removePendingNotificationRequests(withIdentifiers: [NotificationID.weeklySummary])
 
-        let content = UNMutableNotificationContent()
-        content.title = "📊 Resumo da Semana"
-        content.sound = .default
-        
-        // Calcular intervalo da próxima semana
         var calendar = Calendar.current
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
         calendar.firstWeekday = 2 // Segunda-feira
         
         let now = Date()
-        let weekday = calendar.component(.weekday, from: now)
-        // Calcular dias até próxima segunda (weekday 2)
-        let daysUntilMonday = weekday == 2 ? 0 : (9 - weekday) % 7
+        let currentWeekday = calendar.component(.weekday, from: now)
         
-        guard let nextMonday = calendar.date(byAdding: .day, value: daysUntilMonday, to: calendar.startOfDay(for: now)),
-              let nextSunday = calendar.date(byAdding: .day, value: 7, to: nextMonday) else {
+        // ✅ FIX: Calcular o próximo domingo às 20:00 para agendar a notificação
+        let daysUntilSunday: Int
+        if currentWeekday == 1 { // Se hoje é domingo
+            let currentHour = calendar.component(.hour, from: now)
+            if currentHour >= hour { // Se já passou das 20:00, agendar para próximo domingo
+                daysUntilSunday = 7
+            } else { // Agendar para hoje às 20:00
+                daysUntilSunday = 0
+            }
+        } else { // Segunda (2) a Sábado (7)
+            daysUntilSunday = (8 - currentWeekday) % 7
+        }
+        
+        guard let notificationSunday = calendar.date(byAdding: .day, value: daysUntilSunday, to: calendar.startOfDay(for: now)) else {
+            AppLogger.error("Erro ao calcular próximo domingo para notificação semanal", error: nil)
             return
         }
         
-        // Buscar agendamentos
-        let appointments = await fetchAppointments(from: nextMonday, to: nextSunday)
+        // ✅ FIX: Calcular a semana a ser resumida (segunda-feira até domingo da semana que termina no notificationSunday)
+        // Exemplo: Se notificationSunday é 2026-01-26, a semana é de 2026-01-20 (segunda) até 2026-01-26 (domingo)
+        guard let weekStartMonday = calendar.date(byAdding: .day, value: -6, to: notificationSunday) else {
+            AppLogger.error("Erro ao calcular segunda-feira da semana", error: nil)
+            return
+        }
+        
+        // Para o fetch, precisamos do início da segunda até o final do domingo (início da segunda seguinte)
+        guard let weekEndMonday = calendar.date(byAdding: .day, value: 1, to: notificationSunday) else {
+            AppLogger.error("Erro ao calcular fim da semana", error: nil)
+            return
+        }
+        
+        // Buscar agendamentos da semana (segunda a domingo)
+        let appointments = await fetchAppointments(from: weekStartMonday, to: weekEndMonday)
         let count = appointments.count
         
+        // ✅ Calcular resumo financeiro semanal
+        let weeklyRevenue = await calculateWeeklyRevenue(from: weekStartMonday, to: weekEndMonday)
+        let attendedPatients = await countAttendedPatientsInRange(from: weekStartMonday, to: weekEndMonday)
+        
+        // Criar conteúdo da notificação
+        let content = UNMutableNotificationContent()
+        content.title = "📊 Resumo da Semana"
+        content.sound = .default
+        
+        // Formatar valor monetário
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "pt_BR")
+        let revenueString = formatter.string(from: NSNumber(value: weeklyRevenue)) ?? "R$ 0,00"
+        
         if count == 0 {
-            content.body = "Você não tem agendamentos esta semana."
+            content.body = "Você não teve agendamentos esta semana."
         } else {
-            content.body = "Você tem \(count) agendamento\(count == 1 ? "" : "s") esta semana."
+            // Mensagem com dados de agendamentos e financeiros
+            content.body = "Você teve \(count) agendamento\(count == 1 ? "" : "s") esta semana."
+            
+            // Adicionar resumo financeiro
+            if weeklyRevenue > 0 || attendedPatients > 0 {
+                content.body += " Atendeu \(attendedPatients) paciente\(attendedPatients == 1 ? "" : "s") e faturou \(revenueString)."
+            }
             
             // Resumo por dia
             let summary = generateWeeklySummaryText(appointments: appointments, calendar: calendar)
@@ -346,16 +386,21 @@ class NotificationManager: ObservableObject {
             }
         }
         
-        var dateComponents = DateComponents()
-        if let nextSundayWithTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: nextSunday) {
-             dateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nextSundayWithTime)
+        // Configurar o horário do trigger (domingo às 20:00)
+        guard let notificationTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: notificationSunday) else {
+            AppLogger.error("Erro ao configurar horário da notificação semanal", error: nil)
+            return
         }
         
-        // Trigger único para o próximo domingo (será reagendado na próxima abertura do app)
+        let dateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: notificationTime)
+        
+        // Trigger único para o próximo domingo às 20:00 (será reagendado na próxima abertura do app)
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
         let request = UNNotificationRequest(identifier: NotificationID.weeklySummary, content: content, trigger: trigger)
         
-        addRequest(request, description: "Resumo semanal")
+        addRequest(request, description: "Resumo semanal para \(notificationSunday.formatted(.dateTime.day().month()))")
+        
+        AppLogger.log("✅ Resumo semanal agendado para \(notificationTime.formatted(.dateTime.day().month().hour().minute())) (Semana: \(weekStartMonday.formatted(.dateTime.day().month())) - \(notificationSunday.formatted(.dateTime.day().month())))", category: .notification)
     }
     
     private func generateWeeklySummaryText(appointments: [Appointment], calendar: Calendar) -> String {
@@ -466,6 +511,48 @@ class NotificationManager: ObservableObject {
             print("❌ Erro ao buscar agendamentos (Notifications): \(error)")
             return []
         }
+    }
+    
+    /// Calcula a receita semanal (reutiliza lógica do calculateDailyRevenue)
+    private func calculateWeeklyRevenue(from start: Date, to end: Date) async -> Double {
+        guard let userId = supabase.effectiveUserId else { return 0 }
+        
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        
+        AppLogger.log("💰 [Weekly] Calculando receita semanal entre \(start.formatted(.dateTime.day().month())) e \(end.formatted(.dateTime.day().month()))", category: .notification)
+        
+        // Usar a mesma lógica de calculateDailyRevenue, mas para o intervalo semanal
+        // 1. Procedimentos
+        let proceduresRevenue = await fetchProceduresRevenue(userId: userId, start: start, end: end)
+        
+        // 2. Vendas
+        let salesRevenue = await fetchSalesRevenue(userId: userId, start: start, end: end)
+        
+        // 3. Assinaturas
+        let subscriptionsRevenue = await fetchSubscriptionsRevenue(userId: userId, start: start, end: end)
+        
+        // 4. Cursos
+        let coursesRevenue = await fetchCoursesRevenue(userId: userId, start: start, end: end)
+        
+        let total = proceduresRevenue + salesRevenue + subscriptionsRevenue + coursesRevenue
+        AppLogger.log("💰 [Weekly] RECEITA TOTAL SEMANAL: R$ \(total)", category: .notification)
+        
+        return total
+    }
+    
+    /// Conta pacientes atendidos em um intervalo (reutiliza lógica de countAttendedPatients)
+    private func countAttendedPatientsInRange(from start: Date, to end: Date) async -> Int {
+        // Buscar agendamentos no intervalo (exclui compromissos pessoais)
+        let appointments = await fetchAppointments(from: start, to: end)
+        
+        // Filtrar apenas agendamentos não cancelados de pacientes
+        let patientAppointments = appointments.filter { appointment in
+            appointment.status != .cancelled && appointment.isPersonal != true
+        }
+        
+        AppLogger.log("💰 [Weekly] Pacientes agendados na semana: \(patientAppointments.count)", category: .notification)
+        return patientAppointments.count
     }
     
 
