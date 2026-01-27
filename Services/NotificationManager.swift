@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import SwiftUI
 
 /// Gerenciador de notificações locais para resumo diário, semanal e aniversários
 @MainActor
@@ -17,6 +18,7 @@ class NotificationManager: ObservableObject {
     private enum NotificationID {
         static let dailySummary = "daily_summary"
         static let weeklySummary = "weekly_summary"
+        static let weeklyPreview = "weekly_preview"
         static let dailyFinancialSummary = "daily_financial_summary"
         static let appointmentReminderPrefix = "appointment_reminder_"
     }
@@ -117,8 +119,13 @@ class NotificationManager: ObservableObject {
         }
         
         if defaults.bool(forKey: "weekly_summary_enabled") {
-            // Domingo às 20:00 (horário de Brasília)
-            await scheduleWeeklySummary(dayOfWeek: 1, hour: 20)
+            // Sábado às 22:00 (horário de São Paulo)
+            await scheduleWeeklySummary(dayOfWeek: 7, hour: 22)
+        }
+        
+        if defaults.bool(forKey: "weekly_preview_enabled") {
+            // Domingo às 20:00 (horário de São Paulo)
+            await scheduleWeeklyPreview()
         }
         
 
@@ -190,11 +197,10 @@ class NotificationManager: ObservableObject {
     
     // MARK: - Daily Financial Summary (Owner Only)
     
+    /// Agenda notificação de resumo financeiro diário às 21:00
+    /// Exibe número de pacientes atendidos e faturamento do dia
     func scheduleDailyFinancialSummary() async {
-        AppLogger.log("💰 Tentando agendar Resumo Financeiro...", category: .notification)
-        
-        // ✅ Pequeno delay para garantir que os dados foram persistidos no Supabase
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 segundos
+        AppLogger.log("💰 Agendando Resumo Financeiro Diário...", category: .notification)
         
         center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailyFinancialSummary])
         
@@ -207,72 +213,195 @@ class NotificationManager: ObservableObject {
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
         
         let now = Date()
-        let todayStart = calendar.startOfDay(for: now)
+        let today = calendar.startOfDay(for: now)
         
-        // Agendar para 22:00
-        guard let triggerDate = calendar.date(bySettingHour: 22, minute: 00, second: 0, of: todayStart) else { return }
+        // Agendar para 21:00
+        #if DEBUG
+        // Em modo debug, agendar para 10 segundos no futuro para teste
+        guard let triggerDate = calendar.date(byAdding: .second, value: 10, to: now) else { return }
+        AppLogger.log("🐛 [DEBUG] Agendando notificação para 10 segundos (teste)", category: .notification)
+        #else
+        guard let triggerDate = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: today) else { return }
         
-        // Se já passou das 22:00, não agendar para hoje
+        // Se já passou das 21:00, não agendar para hoje
         if triggerDate < now {
-             return
+            AppLogger.log("💰 Já passou das 21:00. Aguardando próximo agendamento.", category: .notification)
+            return
         }
+        #endif
         
-        // ✅ CORREÇÃO: Contar pacientes ATENDIDOS (com procedimentos completed), não agendamentos
-        let patientCount = await countAttendedPatients(date: now)
         
-        // Calcular Faturamento
-        let totalRevenue = await calculateDailyRevenue(date: now)
-        AppLogger.log("💰 Faturamento: R$ \(String(format: "%.2f", totalRevenue)) | Pacientes Atendidos: \(patientCount)", category: .notification)
+        // Calcular receita e contar pacientes do dia
+        let startOfDay = calendar.startOfDay(for: now)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
         
-        // Se não houver pacientes atendidos E faturamento zero, não enviar notificação
-        if patientCount == 0 && totalRevenue == 0 {
-            AppLogger.log("💰 Nenhum paciente atendido e faturamento zero. Notificação não será enviada.", category: .notification)
+        let totalRevenue = await calculateRevenue(from: startOfDay, to: endOfDay)
+        let patientCount = await countAttendedPatients(from: startOfDay, to: endOfDay)
+        
+        AppLogger.log("💰 Faturamento: R$ \(totalRevenue) | Pacientes: \(patientCount)", category: .notification)
+        
+        // Se não houver pacientes, não enviar notificação
+        if patientCount == 0 {
+            AppLogger.log("💰 Sem pacientes atendidos. Notificação não enviada.", category: .notification)
             return
         }
         
+        // Formatar valor em Real Brasileiro
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = Locale(identifier: "pt_BR")
-        let revenueString = formatter.string(from: NSNumber(value: totalRevenue)) ?? "R$ 0,00"
+        let revenueDouble = NSDecimalNumber(decimal: totalRevenue).doubleValue
+        let revenueString = formatter.string(from: NSNumber(value: revenueDouble)) ?? "R$ 0,00"
         
-        // Criar Conteúdo
+        // Criar conteúdo da notificação
         let content = UNMutableNotificationContent()
-        content.title = "Resumo do dia"
-        content.body = "Você atendeu \(patientCount) paciente\(patientCount == 1 ? "" : "s") e faturou \(revenueString). Parabéns!"
+        content.title = "📊 Resumo do Dia"
+        content.body = getFinancialMotivationalMessage(revenue: totalRevenue, patientCount: patientCount, formattedRevenue: revenueString)
         content.sound = .default
         
         let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
         
         let request = UNNotificationRequest(
-            identifier: NotificationID.dailyFinancialSummary, // Identificador fixo para sobrescrever
+            identifier: NotificationID.dailyFinancialSummary,
             content: content,
             trigger: trigger
         )
         
         addRequest(request, description: "Resumo Financeiro Diário")
-        AppLogger.log("✅ Resumo Financeiro agendado para 22:00", category: .notification)
+        
+        #if DEBUG
+        AppLogger.log("✅ Resumo Financeiro agendado para \(triggerDate.formatted(.dateTime.hour().minute()))", category: .notification)
+        #else
+        AppLogger.log("✅ Resumo Financeiro agendado para 21:00", category: .notification)
+        #endif
+    }
+    
+    /// Retorna mensagem motivacional baseada no faturamento do dia
+    private func getFinancialMotivationalMessage(revenue: Decimal, patientCount: Int, formattedRevenue: String) -> String {
+        let revenueDouble = NSDecimalNumber(decimal: revenue).doubleValue
+        let patientText = "Você atendeu \(patientCount) paciente\(patientCount == 1 ? "" : "s") e faturou"
+        
+        switch revenueDouble {
+        case 0...1000:
+            return "\(patientText) \(formattedRevenue) hoje. Cada passo conta! 💪"
+        case 1001...5000:
+            return "Ótimo! \(patientText) \(formattedRevenue) no dia. Continue firme! 🚀"
+        case 5001...10000:
+            return "Excelente! \(patientText) \(formattedRevenue) hoje. Você está arrasando! 🔥"
+        case 10001...15000:
+            return "Espetacular! \(patientText) \(formattedRevenue) em um dia. Você é incrível! ⭐️"
+        case 15001...20000:
+            return "Fantástico! \(patientText) \(formattedRevenue) hoje. Seu sucesso inspira! 🌟"
+        case 20001...25000:
+            return "Extraordinário! \(patientText) \(formattedRevenue) em um dia. Você é referência! 👑"
+        default:
+            return "Simplesmente INCRÍVEL! \(patientText) \(formattedRevenue) hoje. Parabéns pelo sucesso absoluto! 🏆✨"
+        }
     }
     
     // MARK: - Count Attended Patients
     
-    /// Conta pacientes agendados no dia (baseado na agenda, excluindo compromissos pessoais)
-    private func countAttendedPatients(date: Date) async -> Int {
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
-        let startOfDay = calendar.startOfDay(for: date)
-        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return 0 }
+    /// Conta pacientes atendidos no período (agendamentos não cancelados e não pessoais)
+    private func countAttendedPatients(from start: Date, to end: Date) async -> Int {
+        let appointments = await fetchAppointments(from: start, to: end)
         
-        // Buscar agendamentos do dia (exclui compromissos pessoais)
-        let appointments = await fetchAppointments(from: startOfDay, to: endOfDay)
-        
-        // Filtrar apenas agendamentos não cancelados de pacientes
+        // Filtrar apenas agendamentos não cancelados de pacientes (excluir pessoais)
         let patientAppointments = appointments.filter { appointment in
             appointment.status != .cancelled && appointment.isPersonal != true
         }
         
-        AppLogger.log("💰 Pacientes agendados hoje: \(patientAppointments.count)", category: .notification)
         return patientAppointments.count
+    }
+    
+    // MARK: - Weekly Preview (Sunday Evening)
+    
+    /// Agenda notificação de prévia da semana (domingo às 20:00)
+    /// Exibe quantos pacientes estão agendados para a próxima semana com mensagem motivacional
+    func scheduleWeeklyPreview() async {
+        AppLogger.log("🔮 Agendando Prévia Semanal...", category: .notification)
+        
+        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.weeklyPreview])
+        
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        calendar.firstWeekday = 2 // Segunda-feira
+        
+        let now = Date()
+        let currentWeekday = calendar.component(.weekday, from: now)
+        let currentHour = calendar.component(.hour, from: now)
+        
+        // Calcular próximo domingo às 20:00
+        let daysUntilSunday: Int
+        if currentWeekday == 1 { // Domingo
+            daysUntilSunday = currentHour >= 20 ? 7 : 0
+        } else { // Segunda a Sábado
+            daysUntilSunday = (8 - currentWeekday) % 7
+        }
+        
+        guard let notificationSunday = calendar.date(byAdding: .day, value: daysUntilSunday, to: calendar.startOfDay(for: now)) else {
+            AppLogger.error("Erro ao calcular próximo domingo para prévia semanal", error: nil)
+            return
+        }
+        
+        // Calcular a semana que está começando (segunda após o domingo até domingo seguinte)
+        guard let upcomingMonday = calendar.date(byAdding: .day, value: 1, to: notificationSunday),
+              let upcomingWeekEnd = calendar.date(byAdding: .day, value: 7, to: upcomingMonday) else {
+            AppLogger.error("Erro ao calcular semana futura", error: nil)
+            return
+        }
+        
+        // Buscar agendamentos da próxima semana
+        let appointments = await fetchAppointments(from: upcomingMonday, to: upcomingWeekEnd)
+        
+        // Filtrar apenas pacientes (excluir pessoais e cancelados)
+        let patientAppointments = appointments.filter { appointment in
+            appointment.status != .cancelled && appointment.isPersonal != true
+        }
+        
+        let patientCount = patientAppointments.count
+        
+        AppLogger.log("🔮 Próxima semana: \(patientCount) pacientes agendados", category: .notification)
+        
+        // Criar conteúdo da notificação
+        let content = UNMutableNotificationContent()
+        content.title = "🌟 Prévia da Semana"
+        content.body = getMotivationalMessage(patientCount: patientCount)
+        content.sound = .default
+        
+        // Configurar horário do trigger (domingo às 20:00)
+        #if DEBUG
+        // Em modo debug, agendar para 10 segundos no futuro para teste
+        guard let notificationTime = calendar.date(byAdding: .second, value: 10, to: now) else { return }
+        AppLogger.log("🐛 [DEBUG] Agendando prévia semanal para 10 segundos (teste)", category: .notification)
+        #else
+        guard let notificationTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: notificationSunday) else {
+            AppLogger.error("Erro ao configurar horário da prévia semanal", error: nil)
+            return
+        }
+        #endif
+        
+        let dateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: notificationTime)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+        let request = UNNotificationRequest(identifier: NotificationID.weeklyPreview, content: content, trigger: trigger)
+        
+        addRequest(request, description: "Prévia semanal para \(notificationSunday.formatted(.dateTime.day().month()))")
+        
+        AppLogger.log("✅ Prévia semanal agendada para \(notificationTime.formatted(.dateTime.day().month().hour().minute())) com \(patientCount) pacientes", category: .notification)
+    }
+    
+    /// Retorna mensagem motivacional baseada no número de pacientes
+    private func getMotivationalMessage(patientCount: Int) -> String {
+        switch patientCount {
+        case 0:
+            return "Sua semana está livre! Aproveite para planejar e relaxar. 🌟"
+        case 1...10:
+            return "Você tem \(patientCount) paciente\(patientCount == 1 ? "" : "s") esta semana. Vamos começar com energia! 💪"
+        case 11...20:
+            return "Semana movimentada! \(patientCount) pacientes te aguardam. Você vai arrasar! 🚀"
+        default:
+            return "Wow! \(patientCount) pacientes agendados. Prepare-se para uma semana incrível! 🔥"
+        }
     }
 
     /// Reagendar todas as notificações dinâmicas (Resumo + Lembretes) para garantir dados atualizados
@@ -299,6 +428,18 @@ class NotificationManager: ObservableObject {
         if defaults.bool(forKey: "daily_financial_summary_enabled") && supabase.isOwner {
              await scheduleDailyFinancialSummary()
         }
+        
+        // 4. Atualizar Resumo Semanal
+        if defaults.bool(forKey: "weekly_summary_enabled") {
+            await scheduleWeeklySummary(dayOfWeek: 7, hour: 22) // Sábado 22:00
+        }
+        
+        // 5. Atualizar Prévia da Semana
+        if defaults.bool(forKey: "weekly_preview_enabled") {
+            await scheduleWeeklyPreview()
+        }
+        
+        AppLogger.log("✅ [Notification] Todas as notificações atualizadas", category: .notification)
     }
     
     // MARK: - Weekly Summary
@@ -318,44 +459,46 @@ class NotificationManager: ObservableObject {
         let now = Date()
         let currentWeekday = calendar.component(.weekday, from: now)
         
-        // ✅ FIX: Calcular o próximo domingo às 20:00 para agendar a notificação
-        let daysUntilSunday: Int
-        if currentWeekday == 1 { // Se hoje é domingo
+        // ✅ Calcular o próximo sábado às 22:00 para agendar a notificação
+        let daysUntilSaturday: Int
+        if currentWeekday == 7 { // Se hoje é sábado
             let currentHour = calendar.component(.hour, from: now)
-            if currentHour >= hour { // Se já passou das 20:00, agendar para próximo domingo
-                daysUntilSunday = 7
-            } else { // Agendar para hoje às 20:00
-                daysUntilSunday = 0
+            if currentHour >= hour { // Se já passou das 22:00, agendar para próximo sábado
+                daysUntilSaturday = 7
+            } else { // Agendar para hoje às 22:00
+                daysUntilSaturday = 0
             }
-        } else { // Segunda (2) a Sábado (7)
-            daysUntilSunday = (8 - currentWeekday) % 7
+        } else if currentWeekday == 1 { // Domingo
+            daysUntilSaturday = 6
+        } else { // Segunda (2) a Sexta (6)
+            daysUntilSaturday = 7 - currentWeekday
         }
         
-        guard let notificationSunday = calendar.date(byAdding: .day, value: daysUntilSunday, to: calendar.startOfDay(for: now)) else {
-            AppLogger.error("Erro ao calcular próximo domingo para notificação semanal", error: nil)
+        guard let notificationSaturday = calendar.date(byAdding: .day, value: daysUntilSaturday, to: calendar.startOfDay(for: now)) else {
+            AppLogger.error("Erro ao calcular próximo sábado para notificação semanal", error: nil)
             return
         }
         
-        // ✅ FIX: Calcular a semana a ser resumida (segunda-feira até domingo da semana que termina no notificationSunday)
-        // Exemplo: Se notificationSunday é 2026-01-26, a semana é de 2026-01-20 (segunda) até 2026-01-26 (domingo)
-        guard let weekStartMonday = calendar.date(byAdding: .day, value: -6, to: notificationSunday) else {
+        // ✅ Calcular a semana a ser resumida (segunda-feira até sábado da semana que termina no notificationSaturday)
+        // Exemplo: Se notificationSaturday é 2026-01-31 (sábado), a semana é de 2026-01-26 (segunda) até 2026-01-31 (sábado)
+        guard let weekStartMonday = calendar.date(byAdding: .day, value: -5, to: notificationSaturday) else {
             AppLogger.error("Erro ao calcular segunda-feira da semana", error: nil)
             return
         }
         
-        // Para o fetch, precisamos do início da segunda até o final do domingo (início da segunda seguinte)
-        guard let weekEndMonday = calendar.date(byAdding: .day, value: 1, to: notificationSunday) else {
+        // Para o fetch, precisamos do início da segunda até o final do sábado (início do domingo seguinte)
+        guard let weekEndSunday = calendar.date(byAdding: .day, value: 1, to: notificationSaturday) else {
             AppLogger.error("Erro ao calcular fim da semana", error: nil)
             return
         }
         
-        // Buscar agendamentos da semana (segunda a domingo)
-        let appointments = await fetchAppointments(from: weekStartMonday, to: weekEndMonday)
+        // Buscar agendamentos da semana (segunda a sábado)
+        let appointments = await fetchAppointments(from: weekStartMonday, to: weekEndSunday)
         let count = appointments.count
         
         // ✅ Calcular resumo financeiro semanal
-        let weeklyRevenue = await calculateWeeklyRevenue(from: weekStartMonday, to: weekEndMonday)
-        let attendedPatients = await countAttendedPatientsInRange(from: weekStartMonday, to: weekEndMonday)
+        let weeklyRevenue = await calculateRevenue(from: weekStartMonday, to: weekEndSunday)
+        let attendedPatients = await countAttendedPatientsInRange(from: weekStartMonday, to: weekEndSunday)
         
         // Criar conteúdo da notificação
         let content = UNMutableNotificationContent()
@@ -366,7 +509,8 @@ class NotificationManager: ObservableObject {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = Locale(identifier: "pt_BR")
-        let revenueString = formatter.string(from: NSNumber(value: weeklyRevenue)) ?? "R$ 0,00"
+        let revenueDouble = NSDecimalNumber(decimal: weeklyRevenue).doubleValue
+        let revenueString = formatter.string(from: NSNumber(value: revenueDouble)) ?? "R$ 0,00"
         
         if count == 0 {
             content.body = "Você não teve agendamentos esta semana."
@@ -386,21 +530,27 @@ class NotificationManager: ObservableObject {
             }
         }
         
-        // Configurar o horário do trigger (domingo às 20:00)
-        guard let notificationTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: notificationSunday) else {
+        // Configurar o horário do trigger (sábado às 22:00)
+        #if DEBUG
+        // Em modo debug, agendar para 10 segundos no futuro para teste
+        guard let notificationTime = calendar.date(byAdding: .second, value: 10, to: now) else { return }
+        AppLogger.log("🐛 [DEBUG] Agendando resumo semanal para 10 segundos (teste)", category: .notification)
+        #else
+        guard let notificationTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: notificationSaturday) else {
             AppLogger.error("Erro ao configurar horário da notificação semanal", error: nil)
             return
         }
+        #endif
         
         let dateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: notificationTime)
         
-        // Trigger único para o próximo domingo às 20:00 (será reagendado na próxima abertura do app)
+        // Trigger único para o próximo sábado às 22:00 (será reagendado na próxima abertura do app)
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
         let request = UNNotificationRequest(identifier: NotificationID.weeklySummary, content: content, trigger: trigger)
         
-        addRequest(request, description: "Resumo semanal para \(notificationSunday.formatted(.dateTime.day().month()))")
+        addRequest(request, description: "Resumo semanal para \(notificationSaturday.formatted(.dateTime.day().month()))")
         
-        AppLogger.log("✅ Resumo semanal agendado para \(notificationTime.formatted(.dateTime.day().month().hour().minute())) (Semana: \(weekStartMonday.formatted(.dateTime.day().month())) - \(notificationSunday.formatted(.dateTime.day().month())))", category: .notification)
+        AppLogger.log("✅ Resumo semanal agendado para \(notificationTime.formatted(.dateTime.day().month().hour().minute())) (Semana: \(weekStartMonday.formatted(.dateTime.day().month())) - \(notificationSaturday.formatted(.dateTime.day().month())))", category: .notification)
     }
     
     private func generateWeeklySummaryText(appointments: [Appointment], calendar: Calendar) -> String {
@@ -513,315 +663,19 @@ class NotificationManager: ObservableObject {
         }
     }
     
-    /// Calcula a receita semanal (reutiliza lógica do calculateDailyRevenue)
-    private func calculateWeeklyRevenue(from start: Date, to end: Date) async -> Double {
-        guard let userId = supabase.effectiveUserId else { return 0 }
-        
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
-        
-        AppLogger.log("💰 [Weekly] Calculando receita semanal entre \(start.formatted(.dateTime.day().month())) e \(end.formatted(.dateTime.day().month()))", category: .notification)
-        
-        // Usar a mesma lógica de calculateDailyRevenue, mas para o intervalo semanal
-        // 1. Procedimentos
-        let proceduresRevenue = await fetchProceduresRevenue(userId: userId, start: start, end: end)
-        
-        // 2. Vendas
-        let salesRevenue = await fetchSalesRevenue(userId: userId, start: start, end: end)
-        
-        // 3. Assinaturas
-        let subscriptionsRevenue = await fetchSubscriptionsRevenue(userId: userId, start: start, end: end)
-        
-        // 4. Cursos
-        let coursesRevenue = await fetchCoursesRevenue(userId: userId, start: start, end: end)
-        
-        let total = proceduresRevenue + salesRevenue + subscriptionsRevenue + coursesRevenue
-        AppLogger.log("💰 [Weekly] RECEITA TOTAL SEMANAL: R$ \(total)", category: .notification)
-        
-        return total
+    /// Calcula receita para notificações usando FinancialReportViewModel
+    /// Garante que o valor seja idêntico ao mostrado no Relatório Financeiro
+    private func calculateRevenue(from start: Date, to end: Date) async -> Decimal {
+        let viewModel = FinancialReportViewModel()
+        return await viewModel.calculateRevenueForNotification(from: start, to: end)
     }
     
-    /// Conta pacientes atendidos em um intervalo (reutiliza lógica de countAttendedPatients)
+    /// Conta pacientes atendidos na semana (reutiliza lógica simplificada)
     private func countAttendedPatientsInRange(from start: Date, to end: Date) async -> Int {
-        // Buscar agendamentos no intervalo (exclui compromissos pessoais)
-        let appointments = await fetchAppointments(from: start, to: end)
-        
-        // Filtrar apenas agendamentos não cancelados de pacientes
-        let patientAppointments = appointments.filter { appointment in
-            appointment.status != .cancelled && appointment.isPersonal != true
-        }
-        
-        AppLogger.log("💰 [Weekly] Pacientes agendados na semana: \(patientAppointments.count)", category: .notification)
-        return patientAppointments.count
+        return await countAttendedPatients(from: start, to: end)
     }
     
 
-    /// Calcula a receita do dia baseado nos procedimentos dos pacientes (lógica do FinancialReportViewModel)
-    private func calculateDailyRevenue(date: Date) async -> Double {
-        guard let userId = supabase.effectiveUserId else { return 0 }
-        
-        // Definir limites do dia (São Paulo)
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
-        let startOfDay = calendar.startOfDay(for: date)
-        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
-        
-        AppLogger.log("💰 Buscando receita total (Procedimentos + Vendas + Assinaturas + Cursos) entre \(startOfDay) e \(endOfDay)", category: .notification)
-        
-        // 1. Procedimentos
-        let proceduresRevenue = await fetchProceduresRevenue(userId: userId, start: startOfDay, end: endOfDay)
-        
-        // 2. Vendas
-        let salesRevenue = await fetchSalesRevenue(userId: userId, start: startOfDay, end: endOfDay)
-        AppLogger.log("💰 Receita de Vendas: R$ \(salesRevenue)", category: .notification)
-        
-        // 3. Assinaturas
-        let subscriptionsRevenue = await fetchSubscriptionsRevenue(userId: userId, start: startOfDay, end: endOfDay)
-        AppLogger.log("💰 Receita de Assinaturas: R$ \(subscriptionsRevenue)", category: .notification)
-        
-        // 4. Cursos
-        let coursesRevenue = await fetchCoursesRevenue(userId: userId, start: startOfDay, end: endOfDay)
-        AppLogger.log("💰 Receita de Cursos: R$ \(coursesRevenue)", category: .notification)
-        
-        let total = proceduresRevenue + salesRevenue + subscriptionsRevenue + coursesRevenue
-        AppLogger.log("💰 RECEITA TOTAL BRUTA: R$ \(total)", category: .notification)
-        
-        return total
-    }
-    
-    // MARK: - Revenue Helpers
-    
-    private func fetchProceduresRevenue(userId: String, start: Date, end: Date) async -> Double {
-        do {
-            // ✅ CORREÇÃO v5.0: Buscar com planned_procedures explícito
-            let patients: [Patient] = try await supabase.client
-                .from("patients")
-                .select("*, planned_procedures")  // ← Explicitamente incluir JSONB field
-                .eq("user_id", value: userId)
-                .eq("is_active", value: true)
-                .execute()
-                .value
-            
-            AppLogger.log("💰 [fetchProceduresRevenue] Pacientes ativos encontrados: \(patients.count)", category: .notification)
-
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
-            
-            let startDateStr = formatter.string(from: start)
-            let endDateStr = formatter.string(from: end)
-            
-            AppLogger.log("💰 [fetchProceduresRevenue] Período: \(startDateStr) até \(endDateStr)", category: .notification)
-            
-            var total: Double = 0
-            var proceduresCount = 0
-            var completedCount = 0
-            var matchingDateCount = 0
-            
-            for patient in patients {
-                guard let procedures = patient.plannedProcedures else { continue }
-                proceduresCount += procedures.count
-                
-                for procedure in procedures {
-                    // REGRA 1: Status completed
-                    guard procedure.status?.lowercased() == "completed" else { continue }
-                    completedCount += 1
-                    
-                    // Data do procedimento (para casos 2 e 3)
-                    let procedureDateStr = procedure.performedAt ?? procedure.completedAt ?? ""
-                    let procedureDateOnly = String(procedureDateStr.prefix(10))
-                    
-                    // ══════════════════════════════════════════════════════════
-                    // CASO 1: Procedimento com pagamento parcelado (PIX/Dinheiro)
-                    // ══════════════════════════════════════════════════════════
-                    if procedure.permitirParcelado == true,
-                       let pagamentos = procedure.pagamentos,
-                       !pagamentos.isEmpty {
-                        
-                        for pagamento in pagamentos {
-                            let paymentDateOnly = String(pagamento.data.prefix(10))
-                            
-                            // ✅ Usar < para end (que é o início do próximo dia)
-                            if paymentDateOnly >= startDateStr && paymentDateOnly < endDateStr {
-                                total += pagamento.valor
-                                matchingDateCount += 1
-                                AppLogger.log("💰 [PARCELADO] +R$ \(pagamento.valor) de \(patient.name ?? "?")", category: .notification)
-                            }
-                        }
-                    }
-                    // ══════════════════════════════════════════════════════════
-                    // CASO 2: Procedimento com múltiplas formas de pagamento
-                    // ══════════════════════════════════════════════════════════
-                    else if let splits = procedure.paymentSplits,
-                            !splits.isEmpty,
-                            procedureDateOnly.count == 10,
-                            procedureDateOnly >= startDateStr && procedureDateOnly < endDateStr {
-                        
-                        let splitTotal = splits.reduce(0.0) { $0 + ($1.amount ?? 0) }
-                        total += splitTotal
-                        matchingDateCount += 1
-                        AppLogger.log("💰 [SPLIT] +R$ \(splitTotal) de \(patient.name ?? "?")", category: .notification)
-                    }
-                    // ══════════════════════════════════════════════════════════
-                    // CASO 3: Procedimento tradicional (pagamento único)
-                    // ══════════════════════════════════════════════════════════
-                    else if procedure.permitirParcelado != true,
-                            procedureDateOnly.count == 10,
-                            procedureDateOnly >= startDateStr && procedureDateOnly < endDateStr {
-                        
-                        let value = (procedure.totalValue ?? procedure.value ?? 0)
-                        total += value
-                        matchingDateCount += 1
-                        AppLogger.log("💰 [TRADICIONAL] +R$ \(value) de \(patient.name ?? "?") (data: \(procedureDateOnly))", category: .notification)
-                    }
-                }
-            }
-            
-            AppLogger.log("💰 [fetchProceduresRevenue] Resumo: \(proceduresCount) procedimentos totais, \(completedCount) completed, \(matchingDateCount) no período, Total: R$ \(total)", category: .notification)
-            
-            return total
-        } catch {
-            AppLogger.error("Erro ao buscar procedimentos/pacientes", error: error)
-            return 0
-        }
-    }
-    
-    private func fetchSalesRevenue(userId: String, start: Date, end: Date) async -> Double {
-        do {
-            // Lógica replicada do FinancialReportView (v6.0)
-            let allSales: [ProductSaleRecord] = try await supabase.client
-                .from("sales")
-                .select("total_amount, sold_at, created_at, payment_status")
-                .eq("user_id", value: userId)
-                .eq("payment_status", value: "paid")
-                .execute()
-                .value
-
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo") // Importante: Mesmo TZ do View
-            
-            let startDateStr = formatter.string(from: start)
-            let endDateStr = formatter.string(from: end) // Note: end é o início de amanhã, então a string é OK para < comparação?
-            // No View, ele usa <= endDateStr. Se end for 2026-01-08 00:00, a string será 2026-01-08.
-            // Se comparar <= 2026-01-08, inclui vendas de amanhã?
-            // O Report usa startStr e endStr baseados no range selecionado.
-            // Para "Hoje", o Report usa startOfToday e endOfToday (23:59:59).
-            // AQUI, recebemos start (00:00) e end (00:00 amanhã).
-            // Então devemos comparar: date >= startStr && date < endDateStr.
-            
-            // targetDateStr removido pois não estava sendo usado
-            
-            var total: Double = 0
-            
-            for sale in allSales {
-                guard let dateStr = sale.soldAt ?? sale.createdAt else { continue }
-                let dateOnly = String(dateStr.prefix(10))
-                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
-                
-                // Filtro: >= start (hoje) E < end (amanhã). Como são strings YYYY-MM-DD:
-                // Se hoje é 07, start=07, end=08.
-                // dateOnly >= "2026-01-07" AND dateOnly < "2026-01-08" -> ou seja, dateOnly == "2026-01-07"
-                
-                if dateOnly >= startDateStr && dateOnly < endDateStr {
-                    total += (sale.totalAmount ?? 0)
-                }
-            }
-            
-            return total
-        } catch {
-            AppLogger.error("Erro ao buscar vendas (sales table)", error: error)
-            return 0
-        }
-    }
-    
-    private func fetchSubscriptionsRevenue(userId: String, start: Date, end: Date) async -> Double {
-        do {
-            // Lógica replicada do FinancialReportView (v4.0)
-            // 1. Buscar IDs no patient_subscriptions
-            let subscriptions: [PatientSubscriptionRecord] = try await supabase.client
-                .from("patient_subscriptions")
-                .select("id, patient_id")
-                .eq("user_id", value: userId)
-                .execute()
-                .value
-            
-            if subscriptions.isEmpty { return 0 }
-            
-            let subscriptionIds = subscriptions.map { $0.id }
-            
-            // 2. Buscar pagamentos
-            let allPayments: [SubscriptionPaymentRecord] = try await supabase.client
-                .from("subscription_payments")
-                .select("amount, paid_at, subscription_id")
-                .in("subscription_id", values: subscriptionIds) // Codable array values funciona no client novo?
-                // Se .in falhar com [String], tentar lista manual. Mas supabase-swift costuma aceitar.
-                // O ReportView usa .in("subscription_id", values: subscriptionIds)
-                .eq("status", value: "paid")
-                .execute()
-                .value
-                
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
-            let startDateStr = formatter.string(from: start)
-            let endDateStr = formatter.string(from: end)
-            
-            var total: Double = 0
-            
-            for payment in allPayments {
-                guard let dateStr = payment.paidAt else { continue }
-                let dateOnly = String(dateStr.prefix(10))
-                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
-                
-                if dateOnly >= startDateStr && dateOnly < endDateStr {
-                    total += (payment.amount ?? 0)
-                }
-            }
-            
-            return total
-        } catch {
-            AppLogger.error("Erro ao buscar assinaturas (nova lógica)", error: error)
-            return 0
-        }
-    }
-    
-    private func fetchCoursesRevenue(userId: String, start: Date, end: Date) async -> Double {
-        do {
-            // Lógica replicada do FinancialReportView (v3.0) -> Tabela 'enrollments'
-            let allEnrollments: [EnrollmentRecord] = try await supabase.client
-                .from("enrollments")
-                .select("amount_paid, enrollment_date")
-                .eq("user_id", value: userId)
-                .gt("amount_paid", value: 0)
-                .execute()
-                .value
-                
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
-            let startDateStr = formatter.string(from: start)
-            let endDateStr = formatter.string(from: end)
-            
-            var total: Double = 0
-            
-            for enrollment in allEnrollments {
-                guard let dateStr = enrollment.enrollmentDate else { continue }
-                let dateOnly = String(dateStr.prefix(10))
-                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
-                
-                if dateOnly >= startDateStr && dateOnly < endDateStr {
-                    total += (enrollment.amountPaid ?? 0)
-                }
-            }
-            
-            return total
-        } catch {
-            // Tabela pode não existir (erro comum no log do user)
-            // AppLogger.log("Info: Erro ao buscar enrollments (provável inexistência)", category: .notification)
-            return 0
-        }
-    }
     
     private func parseDate(_ dateString: String) -> Date? {
         let iso8601 = ISO8601DateFormatter()
@@ -862,53 +716,7 @@ class NotificationManager: ObservableObject {
         }
     }
 
-    // MARK: - Database Models (Replicated from FinancialReportView)
-    
-    private struct ProductSaleRecord: Codable {
-        let totalAmount: Double?
-        let soldAt: String?
-        let createdAt: String?
-        let paymentStatus: String?
-        
-        enum CodingKeys: String, CodingKey {
-            case totalAmount = "total_amount"
-            case soldAt = "sold_at"
-            case createdAt = "created_at"
-            case paymentStatus = "payment_status"
-        }
-    }
 
-    private struct PatientSubscriptionRecord: Codable {
-        let id: String
-        let patientId: String?
-        
-        enum CodingKeys: String, CodingKey {
-            case id
-            case patientId = "patient_id"
-        }
-    }
-
-    private struct SubscriptionPaymentRecord: Codable {
-        let amount: Double?
-        let paidAt: String?
-        let subscriptionId: String?
-        
-        enum CodingKeys: String, CodingKey {
-            case amount
-            case paidAt = "paid_at"
-            case subscriptionId = "subscription_id"
-        }
-    }
-
-    private struct EnrollmentRecord: Codable {
-        let amountPaid: Double?
-        let enrollmentDate: String?
-        
-        enum CodingKeys: String, CodingKey {
-            case amountPaid = "amount_paid"
-            case enrollmentDate = "enrollment_date"
-        }
-    }
     
     // MARK: - Helper (Private)
     

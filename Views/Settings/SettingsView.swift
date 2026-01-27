@@ -602,6 +602,7 @@ struct NotificationsSettingsView: View {
     @AppStorage("daily_summary_enabled") private var dailySummaryEnabled = false
     @AppStorage("daily_financial_summary_enabled") private var dailyFinancialSummaryEnabled = false
     @AppStorage("weekly_summary_enabled") private var weeklySummaryEnabled = false
+    @AppStorage("weekly_preview_enabled") private var weeklyPreviewEnabled = true
 
     @AppStorage("appointment_reminder_enabled") private var appointmentReminderEnabled = false
     @AppStorage("appointment_reminder_minutes") private var appointmentReminderMinutes = 30
@@ -628,6 +629,7 @@ struct NotificationsSettingsView: View {
                                     // Ativar todas as notificações automaticamente
                                     dailySummaryEnabled = true
                                     weeklySummaryEnabled = true
+                                    weeklyPreviewEnabled = true
                                     if supabase.isOwner {
                                         dailyFinancialSummaryEnabled = true
                                     }
@@ -655,7 +657,7 @@ struct NotificationsSettingsView: View {
                 } header: {
                     Label("Resumo Diário", systemImage: "sun.max.fill")
                 } footer: {
-                    Text("Um resumo dos seus agendamentos, entregue todas as manhãs às 08:00.")
+                    Text("Enviado diariamente às 08:00 da manhã.")
                 }
                 
                 // Resumo Financeiro (Owner Only)
@@ -668,7 +670,7 @@ struct NotificationsSettingsView: View {
                     } header: {
                         Label("Faturamento do Dia", systemImage: "dollarsign.circle.fill")
                     } footer: {
-                        Text("Receba um resumo do seu faturamento e atendimentos do dia, às 21:00.")
+                        Text("Enviado diariamente às 21:00 com faturamento e pacientes atendidos.")
                     }
                 }
 
@@ -681,7 +683,19 @@ struct NotificationsSettingsView: View {
                 } header: {
                     Label("Resumo Semanal", systemImage: "calendar.badge.clock")
                 } footer: {
-                    Text("Um panorama completo da sua semana, enviado todo domingo às 20:00.")
+                    Text("Enviado todo sábado às 22:00 com o balanço da semana.")
+                }
+                
+                // Prévia da Semana
+                Section {
+                    Toggle("Prévia da Semana", isOn: $weeklyPreviewEnabled)
+                        .onChange(of: weeklyPreviewEnabled) { _, _ in
+                            scheduleNotifications()
+                        }
+                } header: {
+                    Label("Prévia da Semana", systemImage: "sparkles")
+                } footer: {
+                    Text("Enviado todo domingo às 20:00 com pacientes agendados para a próxima semana.")
                 }
 
 
@@ -702,12 +716,12 @@ struct NotificationsSettingsView: View {
                         }
                     }
                 } header: {
-                    Label("Lembretes de Agendamentos", systemImage: "clock.badge.fill")
+                    Label("Lembretes de Agendamentos", systemImage: "bell.badge.fill")
                 } footer: {
                     if appointmentReminderEnabled {
-                        Text("Você receberá notificações \(appointmentReminderMinutes == 30 ? "30 minutos" : "1 hora") antes de cada agendamento.")
+                        Text("Notificação enviada \(appointmentReminderMinutes == 30 ? "30 minutos" : "1 hora") antes de cada agendamento.")
                     } else {
-                        Text("Receba lembretes antes dos seus agendamentos do dia.")
+                        Text("Receba lembretes antes dos seus agendamentos.")
                     }
                 }
             }

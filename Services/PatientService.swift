@@ -110,8 +110,8 @@ class PatientService: ObservableObject {
         // Atualizar lista local
         await fetchPatients()
         
-        // ✅ Reagendar notificação financeira (await para garantir dados atualizados)
-        await NotificationManager.shared.scheduleDailyFinancialSummary()
+        // ✅ Reagendar todas as notificações (await para garantir dados atualizados)
+        await NotificationManager.shared.refreshNotifications()
     }
 
     // MARK: - Delete (Soft)

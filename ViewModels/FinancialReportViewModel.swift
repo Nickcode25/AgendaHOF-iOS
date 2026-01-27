@@ -91,6 +91,45 @@ class FinancialReportViewModel: ObservableObject {
 
         isLoading = false
     }
+    
+    // MARK: - Public Revenue Calculation for Notifications
+    
+    /// Calcula receita total para um período específico (usado por notificações)
+    /// - Parameters:
+    ///   - start: Data de início do período
+    ///   - end: Data de fim do período (exclusivo)
+    /// - Returns: Receita total do período (procedimentos + vendas + assinaturas + cursos)
+    func calculateRevenueForNotification(from start: Date, to end: Date) async -> Decimal {
+        guard let userId = supabase.currentUser?.id.uuidString else {
+            return 0
+        }
+        
+        // Carregar dados em paralelo
+        async let proceduresTask = fetchProceduresRevenue(userId: userId, start: start, end: end)
+        async let salesTask = fetchSalesRevenue(userId: userId, start: start, end: end)
+        async let subscriptionsTask = fetchSubscriptionsRevenue(userId: userId, start: start, end: end)
+        async let coursesTask = fetchCoursesRevenue(userId: userId, start: start, end: end)
+        
+        let (procedures, sales, subscriptions, courses) = await (
+            proceduresTask,
+            salesTask,
+            subscriptionsTask,
+            coursesTask
+        )
+        
+        let totalRevenue = procedures + sales + subscriptions + courses
+        
+        #if DEBUG
+        print("💰 [Notification] Receita calculada para \(start.formatted(.dateTime.day().month())):")
+        print("   Procedimentos: R$ \(procedures)")
+        print("   Vendas: R$ \(sales)")
+        print("   Assinaturas: R$ \(subscriptions)")
+        print("   Cursos: R$ \(courses)")
+        print("   Total: R$ \(totalRevenue)")
+        #endif
+        
+        return totalRevenue
+    }
 
     // MARK: - Data Fetching Methods
 
@@ -211,6 +250,10 @@ class FinancialReportViewModel: ObservableObject {
 
     /// Busca receita de vendas de produtos
     private func fetchSalesRevenue(userId: String, start: Date, end: Date) async -> Decimal {
+        // NOTA: Tabela 'product_sales' não existe no schema. Retornando 0 até que seja criada.
+        return 0
+        
+        /* TODO: Descomentar quando tabela for criada
         do {
             let sales: [ProductSaleDB] = try await supabase.client
                 .from("product_sales")
@@ -234,6 +277,7 @@ class FinancialReportViewModel: ObservableObject {
             #endif
             return 0
         }
+        */
     }
 
     /// Busca receita de assinaturas/mensalidades
@@ -265,6 +309,10 @@ class FinancialReportViewModel: ObservableObject {
 
     /// Busca receita de cursos
     private func fetchCoursesRevenue(userId: String, start: Date, end: Date) async -> Decimal {
+        // NOTA: Tabela 'course_enrollments' não existe no schema. Retornando 0 até que seja criada.
+        return 0
+        
+        /* TODO: Descomentar quando tabela for criada
         do {
             let courses: [CourseEnrollmentDB] = try await supabase.client
                 .from("course_enrollments")
@@ -288,6 +336,7 @@ class FinancialReportViewModel: ObservableObject {
             #endif
             return 0
         }
+        */
     }
 
     /// Busca despesas do período
@@ -469,11 +518,17 @@ struct ProductSaleDB: Codable {
 
 struct PatientSubscriptionDB: Codable {
     let startDate: String
-    let monthlyValue: Double
+    // NOTA: Campo 'monthly_value' não existe na tabela. Usando valor fixo 0 até schema ser atualizado.
+    // let monthlyValue: Double
 
     enum CodingKeys: String, CodingKey {
         case startDate = "start_date"
-        case monthlyValue = "monthly_value"
+        // case monthlyValue = "monthly_value"
+    }
+    
+    // Propriedade computada temporária
+    var monthlyValue: Double {
+        return 0 // TODO: Atualizar quando campo existir no schema
     }
 }
 

@@ -71,6 +71,7 @@
 		8EF66DD97C195BB932E61B59 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E78DF2B4D2F78372F2CA2DBF /* AuthViewModel.swift */; };
 		90D7407F5C4BDA7064D667D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1E37F46729096E1602A7925 /* Assets.xcassets */; };
 		910AE2612F19802000D153A9 /* AgendaHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910AE2602F19802000D153A9 /* AgendaHeaderView.swift */; };
+		91D196D52F28F91E00C808EE /* FinancialReportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D196D42F28F91E00C808EE /* FinancialReportViewModel.swift */; };
 		95474FC041985A9B7A14B521 /* DeepLinkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342A68FE597DAC780C42BEC5 /* DeepLinkManager.swift */; };
 		97FF6BEB36DCCCDF6C8E09C7 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1B1D057F2F11AE1D01E7E4 /* Formatters.swift */; };
 		9A9874A607927BE82A2DDDDB /* CalendarTimeGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */; };
@@ -201,6 +202,7 @@
 		7C31345C39AE1C255BF35A4E /* NewRecurringBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewRecurringBlockView.swift; sourceTree = "<group>"; };
 		8702797E7329BCC5B68F54B6 /* AuthViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthViewModelTests.swift; path = Tests/ViewModels/AuthViewModelTests.swift; sourceTree = "<group>"; };
 		910AE2602F19802000D153A9 /* AgendaHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaHeaderView.swift; sourceTree = "<group>"; };
+		91D196D42F28F91E00C808EE /* FinancialReportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialReportViewModel.swift; sourceTree = "<group>"; };
 		9332644D3BF9E303DFC2078A /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		95F9F07845B377E75DFC08BB /* Procedure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Procedure.swift; sourceTree = "<group>"; };
 		9C2E355EEFE92729F914185D /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
@@ -401,6 +403,7 @@
 		55B33A05DF3036E3D8A18BD5 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				91D196D42F28F91E00C808EE /* FinancialReportViewModel.swift */,
 				46F449BB2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift */,
 				46F449BC2EF9AE2E004E29FC /* ResetPasswordViewModel.swift */,
 				CB24BE8E1D367E82CFAB3045 /* AgendaViewModel.swift */,
@@ -854,6 +857,7 @@
 				F2206DC6A7BBC77AE9EAE2A5 /* SignUpView.swift in Sources */,
 				BB361370EAD56AFAA2F30D55 /* String+Extensions.swift in Sources */,
 				81254EF39B930733F018D114 /* SupabaseManager.swift in Sources */,
+				91D196D52F28F91E00C808EE /* FinancialReportViewModel.swift in Sources */,
 				461DE4FC2EFB91370067E5D9 /* Shared/WidgetAppointment.swift in Sources */,
 				29395804B6E90539A7716659 /* ToastView.swift in Sources */,
 				46F449B92EF9ADFF004E29FC /* PasswordStrengthIndicator.swift in Sources */,
