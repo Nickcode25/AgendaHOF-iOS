@@ -98,6 +98,25 @@ struct RecurringBlockUpdate: Codable {
     }
 }
 
+// MARK: - Use Case: Exceptions
+struct RecurringBlockException: Identifiable, Codable, Hashable {
+    let id: String
+    let recurringBlockId: String
+    let originalDate: String // YYYY-MM-DD
+    let newStartTime: String?
+    let newEndTime: String?
+    let isExcluded: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case recurringBlockId = "recurring_block_id"
+        case originalDate = "original_date"
+        case newStartTime = "new_start_time"
+        case newEndTime = "new_end_time"
+        case isExcluded = "is_excluded"
+    }
+}
+
 // Enum para dias da semana
 enum DayOfWeek: Int, CaseIterable {
     case sunday = 0

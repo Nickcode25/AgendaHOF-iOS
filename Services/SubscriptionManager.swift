@@ -53,7 +53,7 @@ class SubscriptionManager: ObservableObject {
     // MARK: - Initialization
     
     private init() {
-        // Iniciar listener de transações
+        // Iniciar listener de transações (detached para não bloquear init)
         transactionListener = listenForTransactions()
         
         // Carregar produtos ao inicializar
@@ -303,11 +303,18 @@ class SubscriptionManager: ObservableObject {
                 case .verified(let transaction):
                     AppLogger.log("✅ [StoreKit] Compra verificada: \(transaction.productID)", category: .business)
                     
-                    // Finalizar transação
-                    await transaction.finish()
+                    // Sincronizar com backend (Tentar sync primeiro)
+                    // Se falhar, NÃO finalizamos a transação para que o listener tente novamente depois
+                    let syncSuccess = await syncWithBackend(transaction: transaction)
                     
-                    // Sincronizar com backend
-                    await syncWithBackend(transaction: transaction)
+                    if syncSuccess {
+                        await transaction.finish()
+                        AppLogger.log("✅ [StoreKit] Transação finalizada após sync com sucesso", category: .business)
+                    } else {
+                        AppLogger.error("[StoreKit] Sync falhou. Transação mantida aberta para retentativa.")
+                        // Não finalizamos a transação aqui. O listener pegará novamente.
+                        // Mas para o usuário, podemos liberar o acesso TEMPORARIAMENTE se a validação local passar.
+                    }
                     
                     // Atualizar estado de acesso
                     await checkAccess()
@@ -386,10 +393,11 @@ class SubscriptionManager: ObservableObject {
     
     /// Envia o recibo/token da transação Apple para o backend
     /// Isso permite que o backend atualize is_premium e libere acesso na web
-    private func syncWithBackend(transaction: Transaction) async {
+    /// - Returns: `true` se sincronizou com sucesso, `false` caso contrário
+    private func syncWithBackend(transaction: Transaction) async -> Bool {
         guard let userId = supabase.currentUser?.id.uuidString else {
             AppLogger.error("[Sync] Sem usuário logado para sincronizar")
-            return
+            return false
         }
         
         AppLogger.log("📤 [Sync] Enviando transação Apple para backend...", category: .business)
@@ -410,19 +418,20 @@ class SubscriptionManager: ObservableObject {
         ]
         
         // Enviar para o backend com retry
-        await sendToBackend(payload: payload, retries: 3)
+        return await sendToBackend(payload: payload, retries: 3)
     }
     
     /// Envia payload para o backend com retry
-    private func sendToBackend(payload: [String: Any], retries: Int) async {
+    /// - Returns: `true` se sucesso, `false` se falha
+    private func sendToBackend(payload: [String: Any], retries: Int) async -> Bool {
         guard retries > 0 else {
             AppLogger.error("[Sync] Falha após todas as tentativas de sincronização")
-            return
+            return false
         }
         
         guard let url = URL(string: receiptEndpoint) else {
             AppLogger.error("[Sync] URL inválida: \(receiptEndpoint)")
-            return
+            return false
         }
         
         var request = URLRequest(url: url)
@@ -442,17 +451,20 @@ class SubscriptionManager: ObservableObject {
             if let httpResponse = response as? HTTPURLResponse {
                 if (200...299).contains(httpResponse.statusCode) {
                     AppLogger.log("✅ [Sync] Transação sincronizada com backend (status: \(httpResponse.statusCode))", category: .business)
+                    return true
                 } else {
                     AppLogger.error("[Sync] Backend retornou status \(httpResponse.statusCode). Tentando novamente...")
                     try await Task.sleep(nanoseconds: 2_000_000_000) // 2 segundos
-                    await sendToBackend(payload: payload, retries: retries - 1)
+                    return await sendToBackend(payload: payload, retries: retries - 1)
                 }
             }
+            
+            return false // Fallback se não for HTTPURLResponse (raro)
             
         } catch {
             AppLogger.error("[Sync] Erro ao enviar para backend: \(error). Tentando novamente...")
             try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 segundos
-            await sendToBackend(payload: payload, retries: retries - 1)
+            return await sendToBackend(payload: payload, retries: retries - 1)
         }
     }
     
@@ -473,11 +485,16 @@ class SubscriptionManager: ObservableObject {
         case .verified(let transaction):
             AppLogger.log("🔔 [StoreKit] Atualização de transação: \(transaction.productID)", category: .business)
             
-            // Finalizar transação
-            await transaction.finish()
+            // Sincronizar com backend (Tentar sync primeiro)
+            let syncSuccess = await syncWithBackend(transaction: transaction)
             
-            // Sincronizar com backend
-            await syncWithBackend(transaction: transaction)
+            // Só finaliza se sincronizou com sucesso
+            if syncSuccess {
+                await transaction.finish()
+                AppLogger.log("✅ [StoreKit] Transação finalizada e sincronizada via Listener", category: .business)
+            } else {
+                AppLogger.error("[StoreKit] Sync falhou no Listener. Transação mantida na fila.")
+            }
             
             // Atualizar estado
             await checkAccess()

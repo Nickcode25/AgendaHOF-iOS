@@ -30,7 +30,7 @@ class InactivePatientsViewModel: ObservableObject {
 
             // Data limite: 180 dias atrás
             let calendar = Calendar.current
-            let limitDate = calendar.date(byAdding: .day, value: -inactiveDaysThreshold, to: Date())!
+            let limitDate = calendar.date(byAdding: .day, value: -inactiveDaysThreshold, to: Date()) ?? Date()
 
             print("📅 [InactivePatients] Buscando pacientes sem procedimentos desde: \(limitDate)")
 

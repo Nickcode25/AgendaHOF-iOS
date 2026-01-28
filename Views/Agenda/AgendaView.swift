@@ -5,55 +5,13 @@ struct AgendaView: View {
     @StateObject private var viewModel = AgendaViewModel()
     @StateObject private var professionalService = ProfessionalService()
 
-    /// Largura da tela em pontos
-    private var screenWidth: CGFloat {
-        UIScreen.main.bounds.width
-    }
 
-    /// Detecta tamanho da tela baseado na largura real
-    /// - iPhone SE, mini, 8: ~375pt ou menos
-    /// - iPhone 11, 12, 13, 14, 15, 16: ~390-414pt (414pt em zoom)
-    /// - iPhone Plus/Pro Max: ~428-440pt
-    /// - iPad: 768pt+
-    private var screenSize: ScreenSize {
-        if sizeClass == .regular {
-            return .iPad
-        }
-        if screenWidth <= 375 {
-            return .small      // iPhone SE, mini, 8
-        } else if screenWidth <= 420 {
-            return .medium     // iPhone 11, 12, 13, 14, 15, 16 (inclui zoom mode 414pt)
-        } else {
-            return .large      // iPhone Plus, Pro Max
-        }
-    }
 
-    private enum ScreenSize {
-        case small   // iPhone SE, mini, 8 (375pt)
-        case medium  // iPhone padrão (390-393pt)
-        case large   // iPhone Plus/Pro Max (428-440pt)
-        case iPad    // iPad (768pt+)
-    }
 
-    /// Espaçamento entre itens da toolbar
-    private var toolbarSpacing: CGFloat {
-        switch screenSize {
-        case .small: return 6
-        case .medium: return 8
-        case .large: return 10
-        case .iPad: return 12
-        }
-    }
 
-    /// Largura do segmented control
-    private var segmentedWidth: CGFloat {
-        switch screenSize {
-        case .small: return 70
-        case .medium: return 80
-        case .large: return 90
-        case .iPad: return 100
-        }
-    }
+
+
+
 
     var body: some View {
         VStack(spacing: 0) {

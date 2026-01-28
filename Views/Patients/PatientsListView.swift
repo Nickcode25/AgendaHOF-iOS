@@ -327,8 +327,7 @@ struct NewPatientView: View {
 
     @State private var name = ""
     @State private var phone = ""
-    @State private var birthDate: Date? = nil
-    @State private var hasBirthDate: Bool = false
+
     @State private var showContactPicker = false
 
     @State private var isLoading = false
@@ -350,24 +349,7 @@ struct NewPatientView: View {
                             phone = formatPhoneBrazil(newValue)
                         }
 
-                    Toggle("Informar Data de Nascimento", isOn: $hasBirthDate)
-                        .onChange(of: hasBirthDate) { _, newValue in
-                            if newValue && birthDate == nil {
-                                birthDate = Calendar.current.date(byAdding: .year, value: -30, to: Date())
-                            }
-                        }
 
-                    if hasBirthDate {
-                        DatePicker(
-                            "Data de Nascimento",
-                            selection: Binding(
-                                get: { birthDate ?? Date() },
-                                set: { birthDate = $0 }
-                            ),
-                            in: ...Date(),
-                            displayedComponents: .date
-                        )
-                    }
                 }
 
                 // Botão para importar contato
@@ -412,10 +394,7 @@ struct NewPatientView: View {
                     if let contactPhone = contact.phone {
                         phone = formatPhoneBrazil(contactPhone)
                     }
-                    if let birthday = contact.birthday {
-                        birthDate = birthday
-                        hasBirthDate = true
-                    }
+
                     showContactPicker = false
                 }
             }
@@ -461,10 +440,7 @@ struct NewPatientView: View {
             if let contactPhone = contact.phone {
                 phone = formatPhoneBrazil(contactPhone)
             }
-            if let birthday = contact.birthday {
-                birthDate = birthday
-                hasBirthDate = true
-            }
+
         }
     }
 
@@ -481,7 +457,7 @@ struct NewPatientView: View {
             let patient = Patient.Insert(
                 userId: userId,
                 name: name.trimmingCharacters(in: .whitespaces),
-                birthDate: hasBirthDate ? birthDate : nil,
+                birthDate: nil,
                 phone: phone.isEmpty ? nil : phone
             )
 

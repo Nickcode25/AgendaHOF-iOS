@@ -8,6 +8,7 @@ class AgendaViewModel: ObservableObject {
     @Published var selectedDate = Date()
     @Published var appointments: [Appointment] = []
     @Published var recurringBlocks: [RecurringBlock] = []
+    @Published var recurringBlockExceptions: [RecurringBlockException] = []
     @Published var isLoading = false
     @Published var error: String?
     @Published var viewMode: ViewMode = .day
@@ -177,10 +178,31 @@ class AgendaViewModel: ObservableObject {
 
             guard !Task.isCancelled else { return }
             recurringBlocks = result
+
+            // Carregar exceções
+            var exceptionsQuery = supabase.client
+                .from("recurring_block_exceptions")
+                .select()
+                // .eq("recurring_block_id", value: ...) // Idealmente filtraria, mas complexo sem join
+                // Assumindo volume baixo por enquanto, ou filtrar no cliente
+            
+            // Otimização: Se tiver userId na exception tb seria bom, mas tabela padrao nao tem sempre
+            // Assumiremos que o RLS cuida ou faremos filtro manual se necessário (mas o user nao pediu alteracao na tabela)
+            // Se a tabela exceptions tem FK para blocks, podemos filtrar pelos IDs dos blocks carregados
+            
+            let blockIds = result.map { $0.id }
+            if !blockIds.isEmpty {
+                 exceptionsQuery = exceptionsQuery.in("recurring_block_id", value: blockIds)
+                 let exceptions: [RecurringBlockException] = try await exceptionsQuery.execute().value
+                 recurringBlockExceptions = exceptions
+            } else {
+                recurringBlockExceptions = []
+            }
+
         } catch is CancellationError {
             // Ignorar erros de cancelamento
         } catch {
-            print("Erro ao carregar bloqueios: \(error)")
+            print("Erro ao carregar bloqueios e exceções: \(error)")
         }
     }
 
@@ -236,7 +258,47 @@ class AgendaViewModel: ObservableObject {
     // MARK: - Block Helpers
 
     func blocksForDate(_ date: Date) -> [RecurringBlock] {
-        recurringBlocks.filter { $0.appliesTo(date: date) }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let dateString = formatter.string(from: date)
+
+        return recurringBlocks.compactMap { block in
+            // 1. Filtragem Básica: Verifique se active == true e se daysOfWeek contém o dia da semana atual.
+            guard block.active, block.appliesTo(date: date) else { return nil }
+            
+            // 2. Busca de Exceção
+            let exception = recurringBlockExceptions.first { ex in
+                ex.recurringBlockId == block.id && ex.originalDate == dateString
+            }
+            
+            // 3. Aplicação da Exceção
+            if let ex = exception {
+                // Se isExcluded == true, PULE este bloco
+                if ex.isExcluded { return nil }
+                
+                // Se encontrar uma exceção com newStartTime ou newEndTime, use esses horários
+                var virtualBlock = block
+                // Gerar ID exclusivo para o bloco virtual visual
+                virtualBlock = RecurringBlock(
+                    id: "\(block.id)_\(dateString)", // ID composto essencial para ForEach
+                    createdAt: block.createdAt,
+                    updatedAt: nil,
+                    userId: block.userId,
+                    title: block.title, // Ou marcar como exceção? Web mantém titulo
+                    startTime: ex.newStartTime ?? block.startTime,
+                    endTime: ex.newEndTime ?? block.endTime,
+                    daysOfWeek: block.daysOfWeek,
+                    active: true,
+                    notes: block.notes,
+                    professional: block.professional,
+                    professionalId: block.professionalId
+                )
+                return virtualBlock
+            }
+            
+            return block
+        }
     }
 
     func isTimeBlocked(_ date: Date, hour: Int) -> Bool {

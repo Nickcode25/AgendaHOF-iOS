@@ -172,7 +172,7 @@ struct NewAppointmentView: View {
             }
 
             Section("Procedimento") {
-                TextField("Ex: Consulta, Limpeza...", text: $procedure)
+                TextField("Ex: Botox, Preenchimento Labial...", text: $procedure)
             }
         }
     }

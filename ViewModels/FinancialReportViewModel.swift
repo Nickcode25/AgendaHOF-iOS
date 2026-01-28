@@ -485,7 +485,7 @@ class FinancialReportViewModel: ObservableObject {
             }
             
             #if DEBUG
-            let saturdayForLog = calendar.date(byAdding: .day, value: 6, to: sunday)!
+            let saturdayForLog = calendar.date(byAdding: .day, value: 6, to: sunday) ?? sunday
             print("📅 [FinancialReport] Período da semana:")
             print("   Hoje: \(formatDateString(now)) (weekday: \(weekday))")
             print("   Início (Domingo): \(formatDateString(sunday))")

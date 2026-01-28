@@ -317,6 +317,29 @@ class NotificationManager: ObservableObject {
         }
     }
     
+    /// Retorna mensagem motivacional para o resumo semanal (incrementos de 10k)
+    private func getWeeklyMotivationalMessage(revenue: Decimal, patientCount: Int, formattedRevenue: String) -> String {
+        let revenueDouble = NSDecimalNumber(decimal: revenue).doubleValue
+        let patientText = "Você atendeu \(patientCount) paciente\(patientCount == 1 ? "" : "s") e faturou"
+        
+        switch revenueDouble {
+        case 0...10000:
+            return "\(patientText) \(formattedRevenue) esta semana. Bom trabalho, mantenha o foco! 💪"
+        case 10001...20000:
+            return "Parabéns! \(patientText) \(formattedRevenue) esta semana. Você está crescendo! 🚀"
+        case 20001...30000:
+            return "Excelente! \(patientText) \(formattedRevenue) esta semana. Resultado incrível! 🔥"
+        case 30001...40000:
+            return "Uau! \(patientText) \(formattedRevenue) esta semana. Você é uma máquina! ⭐️"
+        case 40001...50000:
+            return "Espetacular! \(patientText) \(formattedRevenue) esta semana. Seu esforço vale ouro! 🌟"
+        case 50001...60000:
+            return "Extraordinário! \(patientText) \(formattedRevenue) esta semana. Rumo ao topo! 👑"
+        default:
+            return "Fenomenal! \(patientText) \(formattedRevenue) esta semana. Uma semana lendária! 🏆✨"
+        }
+    }
+    
     // MARK: - Count Attended Patients
     
     /// Conta pacientes atendidos no período (agendamentos não cancelados e não pessoais)
@@ -532,19 +555,10 @@ class NotificationManager: ObservableObject {
         if count == 0 {
             content.body = "Você não teve agendamentos esta semana."
         } else {
-            // Mensagem com dados de agendamentos e financeiros
-            content.body = "Você teve \(count) agendamento\(count == 1 ? "" : "s") esta semana."
+            // Mensagem motivacional semanal
+            content.body = getWeeklyMotivationalMessage(revenue: weeklyRevenue, patientCount: attendedPatients, formattedRevenue: revenueString)
             
-            // Adicionar resumo financeiro
-            if weeklyRevenue > 0 || attendedPatients > 0 {
-                content.body += " Atendeu \(attendedPatients) paciente\(attendedPatients == 1 ? "" : "s") e faturou \(revenueString)."
-            }
-            
-            // Resumo por dia
-            let summary = generateWeeklySummaryText(appointments: appointments, calendar: calendar)
-            if !summary.isEmpty {
-                content.body += " (\(summary))"
-            }
+
         }
         
         // Configurar o horário do trigger (sábado às 22:00)
