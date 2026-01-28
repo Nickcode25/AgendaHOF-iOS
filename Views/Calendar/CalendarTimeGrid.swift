@@ -35,18 +35,10 @@ struct CalendarHourLines: View {
         VStack(spacing: 0) {
             ForEach(CalendarConstants.startHour..<CalendarConstants.endHour, id: \.self) { _ in
                 VStack(spacing: 0) {
-                    // Linha da hora cheia
+                    // Linha discreta para hora cheia
                     Rectangle()
-                        .fill(Color(.systemGray4))
+                        .fill(Color.gray.opacity(0.3))
                         .frame(height: 0.5)
-
-                    Spacer()
-
-                    // Linha da meia hora (mais sutil)
-                    Rectangle()
-                        .fill(Color(.systemGray5))
-                        .frame(height: 0.5)
-
                     Spacer()
                 }
                 .frame(height: CalendarConstants.hourHeight)
@@ -94,18 +86,10 @@ struct WeekTimeGridBackground: View {
         VStack(spacing: 0) {
             ForEach(0..<CalendarConstants.totalHours, id: \.self) { _ in
                 VStack(spacing: 0) {
-                    // Linha da hora cheia (mais visível)
+                    // Linha discreta para hora cheia
                     Rectangle()
-                        .fill(Color(.systemGray4))
+                        .fill(Color.gray.opacity(0.3))
                         .frame(height: 0.5)
-
-                    Spacer()
-
-                    // Linha da meia hora (mais sutil)
-                    Rectangle()
-                        .fill(Color(.systemGray5))
-                        .frame(height: 0.5)
-
                     Spacer()
                 }
                 .frame(height: CalendarConstants.weekHourHeight)
@@ -149,21 +133,7 @@ struct WeekCurrentTimeIndicator: View {
     }
 }
 
-// MARK: - Componentes Legacy (para compatibilidade)
 
-/// Coluna de tempo para vista semanal (alias para compatibilidade)
-struct WeekTimeColumn: View {
-    var body: some View {
-        WeekTimeColumnView()
-    }
-}
-
-/// Linhas horizontais para vista semanal (alias para compatibilidade)
-struct WeekHourLines: View {
-    var body: some View {
-        WeekTimeGridBackground()
-    }
-}
 
 /// Indicador de hora atual (linha vermelha)
 struct CurrentTimeIndicator: View {

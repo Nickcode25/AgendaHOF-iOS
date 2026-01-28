@@ -91,8 +91,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         
         let now = Date()
         var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = 21
-        components.minute = 55
+        components.hour = 20 // Alterado de 21:55 para 20:50 (antes da notificação das 21:00)
+        components.minute = 50
         components.second = 0
         
         guard var targetDate = calendar.date(from: components) else {

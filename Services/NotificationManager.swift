@@ -216,17 +216,34 @@ class NotificationManager: ObservableObject {
         let today = calendar.startOfDay(for: now)
         
         // Agendar para 21:00
+        var finalTriggerDate: Date
+        
         #if DEBUG
         // Em modo debug, agendar para 10 segundos no futuro para teste
-        guard let triggerDate = calendar.date(byAdding: .second, value: 10, to: now) else { return }
-        AppLogger.log("🐛 [DEBUG] Agendando notificação para 10 segundos (teste)", category: .notification)
+        if let triggerDate = calendar.date(byAdding: .second, value: 10, to: now) {
+            finalTriggerDate = triggerDate
+            AppLogger.log("🐛 [DEBUG] Agendando notificação para 10 segundos (teste)", category: .notification)
+        } else {
+            return
+        }
         #else
         guard let triggerDate = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: today) else { return }
         
-        // Se já passou das 21:00, não agendar para hoje
+        finalTriggerDate = triggerDate
+        
+        // Se já passou das 21:00, verificar se ainda faz sentido enviar hoje (ex: atraso de 3h no BGTask)
         if triggerDate < now {
-            AppLogger.log("💰 Já passou das 21:00. Aguardando próximo agendamento.", category: .notification)
-            return
+            let diff = now.timeIntervalSince(triggerDate)
+            if diff < 3 * 3600 { // Se atrasou menos de 3 horas (até 00:00 quase)
+                AppLogger.log("💰 Já passou das 21:00 (\(Int(diff/60))min atrás). Enviando imediatamente.", category: .notification)
+                // Agendar para 5 segundos no futuro
+                if let newTrigger = calendar.date(byAdding: .second, value: 5, to: now) {
+                    finalTriggerDate = newTrigger
+                }
+            } else {
+                AppLogger.log("💰 Já passou muito tempo das 21:00. Aguardando próximo agendamento.", category: .notification)
+                return
+            }
         }
         #endif
         
@@ -259,7 +276,7 @@ class NotificationManager: ObservableObject {
         content.body = getFinancialMotivationalMessage(revenue: totalRevenue, patientCount: patientCount, formattedRevenue: revenueString)
         content.sound = .default
         
-        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: finalTriggerDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
         
         let request = UNNotificationRequest(
@@ -271,9 +288,9 @@ class NotificationManager: ObservableObject {
         addRequest(request, description: "Resumo Financeiro Diário")
         
         #if DEBUG
-        AppLogger.log("✅ Resumo Financeiro agendado para \(triggerDate.formatted(.dateTime.hour().minute()))", category: .notification)
+        AppLogger.log("✅ Resumo Financeiro agendado para \(finalTriggerDate.formatted(.dateTime.hour().minute().second()))", category: .notification)
         #else
-        AppLogger.log("✅ Resumo Financeiro agendado para 21:00", category: .notification)
+        AppLogger.log("✅ Resumo Financeiro agendado para \(finalTriggerDate.formatted(.dateTime.hour().minute()))", category: .notification)
         #endif
     }
     
@@ -704,7 +721,7 @@ class NotificationManager: ObservableObject {
                 .from("procedures")
                 .select()
                 .eq("user_id", value: userId)
-                .in("id", value: uniqueIds) // Correção para usar operador IN
+                .in("id", values: uniqueIds) // Correção para usar operador IN
                 .execute()
                 .value
             

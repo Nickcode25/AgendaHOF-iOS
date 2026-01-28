@@ -190,11 +190,11 @@ struct Appointment: Identifiable, Codable, Hashable {
         return Int(interval / 60)
     }
 
-    // Horário formatado (apenas hora de início)
+    // Horário formatado (início - fim)
     var timeRange: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        return formatter.string(from: start)
+        return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
     }
 
     // É compromisso pessoal?

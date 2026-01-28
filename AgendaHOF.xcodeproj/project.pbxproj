@@ -30,7 +30,6 @@
 		37206CCC2F218A1800CD4ACD /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37206CCB2F218A1800CD4ACD /* StoreKit.framework */; };
 		37209A5C2F1067F0000E350C /* CustomContactPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */; };
 		39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */; };
-		40D6767BA87A7A9C8458CF63 /* WeekRecurringBlockSegmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */; };
 		41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEC53DCF046BB187ADD590 /* AgendaView.swift */; };
 		4272363A0DCDC51F85AAA211 /* ProfessionalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */; };
 		461DE4C22EFB85B40067E5D9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 461DE4C12EFB85B30067E5D9 /* WidgetKit.framework */; };
@@ -81,7 +80,6 @@
 		B0A3F9337888AE39C4283072 /* SupportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1490807C226955D433A2A184 /* SupportView.swift */; };
 		B1934A7E0EE19F95013EB77B /* DayAgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6517641A4BB66289277ACEA0 /* DayAgendaView.swift */; };
 		BB361370EAD56AFAA2F30D55 /* String+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */; };
-		BF1465FA8211532924A6BCB3 /* CalendarPagingContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */; };
 		C01E4912987BA492D13CE0CD /* Patient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6697A0C1C5AEDADB2A92428E /* Patient.swift */; };
 		C1B7BBE6A1D8D5FF0DF0A29E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4BB3B8E93CB20E1F75CAEF /* UserProfile.swift */; };
 		C2D1F763B2A948ADAA00EB94 /* InactivePatientsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022282F2139043B887E3FE39 /* InactivePatientsView.swift */; };
@@ -138,7 +136,6 @@
 		03D9E437779D23BE28815BFB /* AppointmentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppointmentService.swift; sourceTree = "<group>"; };
 		0905C4D3828A2033AF3C78B7 /* String+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Extensions.swift"; sourceTree = "<group>"; };
 		0F5249256A227EB7355A52EB /* SubscriptionLogicTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionLogicTests.swift; sourceTree = "<group>"; };
-		11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekRecurringBlockSegmentView.swift; sourceTree = "<group>"; };
 		127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		1490807C226955D433A2A184 /* SupportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupportView.swift; sourceTree = "<group>"; };
 		177358FDC21A1522A4507225 /* Tests/ViewModels/FinancialReportViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tests/ViewModels/FinancialReportViewModelTests.swift; sourceTree = "<group>"; };
@@ -195,7 +192,6 @@
 		6B1E52413D1F1269C7CC3A1D /* SubscriptionTypes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionTypes.swift; sourceTree = "<group>"; };
 		6CD88A37337109F45CC1D4C1 /* Core/Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Constants.swift; sourceTree = SOURCE_ROOT; };
 		717F8CA95030B36649EE075D /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSupabaseManager.swift; path = Tests/Mocks/MockSupabaseManager.swift; sourceTree = "<group>"; };
-		72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPagingContainer.swift; sourceTree = "<group>"; };
 		73DC13BE1A07029C8F512DB5 /* NewAppointmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewAppointmentView.swift; sourceTree = "<group>"; };
 		76D5B2BF913EBCB78104AF6F /* Preview Content */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Preview Content"; sourceTree = SOURCE_ROOT; };
 		77DE7788A04ECF72A76DF52F /* PatientsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientsListView.swift; sourceTree = "<group>"; };
@@ -429,7 +425,6 @@
 			children = (
 				27E7F5ABE818869F37223CFA /* Core/Constants.swift */,
 				CE779576690594C23259C5B5 /* CalendarDayView.swift */,
-				72E8D319ED3BDDE4BF2C4526 /* CalendarPagingContainer.swift */,
 				59173CC695F46D1D1A822AC0 /* CalendarTimeGrid.swift */,
 				59E546A0D1B8FB5318925D17 /* CalendarWeekView.swift */,
 				FEF33CD5F3A8EB9317BC219D /* OverlapLayoutEngine.swift */,
@@ -437,7 +432,6 @@
 				29222B7A6730BCA4DFF1D87E /* WeekDayColumnView.swift */,
 				BA59325939B49A80E6C8E386 /* WeekDayHeaderCell.swift */,
 				5DB0BB661F1479F958FA4F3F /* WeekEventCardView.swift */,
-				11B0A7B5DA670362BBDD2B01 /* WeekRecurringBlockSegmentView.swift */,
 			);
 			path = Calendar;
 			sourceTree = "<group>";
@@ -821,7 +815,6 @@
 				8EF66DD97C195BB932E61B59 /* AuthViewModel.swift in Sources */,
 				026C738CEFE74BB2817CB847 /* AvatarView.swift in Sources */,
 				C55B97A05494D0577100E443 /* CalendarDayView.swift in Sources */,
-				BF1465FA8211532924A6BCB3 /* CalendarPagingContainer.swift in Sources */,
 				9A9874A607927BE82A2DDDDB /* CalendarTimeGrid.swift in Sources */,
 				AD98E0D63C5E4E9D90865A28 /* CalendarWeekView.swift in Sources */,
 				0E93BE27539569EED1341ABB /* Color+Extensions.swift in Sources */,
@@ -880,7 +873,6 @@
 				02D476C23B9DC498921106C9 /* WeekDayColumnView.swift in Sources */,
 				CC74D44656D7EDF535BB7BB7 /* WeekDayHeaderCell.swift in Sources */,
 				D8483CBAB3B6A5964E141782 /* WeekEventCardView.swift in Sources */,
-				40D6767BA87A7A9C8458CF63 /* WeekRecurringBlockSegmentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

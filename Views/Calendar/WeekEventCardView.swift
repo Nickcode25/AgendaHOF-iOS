@@ -100,6 +100,10 @@ struct WeekEventCardView: View {
             RoundedRectangle(cornerRadius: isCompact ? 2 : 4)
                 .fill(CalendarConstants.appointmentBackgroundColor(for: appointment))
         )
+        .background(
+            RoundedRectangle(cornerRadius: isCompact ? 2 : 4)
+                .fill(Color(.systemGroupedBackground)) // Fundo sólido para esconder linhas
+        )
         .overlay(
             RoundedRectangle(cornerRadius: isCompact ? 2 : 4)
                 .strokeBorder(blockColor.opacity(0.3), lineWidth: 0.5)

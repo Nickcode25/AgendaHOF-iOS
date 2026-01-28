@@ -47,13 +47,8 @@ struct HourRow: View {
                 .frame(width: 50, alignment: .trailing)
 
             // Linha divisória
-            VStack {
-                Rectangle()
-                    .fill(Color(.systemGray4))
-                    .frame(height: 1)
-                Spacer()
-            }
-            .frame(width: 1)
+            // Linha removida conforme pedido
+
 
             // Conteúdo
             VStack(alignment: .leading, spacing: 8) {
@@ -118,7 +113,7 @@ struct AppointmentCard: View {
 
                 Spacer()
 
-                Text(appointment.timeRange)
+                Text(appointment.start.formatted(date: .omitted, time: .shortened))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -629,7 +624,7 @@ struct EditAppointmentView: View {
                 "start": AnyEncodable(start),
                 "end": AnyEncodable(end),
                 "professional": AnyEncodable(professionalName),
-                "professional_id": AnyEncodable(professionalId)
+                "professional_id": AnyEncodable(professionalId as Any)
             ]
 
             if appointment.isPersonalAppointment {

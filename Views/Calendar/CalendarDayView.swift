@@ -6,10 +6,15 @@ struct CalendarDayView: View {
     @ObservedObject var viewModel: AgendaViewModel
     
     private var isToday: Bool {
-
-
         Calendar.current.isDateInToday(viewModel.selectedDate)
     }
+
+    @State private var dragStartPoint: CGPoint?
+    @State private var isDragging = false
+    @State private var ghostEventRawY: CGFloat = 0
+    @State private var ghostEventHeight: CGFloat = 0
+
+    private let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -25,22 +30,51 @@ struct CalendarDayView: View {
                             // Linhas de hora (background)
                             CalendarHourLines()
 
+                            // Camada de detecção de long press para CRIAR
+                            LongPressGestureView(
+                                onLongPressStart: { point in
+                                    startCreatingEvent(at: point, geometry: geometry)
+                                },
+                                onLongPressDrag: { point in
+                                    updateCreatingEvent(at: point, geometry: geometry)
+                                },
+                                onLongPressEnd: {
+                                    finishCreatingEvent()
+                                },
+                                isActive: $isDragging
+                            )
+
                             // Bloqueios recorrentes (atrás dos agendamentos)
                             recurringBlocksLayer(width: geometry.size.width)
 
                             // Agendamentos posicionados com resolução de conflitos
                             appointmentsLayer(width: geometry.size.width)
+                            
+                            // Evento Fantasma (Drag-to-Create)
+                            if isDragging {
+                                GhostEventView(
+                                    yPosition: ghostEventRawY,
+                                    height: ghostEventHeight,
+                                    width: geometry.size.width,
+                                    startTime: ghostStartTime,
+                                    endTime: ghostEndTime
+                                )
+                            }
 
                             // Indicador de hora atual (linha vermelha)
-                            CurrentTimeIndicator(isToday: isToday)
-                                .padding(.leading, -4)
+                            if isToday {
+                                CurrentTimeIndicator(isToday: isToday)
+                                    .padding(.leading, -4)
+                            }
                         }
+                        .contentShape(Rectangle())
                     }
                     .frame(height: CalendarConstants.totalGridHeight)
                 }
                 .padding(.top, 8)
                 .id("calendarTop")
             }
+            .scrollDisabled(isDragging)
             .background(Color(.systemGroupedBackground))
             .onAppear {
                 if isToday {
@@ -57,7 +91,6 @@ struct CalendarDayView: View {
         let blocks = viewModel.blocksForDate(viewModel.selectedDate)
         let appointments = viewModel.appointmentsForSelectedDate
 
-        // Para cada bloco, calcular os segmentos visíveis (não sobrepostos por agendamentos)
         ForEach(blocks, id: \.id) { block in
             let segments = calculateBlockSegments(block: block, appointments: appointments)
 
@@ -73,13 +106,10 @@ struct CalendarDayView: View {
         }
     }
 
-    /// Calcula os segmentos visíveis de um bloqueio, removendo as partes sobrepostas por agendamentos
     private func calculateBlockSegments(block: RecurringBlock, appointments: [Appointment]) -> [BlockSegment] {
-        // Converter horários do bloco para minutos do dia
         let blockStartMinutes = timeToMinutes(block.startTime)
         let blockEndMinutes = timeToMinutes(block.endTime)
 
-        // Coletar intervalos ocupados por agendamentos
         var occupiedRanges: [(start: Int, end: Int)] = []
 
         for appointment in appointments {
@@ -89,13 +119,11 @@ struct CalendarDayView: View {
             let appointmentEndMinutes = calendar.component(.hour, from: appointment.end) * 60 +
                                         calendar.component(.minute, from: appointment.end)
 
-            // Verificar se há sobreposição com o bloco
             if appointmentStartMinutes < blockEndMinutes && appointmentEndMinutes > blockStartMinutes {
                 occupiedRanges.append((start: appointmentStartMinutes, end: appointmentEndMinutes))
             }
         }
 
-        // Se não há sobreposições, retornar o bloco inteiro
         if occupiedRanges.isEmpty {
             return [BlockSegment(
                 id: "\(block.id)-full",
@@ -104,15 +132,12 @@ struct CalendarDayView: View {
             )]
         }
 
-        // Ordenar intervalos ocupados por início
         let sortedRanges = occupiedRanges.sorted { $0.start < $1.start }
 
-        // Calcular segmentos livres
         var segments: [BlockSegment] = []
         var currentStart = blockStartMinutes
 
         for range in sortedRanges {
-            // Se há espaço antes do próximo agendamento
             if currentStart < range.start {
                 let segmentEnd = min(range.start, blockEndMinutes)
                 if segmentEnd > currentStart {
@@ -123,11 +148,9 @@ struct CalendarDayView: View {
                     ))
                 }
             }
-            // Avançar para depois do agendamento
             currentStart = max(currentStart, range.end)
         }
 
-        // Se sobrou espaço após o último agendamento
         if currentStart < blockEndMinutes {
             segments.append(BlockSegment(
                 id: "\(block.id)-\(currentStart)-\(blockEndMinutes)",
@@ -139,7 +162,6 @@ struct CalendarDayView: View {
         return segments
     }
 
-    /// Converte string de horário "HH:mm:ss" para minutos do dia
     private func timeToMinutes(_ time: String) -> Int {
         let hour = Int(time.prefix(2)) ?? 0
         let minute = Int(time.dropFirst(3).prefix(2)) ?? 0
@@ -163,6 +185,64 @@ struct CalendarDayView: View {
         }
     }
 
+    // MARK: - Gesture Handling (Create Event)
+
+    private func startCreatingEvent(at point: CGPoint, geometry: GeometryProxy) {
+        DispatchQueue.main.async {
+            self.dragStartPoint = point
+            self.ghostEventRawY = self.snapToGrid(y: point.y)
+            self.ghostEventHeight = CalendarConstants.hourHeight / 4
+            self.impactFeedback.impactOccurred()
+        }
+    }
+
+    private func updateCreatingEvent(at point: CGPoint, geometry: GeometryProxy) {
+        guard let startPoint = dragStartPoint else { return }
+        
+        let diff = point.y - startPoint.y
+        let minHeight = CalendarConstants.hourHeight / 4
+        
+        DispatchQueue.main.async {
+            if diff >= 0 {
+                self.ghostEventHeight = max(minHeight, self.snapToGrid(y: diff))
+            } else {
+                self.ghostEventRawY = self.snapToGrid(y: point.y)
+                self.ghostEventHeight = max(minHeight, self.snapToGrid(y: startPoint.y - point.y))
+            }
+        }
+    }
+
+    private func finishCreatingEvent() {
+        guard isDragging else { return }
+        
+        let start = ghostStartTime
+        let end = ghostEndTime
+        
+        DispatchQueue.main.async {
+            self.viewModel.activeSheet = .newAppointment(start: start, end: end)
+            
+            self.isDragging = false
+            self.dragStartPoint = nil
+            self.ghostEventHeight = 0
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    private func snapToGrid(y: CGFloat) -> CGFloat {
+        let step = CalendarConstants.hourHeight / 4
+        return (y / step).rounded() * step
+    }
+
+    private var ghostStartTime: Date {
+        CalendarConstants.date(for: ghostEventRawY, baseDate: viewModel.selectedDate)
+    }
+    
+    private var ghostEndTime: Date {
+        let durationMinutes = (ghostEventHeight / CalendarConstants.hourHeight) * 60
+        return Calendar.current.date(byAdding: .minute, value: Int(durationMinutes), to: ghostStartTime) ?? ghostStartTime
+    }
+
     // MARK: - Scroll to Current Time
 
     private func scrollToCurrentTime(proxy: ScrollViewProxy) {
@@ -174,9 +254,51 @@ struct CalendarDayView: View {
     }
 }
 
-// MARK: - Day Appointment Block
+// MARK: - Ghost Event View
 
-/// Bloco visual de agendamento para a vista diária
+struct GhostEventView: View {
+    let yPosition: CGFloat
+    let height: CGFloat
+    let width: CGFloat
+    let startTime: Date
+    let endTime: Date
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.appPrimary.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Color.appPrimary, lineWidth: 2, antialiased: true)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Novo Agendamento")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text("\(startTime.timeRange(to: endTime))")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            .padding(6)
+        }
+        .frame(width: width, height: max(height, 15), alignment: .top)
+        .offset(y: yPosition)
+        .shadow(radius: 4)
+    }
+}
+
+private extension Date {
+    func timeRange(to end: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return "\(formatter.string(from: self)) - \(formatter.string(from: end))"
+    }
+}
+
+// MARK: - Day Appointment Block (SIMPLIFICADO)
+
 struct DayAppointmentBlock: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -204,26 +326,21 @@ struct DayAppointmentBlock: View {
         positioned.height
     }
 
-    /// Fonte fixa e compacta para todos os agendamentos
-    /// Tamanho consistente independente da duração do agendamento
     private var textFont: Font {
         .system(size: 13, weight: .medium)
     }
 
-    /// Largura da barra lateral adaptativa
     private var barWidth: CGFloat {
         sizeClass == .regular ? 6 : 4
     }
 
     var body: some View {
         HStack(spacing: 0) {
-            // Barra lateral colorida
             RoundedRectangle(cornerRadius: 2)
                 .fill(blockColor)
                 .frame(width: barWidth)
 
-            // Conteúdo centralizado: "09:30 - 10:00 Nome"
-            Text("\(appointment.timeRange) \(appointment.displayTitle)")
+            Text("\(appointment.start.formatted(date: .omitted, time: .shortened)) \(appointment.displayTitle)")
                 .font(textFont)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
@@ -235,6 +352,10 @@ struct DayAppointmentBlock: View {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(CalendarConstants.appointmentBackgroundColor(for: appointment))
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(.systemGroupedBackground))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 6)
@@ -248,47 +369,40 @@ struct DayAppointmentBlock: View {
     }
 }
 
-// MARK: - Block Segment Model
+// MARK: - Block Segment (mantido)
 
-/// Representa um segmento de um bloqueio recorrente (parte visível não sobreposta por agendamentos)
 struct BlockSegment: Identifiable {
     let id: String
-    let startMinutes: Int  // Minutos do dia (0-1440)
-    let endMinutes: Int    // Minutos do dia (0-1440)
+    let startMinutes: Int
+    let endMinutes: Int
 
-    /// Horário de início formatado (ex: "12:00")
     var startTimeFormatted: String {
         let hour = startMinutes / 60
         let minute = startMinutes % 60
         return String(format: "%02d:%02d", hour, minute)
     }
 
-    /// Horário de fim formatado (ex: "13:30")
     var endTimeFormatted: String {
         let hour = endMinutes / 60
         let minute = endMinutes % 60
         return String(format: "%02d:%02d", hour, minute)
     }
 
-    /// Duração em minutos
     var durationMinutes: Int {
         endMinutes - startMinutes
     }
 }
 
-// MARK: - Day Recurring Block Segment View
+// MARK: - Day Recurring Block Segment View (mantido)
 
-/// Bloco visual de um segmento de bloqueio recorrente para a vista diária
 struct DayRecurringBlockSegmentView: View {
     let segment: BlockSegment
     let block: RecurringBlock
     let availableWidth: CGFloat
     var onTap: (() -> Void)?
 
-    /// Cor do bloqueio (cinza para bloqueios)
     private let blockColor = Color.gray
 
-    /// Posição Y baseada no horário de início do segmento
     private var yPosition: CGFloat {
         let startHour = segment.startMinutes / 60
         let startMinute = segment.startMinutes % 60
@@ -300,7 +414,6 @@ struct DayRecurringBlockSegmentView: View {
         return max(0, position)
     }
 
-    /// Altura baseada na duração do segmento
     private var blockHeight: CGFloat {
         let height = CGFloat(segment.durationMinutes) / 60.0 * CalendarConstants.hourHeight
         return max(height, 15)
@@ -308,12 +421,10 @@ struct DayRecurringBlockSegmentView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Barra lateral colorida
             RoundedRectangle(cornerRadius: 2)
                 .fill(blockColor)
                 .frame(width: 4)
 
-            // Conteúdo centralizado: "12:00 Título"
             Text("\(segment.startTimeFormatted) \(block.title)")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.secondary)
@@ -326,6 +437,10 @@ struct DayRecurringBlockSegmentView: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(blockColor.opacity(0.1))
         )
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(.systemGroupedBackground))
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(blockColor.opacity(0.2), lineWidth: 1)
@@ -338,79 +453,89 @@ struct DayRecurringBlockSegmentView: View {
     }
 }
 
-// MARK: - Day Recurring Block View (Legacy - mantido para compatibilidade)
+// MARK: - Long Press Gesture View (mantido)
 
-/// Bloco visual de bloqueio recorrente para a vista diária
-struct DayRecurringBlockView: View {
-    let block: RecurringBlock
-    let date: Date
-    let availableWidth: CGFloat
-    var onTap: (() -> Void)?
-
-    /// Cor do bloqueio (cinza para bloqueios)
-    private let blockColor = Color.gray
-
-    /// Posição Y baseada no horário de início
-    private var yPosition: CGFloat {
-        let startHour = Int(block.startTime.prefix(2)) ?? CalendarConstants.startHour
-        let startMinute = Int(block.startTime.dropFirst(3).prefix(2)) ?? 0
-
-        let hoursFromStart = CGFloat(startHour - CalendarConstants.startHour)
-        let minuteFraction = CGFloat(startMinute) / 60.0
-
-        let position = (hoursFromStart + minuteFraction) * CalendarConstants.hourHeight
-        return max(0, position)
-    }
-
-    /// Altura baseada na duração
-    private var blockHeight: CGFloat {
-        let startHour = Int(block.startTime.prefix(2)) ?? 0
-        let startMinute = Int(block.startTime.dropFirst(3).prefix(2)) ?? 0
-        let endHour = Int(block.endTime.prefix(2)) ?? 0
-        let endMinute = Int(block.endTime.dropFirst(3).prefix(2)) ?? 0
-
-        let startTotalMinutes = startHour * 60 + startMinute
-        let endTotalMinutes = endHour * 60 + endMinute
-        let durationMinutes = endTotalMinutes - startTotalMinutes
-
-        let height = CGFloat(durationMinutes) / 60.0 * CalendarConstants.hourHeight
-        return max(height, 15)
-    }
-
-    /// Horário formatado (apenas início, ex: "12:00")
-    private var startTimeFormatted: String {
-        String(block.startTime.prefix(5))
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            // Barra lateral colorida
-            RoundedRectangle(cornerRadius: 2)
-                .fill(blockColor)
-                .frame(width: 4)
-
-            // Conteúdo centralizado: "12:00 Título"
-            Text("\(startTimeFormatted) \(block.title)")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .padding(.horizontal, 6)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(width: availableWidth - 8, height: blockHeight)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(blockColor.opacity(0.1))
+struct LongPressGestureView: UIViewRepresentable {
+    let onLongPressStart: (CGPoint) -> Void
+    let onLongPressDrag: (CGPoint) -> Void
+    let onLongPressEnd: () -> Void
+    @Binding var isActive: Bool
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        
+        let longPress = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(blockColor.opacity(0.2), lineWidth: 1)
+        longPress.minimumPressDuration = 0.5
+        longPress.allowableMovement = .infinity
+        longPress.delegate = context.coordinator
+        
+        view.addGestureRecognizer(longPress)
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            onLongPressStart: onLongPressStart,
+            onLongPressDrag: onLongPressDrag,
+            onLongPressEnd: onLongPressEnd,
+            isActive: $isActive
         )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap?()
+    }
+    
+    class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        let onLongPressStart: (CGPoint) -> Void
+        let onLongPressDrag: (CGPoint) -> Void
+        let onLongPressEnd: () -> Void
+        @Binding var isActive: Bool
+        
+        init(
+            onLongPressStart: @escaping (CGPoint) -> Void,
+            onLongPressDrag: @escaping (CGPoint) -> Void,
+            onLongPressEnd: @escaping () -> Void,
+            isActive: Binding<Bool>
+        ) {
+            self.onLongPressStart = onLongPressStart
+            self.onLongPressDrag = onLongPressDrag
+            self.onLongPressEnd = onLongPressEnd
+            self._isActive = isActive
         }
-        .offset(x: 4, y: yPosition)
+        
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            let location = gesture.location(in: gesture.view)
+            
+            switch gesture.state {
+            case .began:
+                isActive = true
+                onLongPressStart(location)
+                
+            case .changed:
+                if isActive {
+                    onLongPressDrag(location)
+                }
+                
+            case .ended, .cancelled, .failed:
+                if isActive {
+                    onLongPressEnd()
+                    isActive = false
+                }
+                
+            default:
+                break
+            }
+        }
+        
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            return !isActive
+        }
     }
 }
 
@@ -418,15 +543,8 @@ struct DayRecurringBlockView: View {
 
 struct CalendarDayView_Previews: PreviewProvider {
     static var previews: some View {
-        Group {
-            // Preview 1: Day View with Overlaps
-            PreviewWrapper()
-                .previewDisplayName("Day View with Overlaps")
-
-            // Preview 2: Sample Overlapping Appointments
-            SampleAppointmentsPreview()
-                .previewDisplayName("Sample Overlapping Appointments")
-        }
+        PreviewWrapper()
+            .previewDisplayName("Day View")
     }
 
     struct PreviewWrapper: View {
@@ -438,25 +556,6 @@ struct CalendarDayView_Previews: PreviewProvider {
                     .navigationTitle("Agenda")
             }
             .environmentObject(SupabaseManager.shared)
-        }
-    }
-
-    struct SampleAppointmentsPreview: View {
-        var body: some View {
-            ScrollView {
-                HStack(alignment: .top, spacing: 0) {
-                    CalendarTimeColumn()
-                        .frame(width: 50)
-
-                    GeometryReader { geo in
-                        ZStack(alignment: .topLeading) {
-                            CalendarHourLines()
-                        }
-                    }
-                    .frame(height: CalendarConstants.totalGridHeight)
-                }
-            }
-            .padding()
         }
     }
 }

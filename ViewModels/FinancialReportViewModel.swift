@@ -142,7 +142,8 @@ class FinancialReportViewModel: ObservableObject {
         do {
             // Formatar datas para comparação de strings (como na web)
             let startString = formatDateString(start)
-            let endString = formatDateString(end)
+            let adjustedEnd = end.addingTimeInterval(-1)
+            let endString = formatDateString(adjustedEnd)
             
             #if DEBUG
             print("📊 [FinancialReport] Buscando procedimentos...")
@@ -250,93 +251,161 @@ class FinancialReportViewModel: ObservableObject {
 
     /// Busca receita de vendas de produtos
     private func fetchSalesRevenue(userId: String, start: Date, end: Date) async -> Decimal {
-        // NOTA: Tabela 'product_sales' não existe no schema. Retornando 0 até que seja criada.
-        return 0
-        
-        /* TODO: Descomentar quando tabela for criada
         do {
-            let sales: [ProductSaleDB] = try await supabase.client
-                .from("product_sales")
-                .select()
+            // ✅ BUSCAR TODAS as vendas pagas (filtrar por data no código)
+            let allSales: [ProductSaleRecord] = try await supabase.client
+                .from("sales")
+                .select("total_amount, sold_at, created_at")
                 .eq("user_id", value: userId)
+                .eq("payment_status", value: "paid")
                 .execute()
                 .value
 
-            let filtered = sales.filter { sale in
-                guard let saleDate = parseDate(sale.saleDate) else { return false }
-                return saleDate >= start && saleDate < end
+            // ✅ Converter período para strings YYYY-MM-DD para comparação
+            let startString = formatDateString(start)
+            
+            // Ajuste para o range inclusivo/exclusivo do dateRange: 
+            // O dateRange retorna start=00:00 e end=00:00 do dia seguinte (para .day)
+            // ou end=00:00 do mês seguinte.
+            // A nossa comparação de strings é inclusiva.
+            // Para "Hoje", start="2025-01-27", end="2025-01-28".
+            // Se usarmos <= endString, vamos incluir o dia 28 se a string for igual.
+            // A função isDateInRange usa <= endString.
+            // Então precisamos usar o dia anterior ao end se quisermos "até o fim do dia anterior".
+            // MAS, o `fetchProceduresRevenue` já usa o `isDateInRange` com startString e endString retornados por `dateRange`.
+            // Vamos verificar `dateRange`:
+            // Para .day: start = hoje 00:00, end = amanhã 00:00.
+            // formatDateString retorna YYYY-MM-DD.
+            // Então start="2025-01-27", end="2025-01-28".
+            // isDateInRange faz date >= start && date <= end.
+            // Então incluiria o dia 28. ISSO PARECE UM BUG EXISTENTE no fetchProceduresRevenue se a intenção for apenas o dia 27.
+            // Porém, `FinancialReportView` faz:
+            // let startDateOnly = String(startStr.prefix(10))
+            // let endDateOnly = String(endStr.prefix(10))
+            // if dateOnly >= startDateOnly && dateOnly <= endDateOnly
+            // E lá o getDateRange para .day retorna: startOfDay e endOfDay (23:59:59).
+            // Lá as strings são IGUAIS para start e end no caso de .day.
+            
+            // AQUI no ViewModel, `dateRange` retorna start e end (dia seguinte).
+            // Então `endString` será o dia seguinte.
+            // Se eu usar `isDateInRange` vou incluir o dia seguinte.
+            // PRECISO AJUSTAR `endString` para ser o dia anterior ao `end` atual, OU mudar a comparação.
+            // Vou ajustar `endString` subtraindo 1 segundo de `end` antes de formatar.
+            
+            let adjustedEnd = end.addingTimeInterval(-1)
+            let adjustedEndString = formatDateString(adjustedEnd)
+            // Agora para .day: start="2025-01-27", end="2025-01-28" -> adjusted="2025-01-27".
+            // isDateInRange: date >= "2025-01-27" && date <= "2025-01-27". CORRETO.
+
+            var total = Decimal(0)
+
+            for sale in allSales {
+                // ✅ REGRA: Usar sold_at se disponível, senão created_at
+                guard let dateStr = sale.soldAt ?? sale.createdAt else { continue }
+
+                // ✅ Extrair apenas YYYY-MM-DD
+                let dateOnly = String(dateStr.prefix(10))
+
+                // ✅ Validar formato
+                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
+
+                // ✅ Comparação de strings
+                if isDateInRange(dateOnly, start: startString, end: adjustedEndString) {
+                    let amount = sale.totalAmount ?? 0
+                    total += amount
+                }
             }
 
-            return filtered.reduce(Decimal(0)) { total, sale in
-                total + Decimal(sale.totalValue)
-            }
-
+            return total
         } catch {
-            #if DEBUG
-            print("⚠️ [FinancialReport] Erro ao buscar vendas: \(error)")
-            #endif
             return 0
         }
-        */
     }
 
     /// Busca receita de assinaturas/mensalidades
     private func fetchSubscriptionsRevenue(userId: String, start: Date, end: Date) async -> Decimal {
         do {
-            let subscriptions: [PatientSubscriptionDB] = try await supabase.client
+            // ✅ PASSO 1: Buscar assinaturas dos pacientes do usuário
+            let subscriptions: [PatientSubscriptionRecord] = try await supabase.client
                 .from("patient_subscriptions")
-                .select()
+                .select("id, patient_id, plan_name")
                 .eq("user_id", value: userId)
                 .execute()
                 .value
 
-            let filtered = subscriptions.filter { sub in
-                guard let startDate = parseDate(sub.startDate) else { return false }
-                return startDate >= start && startDate < end
+            guard !subscriptions.isEmpty else { return 0 }
+
+            let subscriptionIds = subscriptions.map { $0.id }
+
+            // ✅ PASSO 2: Buscar TODOS os pagamentos pagos
+            let allPayments: [SubscriptionPaymentRecord] = try await supabase.client
+                .from("subscription_payments")
+                .select("amount, paid_at, subscription_id")
+                .in("subscription_id", values: subscriptionIds)
+                .eq("status", value: "paid")
+                .execute()
+                .value
+
+            let startString = formatDateString(start)
+            let adjustedEnd = end.addingTimeInterval(-1)
+            let adjustedEndString = formatDateString(adjustedEnd)
+
+            var total = Decimal(0)
+
+            for payment in allPayments {
+                guard let dateStr = payment.paidAt else { continue }
+
+                let dateOnly = String(dateStr.prefix(10))
+
+                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
+
+                if isDateInRange(dateOnly, start: startString, end: adjustedEndString) {
+                    let amount = payment.amount ?? 0
+                    total += amount
+                }
             }
 
-            return filtered.reduce(Decimal(0)) { total, sub in
-                total + Decimal(sub.monthlyValue)
-            }
-
+            return total
         } catch {
-            #if DEBUG
-            print("⚠️ [FinancialReport] Erro ao buscar assinaturas: \(error)")
-            #endif
             return 0
         }
     }
 
     /// Busca receita de cursos
     private func fetchCoursesRevenue(userId: String, start: Date, end: Date) async -> Decimal {
-        // NOTA: Tabela 'course_enrollments' não existe no schema. Retornando 0 até que seja criada.
-        return 0
-        
-        /* TODO: Descomentar quando tabela for criada
         do {
-            let courses: [CourseEnrollmentDB] = try await supabase.client
-                .from("course_enrollments")
-                .select()
+            // ✅ BUSCAR TODAS as matrículas pagas
+            let allEnrollments: [EnrollmentRecord] = try await supabase.client
+                .from("enrollments")
+                .select("amount_paid, enrollment_date")
                 .eq("user_id", value: userId)
+                .gt("amount_paid", value: 0)
                 .execute()
                 .value
 
-            let filtered = courses.filter { course in
-                guard let enrollDate = parseDate(course.enrollmentDate) else { return false }
-                return enrollDate >= start && enrollDate < end
+            let startString = formatDateString(start)
+            let adjustedEnd = end.addingTimeInterval(-1)
+            let adjustedEndString = formatDateString(adjustedEnd)
+
+            var total = Decimal(0)
+
+            for enrollment in allEnrollments {
+                guard let dateStr = enrollment.enrollmentDate else { continue }
+
+                let dateOnly = String(dateStr.prefix(10))
+
+                guard dateOnly.count == 10, dateOnly.contains("-") else { continue }
+
+                if isDateInRange(dateOnly, start: startString, end: adjustedEndString) {
+                    let amount = enrollment.amountPaid ?? 0
+                    total += amount
+                }
             }
 
-            return filtered.reduce(Decimal(0)) { total, course in
-                total + Decimal(course.totalValue)
-            }
-
+            return total
         } catch {
-            #if DEBUG
-            print("⚠️ [FinancialReport] Erro ao buscar cursos: \(error)")
-            #endif
             return 0
         }
-        */
     }
 
     /// Busca despesas do período
@@ -545,4 +614,90 @@ struct CourseEnrollmentDB: Codable {
 struct ExpenseDB: Codable {
     let date: String
     let value: Double
+}
+
+// MARK: - Internal Helper Models
+
+private struct ProductSaleRecord: Codable {
+    let totalAmount: Decimal?
+    let soldAt: String?
+    let createdAt: String?
+    let paymentStatus: String?
+
+    enum CodingKeys: String, CodingKey {
+        case totalAmount = "total_amount"
+        case soldAt = "sold_at"
+        case createdAt = "created_at"
+        case paymentStatus = "payment_status"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        soldAt = try container.decodeIfPresent(String.self, forKey: .soldAt)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        paymentStatus = try container.decodeIfPresent(String.self, forKey: .paymentStatus)
+
+        if let value = try container.decodeIfPresent(Double.self, forKey: .totalAmount) {
+            totalAmount = Decimal(value)
+        } else {
+            totalAmount = nil
+        }
+    }
+}
+
+private struct PatientSubscriptionRecord: Codable {
+    let id: String
+    let patientId: String?
+    let planName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case patientId = "patient_id"
+        case planName = "plan_name"
+    }
+}
+
+private struct SubscriptionPaymentRecord: Codable {
+    let amount: Decimal?
+    let paidAt: String?
+    let subscriptionId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case amount
+        case paidAt = "paid_at"
+        case subscriptionId = "subscription_id"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        paidAt = try container.decodeIfPresent(String.self, forKey: .paidAt)
+        subscriptionId = try container.decodeIfPresent(String.self, forKey: .subscriptionId)
+
+        if let value = try container.decodeIfPresent(Double.self, forKey: .amount) {
+            amount = Decimal(value)
+        } else {
+            amount = nil
+        }
+    }
+}
+
+private struct EnrollmentRecord: Codable {
+    let amountPaid: Decimal?
+    let enrollmentDate: String?
+
+    enum CodingKeys: String, CodingKey {
+        case amountPaid = "amount_paid"
+        case enrollmentDate = "enrollment_date"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enrollmentDate = try container.decodeIfPresent(String.self, forKey: .enrollmentDate)
+
+        if let value = try container.decodeIfPresent(Double.self, forKey: .amountPaid) {
+            amountPaid = Decimal(value)
+        } else {
+            amountPaid = nil
+        }
+    }
 }

@@ -110,7 +110,7 @@ struct AgendaView: View {
                         // Floating Action Button (FAB) - Menu
                         Menu {
                             Button {
-                                viewModel.activeSheet = .newAppointment
+                                viewModel.activeSheet = .newAppointment()
                             } label: {
                                 Label("Agendamento", systemImage: "calendar.badge.plus")
                             }
@@ -147,9 +147,11 @@ struct AgendaView: View {
         .navigationBarHidden(true)
         .sheet(item: $viewModel.activeSheet) { sheet in
             switch sheet {
-            case .newAppointment:
+            case .newAppointment(let start, let end):
                 NewAppointmentView(
                     selectedDate: viewModel.selectedDate,
+                    initialTime: start,
+                    initialEndTime: end,
                     isPersonal: false
                 ) {
                     Task { await viewModel.loadData() }

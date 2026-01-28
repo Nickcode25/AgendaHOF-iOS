@@ -45,8 +45,12 @@ class SupabaseManager: ObservableObject {
                 case .signedIn:
                     self.currentSession = session
                     self.currentUser = session?.user
-                    self.isAuthenticated = true
                     await loadUserProfile()
+                    
+                    // Não definir isAuthenticated = true aqui imediatamente.
+                    // Deixar que signIn() ou checkSession() façam a verificação de acesso.
+                    // Se definirmos true aqui, a UI pode transicionar antes da verificação de plano.
+                    
                 case .signedOut:
                     self.currentSession = nil
                     self.currentUser = nil

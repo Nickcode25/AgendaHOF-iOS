@@ -254,7 +254,7 @@ class AgendaViewModel: ObservableObject {
     // MARK: - Sheet Types
     
     enum SheetType: Identifiable {
-        case newAppointment
+        case newAppointment(start: Date? = nil, end: Date? = nil)
         case newPersonalAppointment
         case newRecurringBlock
         case datePicker

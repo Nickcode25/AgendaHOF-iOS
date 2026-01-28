@@ -186,7 +186,7 @@ class AuthViewModel: ObservableObject {
     // MARK: - Delete Account
 
     func deleteAccount() async throws {
-        guard await supabase.currentUser != nil else {
+        guard supabase.currentUser != nil else {
             throw NSError(domain: "Auth", code: 401, userInfo: [
                 NSLocalizedDescriptionKey: "Usuário não autenticado"
             ])

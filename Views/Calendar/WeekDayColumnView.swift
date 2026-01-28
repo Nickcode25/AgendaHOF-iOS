@@ -224,3 +224,66 @@ struct WeekDayColumnView: View {
     .frame(height: 400)
     .background(Color(.systemGroupedBackground))
 }
+
+// MARK: - Week Recurring Block Segment View
+
+struct WeekRecurringBlockSegmentView: View {
+    let segment: BlockSegment
+    let block: RecurringBlock
+    let availableWidth: CGFloat
+    let isCompact: Bool
+    var onTap: (() -> Void)?
+
+    private let blockColor = Color.gray
+
+    private var yPosition: CGFloat {
+        let startHour = segment.startMinutes / 60
+        let startMinute = segment.startMinutes % 60
+
+        let hoursFromStart = CGFloat(startHour - CalendarConstants.startHour)
+        let minuteFraction = CGFloat(startMinute) / 60.0
+
+        let position = (hoursFromStart + minuteFraction) * CalendarConstants.hourHeight
+        return max(0, position)
+    }
+
+    private var blockHeight: CGFloat {
+        let height = CGFloat(segment.durationMinutes) / 60.0 * CalendarConstants.hourHeight
+        return max(height, 15)
+    }
+
+    private var textFont: Font {
+        isCompact ? .system(size: 9, weight: .medium) : .system(size: 11, weight: .medium)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(blockColor)
+                .frame(width: isCompact ? 2 : 3)
+
+            if !isCompact && segment.durationMinutes > 20 {
+                Text("\(segment.startTimeFormatted) \(block.title)")
+                    .font(textFont)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            }
+        }
+        .frame(width: availableWidth, height: blockHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(blockColor.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(blockColor.opacity(0.2), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap?()
+        }
+        .offset(x: isCompact ? 0 : 2, y: yPosition)
+    }
+}
