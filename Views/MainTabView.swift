@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 0
     @EnvironmentObject var supabase: SupabaseManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
 
     init() {
         // Configurar aparência da Tab Bar para não ser transparente
@@ -44,6 +45,12 @@ struct MainTabView: View {
             .tag(2)
         }
         .tint(.appPrimary)
+        // ✅ NOVO: Mostrar paywall automaticamente se não tiver acesso
+        .sheet(isPresented: .constant(subscriptionManager.shouldShowPaywall)) {
+            PaywallView()
+                .environmentObject(subscriptionManager)
+                .environmentObject(supabase)
+        }
     }
 }
 

@@ -5,6 +5,7 @@ import StoreKit
 /// Aparece apenas quando o usuário não tem acesso ativo
 struct PaywallView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @EnvironmentObject var supabase: SupabaseManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     
@@ -34,9 +35,6 @@ struct PaywallView: View {
                         // Botão de Compra
                         purchaseButton
                         
-                        // Restaurar Compras
-                        restoreButton
-                        
                         // Termos e Políticas
                         legalSection
                         
@@ -50,7 +48,15 @@ struct PaywallView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
-                        dismiss()
+                        // Se o usuário já tem acesso, apenas fecha a view
+                        // Se não tem acesso, faz logout
+                        if subscriptionManager.accessState.hasAccess {
+                            dismiss()
+                        } else {
+                            Task {
+                                try? await supabase.signOut()
+                            }
+                        }
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title2)
@@ -78,6 +84,13 @@ struct PaywallView: View {
                     if selectedProduct == nil {
                         selectedProduct = subscriptionManager.recommendedProduct
                     }
+                }
+            }
+            .onDisappear {
+                // Recarregar verificação de acesso ao fechar paywall
+                // Isso garante que mudanças de plano sejam refletidas na UI
+                Task {
+                    await subscriptionManager.checkAccess()
                 }
             }
         }
@@ -202,31 +215,7 @@ struct PaywallView: View {
         .disabled(selectedProduct == nil || subscriptionManager.purchaseState == .purchasing)
         .padding(.top, 8)
     }
-    
-    // MARK: - Restore Button
-    
-    private var restoreButton: some View {
-        Button {
-            Task {
-                await subscriptionManager.restorePurchases()
-            }
-        } label: {
-            Group {
-                if subscriptionManager.purchaseState == .restoring {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .tint(.blue)
-                        Text("Restaurando...")
-                    }
-                } else {
-                    Text("Restaurar Compras")
-                }
-            }
-            .font(.subheadline)
-            .foregroundStyle(.blue)
-        }
-        .disabled(subscriptionManager.purchaseState == .restoring)
-    }
+
     
     // MARK: - Legal Section
     

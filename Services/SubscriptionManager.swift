@@ -99,24 +99,6 @@ class SubscriptionManager: ObservableObject {
         AppLogger.log("🔐 [Access] Iniciando verificação híbrida para: \(profile.nameForDisplay)", category: .business)
         
         // ---------------------------------------------------------
-        // PASSO 0 (NOVO): Verificar is_premium do Backend (Stripe)
-        // ---------------------------------------------------------
-        if profile.isPremium {
-            AppLogger.log("✅ [Access] Usuário premium via Backend (Stripe)", category: .business)
-            finalizeAccess(.active(plan: .premium, expiresAt: nil, isCourtesy: false, source: .backend))
-            return
-        }
-        
-        // ---------------------------------------------------------
-        // PASSO 0.5 (NOVO): Verificar StoreKit 2 (Apple IAP)
-        // ---------------------------------------------------------
-        if let appleState = await checkAppleSubscription() {
-            AppLogger.log("✅ [Access] Assinatura Apple ativa: \(appleState.planType.displayName)", category: .business)
-            finalizeAccess(appleState)
-            return
-        }
-        
-        // ---------------------------------------------------------
         // PASSO 1: Verificar se é Staff (Funcionário)
         // ---------------------------------------------------------
         let staffCheck = SubscriptionLogic.checkStaffAccess(profile: profile)
@@ -135,7 +117,8 @@ class SubscriptionManager: ObservableObject {
         }
         
         // ---------------------------------------------------------
-        // PASSO 2 & 3: Buscar e Validar Assinaturas (Tabela user_subscriptions)
+        // PASSO 2: Buscar e Validar Assinaturas do Banco (Stripe/Web)
+        // PRIORIDADE: Verifica assinaturas Stripe antes de Apple IAP
         // ---------------------------------------------------------
         do {
             let subscriptions: [UserSubscription] = try await supabase.client
@@ -174,6 +157,25 @@ class SubscriptionManager: ObservableObject {
             }
             
             AppLogger.error("[Access] Erro ao buscar assinaturas: \(error)")
+        }
+        
+        // ---------------------------------------------------------
+        // PASSO 3: Verificar Apple IAP (Fallback - após Stripe)
+        // Apple IAP tem prioridade MENOR que assinaturas Stripe do banco
+        // ---------------------------------------------------------
+        if let appleState = await checkAppleSubscription() {
+            AppLogger.log("✅ [Access] Assinatura Apple ativa: \(appleState.planType.displayName)", category: .business)
+            finalizeAccess(appleState)
+            return
+        }
+        
+        // ---------------------------------------------------------
+        // PASSO 3.5: Verificar is_premium do Backend (Fallback genérico)
+        // ---------------------------------------------------------
+        if profile.isPremium {
+            AppLogger.log("✅ [Access] Usuário premium via Backend (is_premium flag)", category: .business)
+            finalizeAccess(.active(plan: .premium, expiresAt: nil, isCourtesy: false, source: .backend))
+            return
         }
         
         // ---------------------------------------------------------
@@ -236,6 +238,8 @@ class SubscriptionManager: ObservableObject {
     
     /// Verifica se existe assinatura ativa via StoreKit 2
     private func checkAppleSubscription() async -> AccessState? {
+        var bestSubscription: (productID: String, planType: PlanType, expirationDate: Date?)? = nil
+        
         // Itera sobre os entitlements ativos
         for await result in Transaction.currentEntitlements {
             switch result {
@@ -245,18 +249,28 @@ class SubscriptionManager: ObservableObject {
                     let planType = PlanType.fromAppleProductId(transaction.productID)
                     let expirationDate = transaction.expirationDate
                     
-                    AppLogger.log("🍎 [StoreKit] Assinatura Apple válida: \(transaction.productID)", category: .business)
+                    AppLogger.log("🍎 [StoreKit] Encontrada assinatura Apple: \(transaction.productID)", category: .business)
                     
-                    return .active(
-                        plan: planType,
-                        expiresAt: expirationDate,
-                        isCourtesy: false,
-                        source: .apple
-                    )
+                    // Se ainda não temos nenhuma OU esta é de tier superior, guarda
+                    if bestSubscription == nil || planType.tierLevel > bestSubscription!.planType.tierLevel {
+                        bestSubscription = (transaction.productID, planType, expirationDate)
+                    }
                 }
             case .unverified(_, let error):
                 AppLogger.error("[StoreKit] Transação não verificada: \(error)")
             }
+        }
+        
+        // Retornar a melhor assinatura encontrada
+        if let best = bestSubscription {
+            AppLogger.log("🍎 [StoreKit] Assinatura Apple válida: \(best.productID) (\(best.planType.displayName))", category: .business)
+            
+            return .active(
+                plan: best.planType,
+                expiresAt: best.expirationDate,
+                isCourtesy: false,
+                source: .apple
+            )
         }
         
         return nil
@@ -310,6 +324,10 @@ class SubscriptionManager: ObservableObject {
                     if syncSuccess {
                         await transaction.finish()
                         AppLogger.log("✅ [StoreKit] Transação finalizada após sync com sucesso", category: .business)
+                        
+                        // ✅ CRÍTICO: Recarregar perfil para pegar is_premium atualizado
+                        await supabase.fetchUserProfile()
+                        AppLogger.log("🔄 [StoreKit] Perfil recarregado após compra", category: .business)
                     } else {
                         AppLogger.error("[StoreKit] Sync falhou. Transação mantida aberta para retentativa.")
                         // Não finalizamos a transação aqui. O listener pegará novamente.

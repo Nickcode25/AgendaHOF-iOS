@@ -82,24 +82,18 @@ class SupabaseManager: ObservableObject {
         // Carregar perfil primeiro
         await loadUserProfile()
         
-        // Verificar acesso via SubscriptionManager
+        // ✅ MUDANÇA: Sempre permitir login, independentemente do plano
+        // O paywall será exibido automaticamente dentro do app
+        self.isAuthenticated = true
+        
+        // Verificar acesso via SubscriptionManager (para exibir paywall, não bloquear)
         await SubscriptionManager.shared.checkAccess()
         
-        // Permitir acesso apenas se tiver assinatura ou trial
         let accessState = SubscriptionManager.shared.accessState
         if accessState.hasAccess {
-            self.isAuthenticated = true
             AppLogger.log("✅ [Auth] Login bem-sucedido. Plano: \(accessState.planType.displayName) via \(accessState.source.displayName)", category: .auth)
         } else {
-            // Fazer logout se não tiver acesso
-            self.currentSession = nil
-            self.currentUser = nil
-            self.userProfile = nil
-            self.isAuthenticated = false
-            AppLogger.log("🚫 [Auth] Login negado. Sem plano ativo.", category: .auth)
-            throw NSError(domain: "AgendaHOF", code: 403, userInfo: [
-                NSLocalizedDescriptionKey: "Esta conta não possui uma assinatura vigente. Por favor, acesse o site agendahof.com para gerenciar seu plano e reativar suas funcionalidades."
-            ])
+            AppLogger.log("✅ [Auth] Login bem-sucedido sem plano ativo. Paywall será exibido.", category: .auth)
         }
     }
 

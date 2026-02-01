@@ -29,6 +29,7 @@
 		3718E60D2F21913F00EBCE8D /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3718E60A2F21913F00EBCE8D /* PaywallView.swift */; };
 		37206CCC2F218A1800CD4ACD /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37206CCB2F218A1800CD4ACD /* StoreKit.framework */; };
 		37209A5C2F1067F0000E350C /* CustomContactPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */; };
+		37D164212F2CE891004C9481 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D164202F2CE891004C9481 /* PushNotificationManager.swift */; };
 		39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */; };
 		41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEC53DCF046BB187ADD590 /* AgendaView.swift */; };
 		4272363A0DCDC51F85AAA211 /* ProfessionalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E313D92DD9C7CC133A17BAB /* ProfessionalService.swift */; };
@@ -149,6 +150,7 @@
 		3718E60A2F21913F00EBCE8D /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		37206CCB2F218A1800CD4ACD /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomContactPickerView.swift; sourceTree = "<group>"; };
+		37D164202F2CE891004C9481 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 		39E5BF262FBAEAC2BCCD0960 /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MockSupabaseManager.swift; sourceTree = "<group>"; };
 		3A9578000F01CFD33A2E9583 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
 		3BAEC53DCF046BB187ADD590 /* AgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaView.swift; sourceTree = "<group>"; };
@@ -485,6 +487,7 @@
 		9014FBD5FF50FFFA43A15BC5 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				37D164202F2CE891004C9481 /* PushNotificationManager.swift */,
 				464D67D62EFC638E00BC932A /* WidgetDataManager.swift */,
 				03D9E437779D23BE28815BFB /* AppointmentService.swift */,
 				BFC09AC53EA56DBFFF534B38 /* NotificationManager.swift */,
@@ -805,6 +808,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				37D164212F2CE891004C9481 /* PushNotificationManager.swift in Sources */,
 				46F449BD2EF9AE2E004E29FC /* ForgotPasswordViewModel.swift in Sources */,
 				46F449BE2EF9AE2E004E29FC /* ResetPasswordViewModel.swift in Sources */,
 				4EC44B450203934CC0F77ED6 /* AgendaHofApp.swift in Sources */,
@@ -979,7 +983,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				INFOPLIST_FILE = Info.plist;
@@ -1163,7 +1167,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				ENABLE_TESTABILITY = YES;

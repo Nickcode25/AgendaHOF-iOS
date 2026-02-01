@@ -1,6 +1,6 @@
 import SwiftUI
 import UserNotifications
-import BackgroundTasks  // ✅ NOVO: Para BGTaskScheduler
+import BackgroundTasks
 
 @main
 struct AgendaHofApp: App {
@@ -33,7 +33,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Configurar delegate de notificações
         UNUserNotificationCenter.current().delegate = self
         
-        // ✅ NOVO: Registrar tarefa de background para atualizar notificação financeira
+        // Limpar badge de notificações ao abrir o app
+        UNUserNotificationCenter.current().setBadgeCount(0)
+        
+        // Registrar tarefa de background para atualizar notificação financeira
         registerBackgroundTasks()
         
         return true
@@ -55,44 +58,49 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         print("✅ [BGTask] Tarefa de atualização financeira registrada")
     }
     
-    /// Processa a tarefa de background quando executada pelo sistema
+    /// DESATIVADO: Background task para atualizar notificação financeira
+    /// Agora a notificação é enviada diretamente pelo Supabase com valores corretos
     private func handleFinancialRefresh(task: BGAppRefreshTask) {
-        print("🔄 [BGTask] Executando atualização do relatório financeiro...")
+        print("🔄 [BGTask] DESATIVADO - Notificação financeira agora é enviada pelo Supabase")
         
-        // Agendar próxima execução (para amanhã às 21:55)
-        scheduleFinancialRefresh()
+        // Agendar próxima execução (para amanhã às 20:50)
+        // scheduleFinancialRefresh()
         
-        // Criar uma task para executar a atualização
-        let updateTask = Task {
-            await NotificationManager.shared.scheduleDailyFinancialSummary()
-            print("✅ [BGTask] Notificação financeira atualizada com sucesso")
-        }
+        // A notificação local estava calculando R$ 0,00 (incorreto)
+        // O Supabase envia a notificação com os valores corretos do banco de dados
         
-        // Handler de expiração (se o sistema precisar encerrar a tarefa)
-        task.expirationHandler = {
-            updateTask.cancel()
-            print("⚠️ [BGTask] Tarefa expirou antes de completar")
-        }
+        // Completar a tarefa imediatamente
+        task.setTaskCompleted(success: true)
         
-        // Aguardar conclusão
-        Task {
-            await updateTask.value
-            task.setTaskCompleted(success: true)
-        }
+        // CÓDIGO ORIGINAL (COMENTADO):
+        // let updateTask = Task {
+        //     await NotificationManager.shared.scheduleDailyFinancialSummary(forceUpdate: true)
+        //     print("✅ [BGTask] Notificação financeira atualizada com sucesso")
+        // }
+        // 
+        // task.expirationHandler = {
+        //     updateTask.cancel()
+        //     print("⚠️ [BGTask] Tarefa expirou antes de completar")
+        // }
+        // 
+        // Task {
+        //     await updateTask.value
+        //     task.setTaskCompleted(success: true)
+        // }
     }
     
-    /// Agenda a próxima execução da tarefa para 21:55
+    /// Agenda a próxima execução da tarefa para 20:50 (10 min antes da notificação)
     func scheduleFinancialRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: AppDelegate.financialRefreshTaskId)
         
-        // Calcular próximo 21:55 (horário de São Paulo)
+        // Calcular próximo 20:50 (horário de São Paulo)
         var calendar = Calendar.current
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
         
         let now = Date()
         var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = 20 // Alterado de 21:55 para 20:50 (antes da notificação das 21:00)
-        components.minute = 50
+        components.hour = 20
+        components.minute = 50 // 10 minutos antes da notificação (21:00)
         components.second = 0
         
         guard var targetDate = calendar.date(from: components) else {
@@ -100,7 +108,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             return
         }
         
-        // Se já passou das 21:55 hoje, agendar para amanhã
+        // Se já passou das 20:50 hoje, agendar para amanhã
         if targetDate <= now {
             targetDate = calendar.date(byAdding: .day, value: 1, to: targetDate) ?? targetDate
         }
@@ -134,17 +142,47 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         return true
     }
     
-    // MARK: - Notificações
+    // MARK: - Push Notifications (APNs)
     
-    // Mostrar notificação mesmo quando o app está em foreground
+    /// Chamado quando o device token é recebido do APNs
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task {
+            await PushNotificationManager.shared.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+        }
+    }
+    
+    /// Chamado quando falha o registro para notificações remotas
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task {
+            await PushNotificationManager.shared.didFailToRegisterForRemoteNotifications(error: error)
+        }
+    }
+    
+    // MARK: - Notificações Locais e Push
+    
+    /// Mostrar notificação mesmo quando o app está em foreground
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         return [.banner, .sound, .badge]
     }
     
-    // Quando o usuário toca na notificação
+    /// Quando o usuário toca na notificação (local ou push)
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let identifier = response.notification.request.identifier
-        print("🔔 Notificação recebida: \(identifier)")
+        let userInfo = response.notification.request.content.userInfo
+        
+        // Verificar se é uma notificação push de resumo financeiro
+        if let type = userInfo["type"] as? String, type == "financial_summary" {
+            AppLogger.log("📊 Notificação push de resumo financeiro recebida", category: .notification)
+            // Potencialmente navegar para a tela de relatório financeiro
+        } else {
+            AppLogger.log("🔔 Notificação local recebida: \(identifier)", category: .notification)
+        }
     }
 }
 
@@ -153,7 +191,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 struct ContentView: View {
     @EnvironmentObject var supabase: SupabaseManager
     @EnvironmentObject var deepLinkManager: DeepLinkManager
-    @Environment(\.scenePhase) private var scenePhase  // ✅ NOVO: Monitorar ciclo de vida
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var isCheckingAuth = true
     @State private var isReadyToShowSheet = false
@@ -178,16 +216,9 @@ struct ContentView: View {
                 isReadyToShowSheet = true
             }
         }
-        // ✅ NOVO: Atualizar notificação financeira quando o app voltar ao foreground
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active && supabase.isAuthenticated {
-                Task {
-                    // Reagendar notificação financeira com dados mais recentes do Supabase
-                    await NotificationManager.shared.scheduleDailyFinancialSummary()
-                    print("🔄 [App Active] Notificação financeira atualizada com dados mais recentes")
-                }
-            }
-        }
+        // ✅ CORRIGIDO: Removido o reagendamento da notificação financeira no onChange(scenePhase)
+        // A notificação será atualizada apenas pelo BGTask às 20:50
+        // Isso evita duplicatas e garante que a notificação seja entregue no horário correto
         .task {
             await supabase.checkSession()
             isCheckingAuth = false
@@ -235,6 +266,9 @@ struct ContentView: View {
                 defaults.set(30, forKey: "appointment_reminder_minutes") // Padrão 30 min antes
             }
             await NotificationManager.shared.scheduleAllNotifications()
+            
+            // ✅ NOVO: Registrar para push notifications
+            await PushNotificationManager.shared.registerForPushNotifications()
         }
     }
 }

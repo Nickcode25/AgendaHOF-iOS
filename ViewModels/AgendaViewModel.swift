@@ -262,8 +262,8 @@ class AgendaViewModel: ObservableObject {
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         let dateString = formatter.string(from: date)
-
-        return recurringBlocks.compactMap { block in
+        
+        return recurringBlocks.compactMap { block -> RecurringBlock? in
             // 1. Filtragem Básica: Verifique se active == true e se daysOfWeek contém o dia da semana atual.
             guard block.active, block.appliesTo(date: date) else { return nil }
             

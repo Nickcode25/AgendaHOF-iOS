@@ -113,15 +113,19 @@ class NotificationManager: ObservableObject {
             await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
         }
         
-        if defaults.bool(forKey: "daily_financial_summary_enabled") && supabase.isOwner {
-             // Agendar para 21:00
-             await scheduleDailyFinancialSummary()
-        }
+        // DESATIVADO: Notificação financeira agora é enviada pelo Supabase
+        // A notificação local calculava R$ 0,00 (incorreto)
+        // if defaults.bool(forKey: "daily_financial_summary_enabled") && supabase.isOwner {
+        //      // Agendar para 21:00
+        //      await scheduleDailyFinancialSummary()
+        // }
         
-        if defaults.bool(forKey: "weekly_summary_enabled") {
-            // Sábado às 22:00 (horário de São Paulo)
-            await scheduleWeeklySummary(dayOfWeek: 7, hour: 22)
-        }
+        // DESATIVADO: Notificação de resumo semanal agora é enviada pelo Supabase
+        // A notificação local estava sendo enviada 3 vezes
+        // if defaults.bool(forKey: "weekly_summary_enabled") {
+        //     // Sábado às 22:00 (horário de São Paulo)
+        //     await scheduleWeeklySummary(dayOfWeek: 7, hour: 22)
+        // }
         
         if defaults.bool(forKey: "weekly_preview_enabled") {
             // Domingo às 20:00 (horário de São Paulo)
@@ -199,13 +203,13 @@ class NotificationManager: ObservableObject {
     
     /// Agenda notificação de resumo financeiro diário às 21:00
     /// Exibe número de pacientes atendidos e faturamento do dia
-    func scheduleDailyFinancialSummary() async {
-        AppLogger.log("💰 Agendando Resumo Financeiro Diário...", category: .notification)
-        
-        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailyFinancialSummary])
+    /// - Parameter forceUpdate: Se true, força atualização mesmo se já foi agendada hoje
+    func scheduleDailyFinancialSummary(forceUpdate: Bool = false) async {
+        AppLogger.log("💰 Agendando Resumo Financeiro Diário... (force: \(forceUpdate))", category: .notification)
         
         guard supabase.isOwner else {
             AppLogger.log("💰 Usuário não é Owner. Cancelando.", category: .notification)
+            center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailyFinancialSummary])
             return
         }
         
@@ -215,40 +219,68 @@ class NotificationManager: ObservableObject {
         let now = Date()
         let today = calendar.startOfDay(for: now)
         
-        // Agendar para 21:00
-        var finalTriggerDate: Date
+        // Verificar se JÁ foi enviada hoje (proteção contra duplicatas)
+        if !forceUpdate && hasSentFinancialSummary(for: today) {
+            AppLogger.log("💰 Resumo financeiro já foi enviado hoje. Ignorando.", category: .notification)
+            return
+        }
+        
+        // Verificar se já existe uma notificação agendada para hoje
+        let pendingNotifications = await center.pendingNotificationRequests()
+        let hasScheduledForToday = pendingNotifications.contains { request in
+            guard request.identifier == NotificationID.dailyFinancialSummary,
+                  let trigger = request.trigger as? UNCalendarNotificationTrigger,
+                  let triggerDate = trigger.nextTriggerDate() else {
+                return false
+            }
+            return calendar.isDate(triggerDate, inSameDayAs: today)
+        }
+        
+        if !forceUpdate && hasScheduledForToday {
+            AppLogger.log("💰 Já existe notificação agendada para hoje. Ignorando duplicata.", category: .notification)
+            return
+        }
+        
+        // Calcular horário de entrega (21:00)
+        guard let triggerDate = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: today) else {
+            AppLogger.error("Erro ao calcular horário de notificação financeira", error: nil)
+            return
+        }
+        
+        var finalTriggerDate = triggerDate
+        var shouldSendImmediately = false
         
         #if DEBUG
         // Em modo debug, agendar para 10 segundos no futuro para teste
-        if let triggerDate = calendar.date(byAdding: .second, value: 10, to: now) {
-            finalTriggerDate = triggerDate
+        if let debugTrigger = calendar.date(byAdding: .second, value: 10, to: now) {
+            finalTriggerDate = debugTrigger
             AppLogger.log("🐛 [DEBUG] Agendando notificação para 10 segundos (teste)", category: .notification)
         } else {
             return
         }
         #else
-        guard let triggerDate = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: today) else { return }
-        
-        finalTriggerDate = triggerDate
-        
-        // Se já passou das 21:00, verificar se ainda faz sentido enviar hoje (ex: atraso de 3h no BGTask)
+        // Se já passou das 21:00 hoje, verificar se ainda faz sentido enviar
         if triggerDate < now {
-            let diff = now.timeIntervalSince(triggerDate)
-            if diff < 3 * 3600 { // Se atrasou menos de 3 horas (até 00:00 quase)
-                AppLogger.log("💰 Já passou das 21:00 (\(Int(diff/60))min atrás). Enviando imediatamente.", category: .notification)
-                // Agendar para 5 segundos no futuro
-                if let newTrigger = calendar.date(byAdding: .second, value: 5, to: now) {
-                    finalTriggerDate = newTrigger
-                }
+            let minutesLate = Int(now.timeIntervalSince(triggerDate) / 60)
+            
+            // Se atrasou menos de 2 horas, enviar imediatamente
+            if minutesLate < 120 {
+                AppLogger.log("💰 Passou das 21:00 (\(minutesLate)min atrás). Enviando imediatamente.", category: .notification)
+                finalTriggerDate = calendar.date(byAdding: .second, value: 3, to: now) ?? now
+                shouldSendImmediately = true
             } else {
-                AppLogger.log("💰 Já passou muito tempo das 21:00. Aguardando próximo agendamento.", category: .notification)
-                return
+                // Já é muito tarde (depois das 23:00), agendar para amanhã
+                AppLogger.log("💰 Muito tarde para enviar hoje (\(minutesLate)min). Agendando para amanhã.", category: .notification)
+                guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+                      let tomorrowTrigger = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: tomorrow) else {
+                    return
+                }
+                finalTriggerDate = tomorrowTrigger
             }
         }
         #endif
         
-        
-        // Calcular receita e contar pacientes do dia
+        // ⭐ PASSO 1: CALCULAR os dados ANTES de remover a notificação antiga
         let startOfDay = calendar.startOfDay(for: now)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
         
@@ -257,12 +289,19 @@ class NotificationManager: ObservableObject {
         
         AppLogger.log("💰 Faturamento: R$ \(totalRevenue) | Pacientes: \(patientCount)", category: .notification)
         
-        // Se não houver pacientes, não enviar notificação
+        // ⭐ PASSO 2: Se não houver pacientes, RETORNAR sem remover a antiga
+        // Isso mantém uma notificação válida de ontem, se existir
         if patientCount == 0 {
             AppLogger.log("💰 Sem pacientes atendidos. Notificação não enviada.", category: .notification)
-            return
+            // Marcar como enviada para evitar reagendamentos desnecessários
+            markFinancialSummaryAsSent(for: today)
+            return // ⚠️ CRITICAL: Return ANTES de remover - mantém notificação antiga
         }
         
+        // ⭐ PASSO 3: AGORA SIM remover a antiga (só chegamos aqui com dados válidos)
+        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailyFinancialSummary])
+        
+        // ⭐ PASSO 4: Criar nova notificação com dados frescos
         // Formatar valor em Real Brasileiro
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -287,11 +326,38 @@ class NotificationManager: ObservableObject {
         
         addRequest(request, description: "Resumo Financeiro Diário")
         
+        // Se for envio imediato, marcar como enviado para evitar duplicidade
+        if shouldSendImmediately {
+            // Aguardar 5 segundos antes de marcar como enviado (garantir que a notificação foi entregue)
+            Task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                markFinancialSummaryAsSent(for: today)
+            }
+        }
+        
         #if DEBUG
         AppLogger.log("✅ Resumo Financeiro agendado para \(finalTriggerDate.formatted(.dateTime.hour().minute().second()))", category: .notification)
         #else
         AppLogger.log("✅ Resumo Financeiro agendado para \(finalTriggerDate.formatted(.dateTime.hour().minute()))", category: .notification)
         #endif
+    }
+    
+    // MARK: - Helpers: Sent Status
+    
+    private func financialSummaryKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return "financial_summary_sent_\(formatter.string(from: date))"
+    }
+    
+    /// Verifica se o resumo financeiro já foi enviado para uma data específica
+    func hasSentFinancialSummary(for date: Date) -> Bool {
+        return UserDefaults.standard.bool(forKey: financialSummaryKey(for: date))
+    }
+    
+    /// Marca o resumo financeiro como enviado para uma data
+    func markFinancialSummaryAsSent(for date: Date) {
+        UserDefaults.standard.set(true, forKey: financialSummaryKey(for: date))
     }
     
     /// Retorna mensagem motivacional baseada no faturamento do dia
@@ -464,15 +530,17 @@ class NotificationManager: ObservableObject {
             await scheduleAppointmentReminders(minutesBefore: reminderMinutes == 0 ? 30 : reminderMinutes)
         }
         
-        // 3. Atualizar Resumo Financeiro (Owner)
-        if defaults.bool(forKey: "daily_financial_summary_enabled") && supabase.isOwner {
-             await scheduleDailyFinancialSummary()
-        }
+        // 3. DESATIVADO: Resumo Financeiro agora é enviado pelo Supabase
+        // A notificação local calculava valores incorretos
+        // if defaults.bool(forKey: "daily_financial_summary_enabled") && supabase.isOwner {
+        //      await scheduleDailyFinancialSummary(forceUpdate: true)
+        // }
         
-        // 4. Atualizar Resumo Semanal
-        if defaults.bool(forKey: "weekly_summary_enabled") {
-            await scheduleWeeklySummary(dayOfWeek: 7, hour: 22) // Sábado 22:00
-        }
+        // 4. DESATIVADO: Resumo Semanal agora é enviado pelo Supabase
+        // A notificação local estava sendo enviada múltiplas vezes
+        // if defaults.bool(forKey: "weekly_summary_enabled") {
+        //     await scheduleWeeklySummary(dayOfWeek: 7, hour: 22) // Sábado 22:00
+        // }
         
         // 5. Atualizar Prévia da Semana
         if defaults.bool(forKey: "weekly_preview_enabled") {

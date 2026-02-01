@@ -117,9 +117,9 @@ struct CalendarWeekView: View {
                     WeekDayColumnView(
                         date: date,
                         appointments: appointmentsFor(date),
-                        recurringBlocks: blocksFor(date),
+                        recurringBlocks: [],  // Bloqueios já estão incluídos em appointments
                         width: dayColumnWidth,
-                        isCompact: sizeClass != .regular,
+                        isCompact: false,  // Sempre false para mostrar títulos na vista semanal
                         onAppointmentTap: { appointment in
                             viewModel.activeSheet = .appointmentDetails(appointment)
                         },
@@ -137,7 +137,48 @@ struct CalendarWeekView: View {
 
     private func appointmentsFor(_ date: Date) -> [Appointment] {
         let calendar = Calendar.current
-        return viewModel.appointments.filter { calendar.isDate($0.start, inSameDayAs: date) }
+        
+        // 1. Obter agendamentos regulares para esta data
+        let regularAppts = viewModel.appointments.filter { calendar.isDate($0.start, inSameDayAs: date) }
+        
+        // 2. Obter bloqueios recorrentes para esta data
+        let blocks = viewModel.blocksForDate(date)
+        
+        // 3. Converter bloqueios recorrentes em Appointments para exibição
+        let blockAppts: [Appointment] = blocks.compactMap { block -> Appointment? in
+            let startComponents = block.startTime.split(separator: ":").compactMap { Int($0) }
+            let endComponents = block.endTime.split(separator: ":").compactMap { Int($0) }
+            
+            guard startComponents.count >= 2, endComponents.count >= 2,
+                  let startDate = calendar.date(bySettingHour: startComponents[0], minute: startComponents[1], second: 0, of: date),
+                  let endDate = calendar.date(bySettingHour: endComponents[0], minute: endComponents[1], second: 0, of: date) else {
+                return nil
+            }
+            
+            return Appointment(
+                id: block.id,
+                createdAt: Date(),
+                updatedAt: Date(),
+                userId: block.userId,
+                patientId: nil,  // Bloqueios não têm paciente
+                patientName: nil,
+                procedure: nil,
+                procedureId: nil,
+                selectedProducts: nil,
+                professional: block.professional ?? "Admin",
+                professionalId: block.professionalId,
+                room: nil,
+                start: startDate,
+                end: endDate,
+                notes: block.notes,
+                status: .done,  // done = cinza
+                isPersonal: true,  // IMPORTANTE: true para exibir o título ao invés de patientName
+                title: block.title  // Título do bloqueio (ex: "Almoço")
+            )
+        }
+        
+        // 4. Combinar e ordenar por horário
+        return (regularAppts + blockAppts).sorted { $0.start < $1.start }
     }
 
     private func blocksFor(_ date: Date) -> [RecurringBlock] {

@@ -30,6 +30,18 @@ enum PlanType: String, Codable, CaseIterable {
         }
     }
     
+    /// Nível hierárquico do plano (para comparação de prioridade)
+    var tierLevel: Int {
+        switch self {
+        case .premium: return 3
+        case .pro: return 2
+        case .basic: return 1
+        case .courtesy: return 0
+        case .trial: return 0
+        case .none: return 0
+        }
+    }
+    
     /// Mapeia ID do produto Apple para PlanType
     static func fromAppleProductId(_ productId: String) -> PlanType {
         switch productId {

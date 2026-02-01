@@ -243,12 +243,14 @@ struct WeekRecurringBlockSegmentView: View {
         let hoursFromStart = CGFloat(startHour - CalendarConstants.startHour)
         let minuteFraction = CGFloat(startMinute) / 60.0
 
-        let position = (hoursFromStart + minuteFraction) * CalendarConstants.hourHeight
+        // CORREÇÃO: Usar weekHourHeight (150pt) ao invés de hourHeight (60pt para vista diária)
+        let position = (hoursFromStart + minuteFraction) * CalendarConstants.weekHourHeight
         return max(0, position)
     }
 
     private var blockHeight: CGFloat {
-        let height = CGFloat(segment.durationMinutes) / 60.0 * CalendarConstants.hourHeight
+        // CORREÇÃO: Também usar escala semanal para altura
+        let height = CGFloat(segment.durationMinutes) * CalendarConstants.minuteHeight
         return max(height, 15)
     }
 

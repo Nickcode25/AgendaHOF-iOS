@@ -58,6 +58,14 @@ enum CalendarConstants {
 
     // MARK: - Cores por tipo de agendamento
     static func appointmentColor(for appointment: Appointment) -> Color {
+        // Bloqueios recorrentes = CINZA (isPersonal + sem paciente + sem procedimento)
+        // Compromissos pessoais reais têm procedimento/descrição
+        if appointment.isPersonalAppointment && 
+           appointment.patientId == nil && 
+           appointment.procedure == nil {
+            return .gray
+        }
+        
         // Compromissos pessoais = AZUL
         if appointment.isPersonalAppointment {
             return .blue
