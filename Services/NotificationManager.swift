@@ -517,12 +517,14 @@ class NotificationManager: ObservableObject {
         
         AppLogger.log("🔄 [Notification] Atualizando todas as notificações dinâmicas...", category: .notification)
         
-        // 1. Atualizar Resumo Diário
-        if defaults.bool(forKey: "daily_summary_enabled") {
-            let hour = defaults.integer(forKey: "daily_summary_hour")
-            let minute = defaults.integer(forKey: "daily_summary_minute")
-            await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
-        }
+        // 1. DESATIVADO: Resumo Diário agora é enviado pelo Supabase
+        // A notificação local agend ava 14 dias no futuro com dados estáticos
+        // Com o Supabase, a notificação é enviada diariamente às 08:00 com dados atualizados
+        // if defaults.bool(forKey: "daily_summary_enabled") {
+        //     let hour = defaults.integer(forKey: "daily_summary_hour")
+        //     let minute = defaults.integer(forKey: "daily_summary_minute")
+        //     await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
+        // }
         
         // 2. Atualizar Lembretes de Agendamentos
         if defaults.bool(forKey: "appointment_reminder_enabled") {
@@ -542,10 +544,12 @@ class NotificationManager: ObservableObject {
         //     await scheduleWeeklySummary(dayOfWeek: 7, hour: 22) // Sábado 22:00
         // }
         
-        // 5. Atualizar Prévia da Semana
-        if defaults.bool(forKey: "weekly_preview_enabled") {
-            await scheduleWeeklyPreview()
-        }
+        // 5. DESATIVADO: Prévia da Semana agora é enviada pelo Supabase
+        // A notificação local só funcionava se o app fosse aberto antes de domingo 20:00
+        // Com o Supabase, a notificação é enviada automaticamente via push notification
+        // if defaults.bool(forKey: "weekly_preview_enabled") {
+        //     await scheduleWeeklyPreview()
+        // }
         
         AppLogger.log("✅ [Notification] Todas as notificações atualizadas", category: .notification)
     }
