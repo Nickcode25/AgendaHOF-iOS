@@ -517,6 +517,24 @@ class NotificationManager: ObservableObject {
         
         AppLogger.log("🔄 [Notification] Atualizando todas as notificações dinâmicas...", category: .notification)
         
+        // 1. LIMPEZA: Remover notificações antigas agendadas localmente
+        // Isso é necessário para cancelar agendamentos futuros feitos antes da migração para o Supabase
+        center.removePendingNotificationRequests(withIdentifiers: [NotificationID.dailySummary, NotificationID.weeklyPreview])
+        
+        // Remover também IDs gerados dinamicamente (para os próximos 30 dias por segurança)
+        let calendar = Calendar.current
+        let today = Date()
+        var identifiersToRemove: [String] = []
+        
+        for i in 0..<30 {
+            if let date = calendar.date(byAdding: .day, value: i, to: today) {
+                let dateStr = date.formatted(.iso8601.year().month().day())
+                identifiersToRemove.append("\(NotificationID.dailySummary)_\(dateStr)")
+            }
+        }
+        center.removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
+        AppLogger.log("🧹 [Notification] Limpeza de notificações locais antigas realizada", category: .notification)
+        
         // 1. DESATIVADO: Resumo Diário agora é enviado pelo Supabase
         // A notificação local agend ava 14 dias no futuro com dados estáticos
         // Com o Supabase, a notificação é enviada diariamente às 08:00 com dados atualizados

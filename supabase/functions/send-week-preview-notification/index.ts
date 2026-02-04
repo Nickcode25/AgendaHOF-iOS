@@ -41,7 +41,7 @@ serve(async (req) => {
 
     // Get all user profiles (preview for all users, not just owners)
     const userIds = [...new Set(deviceTokens?.map(t => t.user_id) || [])]
-    
+
     console.log(`✅ Processing ${userIds.length} users`)
 
     // Group tokens by user
@@ -66,11 +66,7 @@ serve(async (req) => {
 
       console.log(`  📅 Next week: ${weekData.patientCount} patients scheduled`)
 
-      // Skip if no patients scheduled (empty week ahead)
-      if (weekData.patientCount === 0) {
-        console.log(`  ⏭️  Skipping user ${userId}: no patients next week`)
-        continue
-      }
+
 
       // Send notification to all devices for this user
       for (const device of devices) {
@@ -123,7 +119,7 @@ async function calculateNextWeekAppointments(supabase: any, userId: string) {
   // Get current date/time in São Paulo timezone
   const now = new Date()
   const nowSP = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  
+
   const currentDayOfWeek = nowSP.getDay() // 0=Sunday, 1=Monday, ..., 6=Saturday
   const currentHour = nowSP.getHours()
 
@@ -131,7 +127,7 @@ async function calculateNextWeekAppointments(supabase: any, userId: string) {
 
   // Calculate days until next Monday
   let daysUntilNextMonday: number
-  
+
   if (currentDayOfWeek === 0) {
     // It's Sunday
     if (currentHour < 20) {
@@ -167,7 +163,7 @@ async function calculateNextWeekAppointments(supabase: any, userId: string) {
 
   const mondayStr = formatter.format(nextMonday)
   const sundayStr = formatter.format(nextSunday)
-  
+
   const startOfWeek = `${mondayStr}T00:00:00-03:00`
   const endOfWeek = `${sundayStr}T23:59:59-03:00`
 

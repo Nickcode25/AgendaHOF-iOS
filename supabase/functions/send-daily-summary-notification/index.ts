@@ -8,23 +8,36 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts"
 
 // APNs configuration from Supabase secrets
-const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID')!
-const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID')!
-const APNS_KEY_PEM = Deno.env.get('APNS_KEY')!
-const APNS_TOPIC = 'com.agendahof.swift' // Bundle ID
+const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID')
+const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID')
+const APNS_KEY_PEM = Deno.env.get('APNS_KEY')
+const APNS_TOPIC = Deno.env.get('APNS_BUNDLE_ID') || 'com.agendahof.swift' // Bundle ID
 const APNS_ENDPOINT = Deno.env.get('APNS_ENDPOINT') || 'https://api.push.apple.com'
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 console.log('🚀 Daily Summary Notification Function initialized')
 console.log('APNs Endpoint:', APNS_ENDPOINT)
+console.log('APNs Topic:', APNS_TOPIC)
 
 serve(async (req) => {
     try {
         console.log('📨 Received request to send daily summary notifications')
 
+        // Validate Environment Variables
+        if (!APNS_KEY_ID || !APNS_TEAM_ID || !APNS_KEY_PEM || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+            const missing = []
+            if (!APNS_KEY_ID) missing.push('APNS_KEY_ID')
+            if (!APNS_TEAM_ID) missing.push('APNS_TEAM_ID')
+            if (!APNS_KEY_PEM) missing.push('APNS_KEY')
+            if (!SUPABASE_URL) missing.push('SUPABASE_URL')
+            if (!SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+
+            throw new Error(`Missing required environment variables: ${missing.join(', ')}`)
+        }
+
         // Initialize Supabase client with service role for full access
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        const supabase = createClient(supabaseUrl, supabaseKey)
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
         // Get all active device tokens
         const { data: deviceTokens, error: tokensError } = await supabase
@@ -71,9 +84,18 @@ serve(async (req) => {
                     )
                     successCount++
                     console.log(`  ✅ Sent to device ${device.device_token.substring(0, 10)}...`)
-                } catch (error) {
+                } catch (error: any) {
                     failCount++
-                    console.error(`  ❌ Failed to send to device:`, error)
+                    console.error(`  ❌ Failed to send to device:`, error.message)
+
+                    // Cleanup stale tokens
+                    if (error.message.includes('410') || error.message.includes('404') || error.message.includes('Unregistered') || error.message.includes('BadDeviceToken')) {
+                        console.log(`  🗑️ Deactivating stale token: ${device.device_token.substring(0, 10)}...`)
+                        await supabase
+                            .from('device_tokens')
+                            .update({ is_active: false })
+                            .eq('device_token', device.device_token)
+                    }
                 }
             }
         }
@@ -153,9 +175,12 @@ async function calculateTodaysSummary(supabase: any, userId: string) {
  */
 function formatTime(isoString: string): string {
     const date = new Date(isoString)
-    const hours = date.getHours().toString().padStart(2, '0')
-    const minutes = date.getMinutes().toString().padStart(2, '0')
-    return `${hours}:${minutes}`
+    return new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).format(date)
 }
 
 /**
@@ -237,6 +262,8 @@ async function sendPushNotification(deviceToken: string, data: any, isSandbox: b
  */
 async function generateAPNsJWT(): Promise<string> {
     try {
+        if (!APNS_KEY_PEM) throw new Error('APNS_KEY is missing')
+
         // Import the private key from PEM format
         const pemHeader = "-----BEGIN PRIVATE KEY-----"
         const pemFooter = "-----END PRIVATE KEY-----"

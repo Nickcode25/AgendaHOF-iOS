@@ -8,23 +8,39 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts"
 
 // APNs configuration from Supabase secrets
-const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID')!
-const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID')!
-const APNS_KEY_PEM = Deno.env.get('APNS_KEY')!
-const APNS_TOPIC = 'com.agendahof.swift' // Bundle ID
+const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID')
+const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID')
+const APNS_KEY_PEM = Deno.env.get('APNS_KEY')
+const APNS_TOPIC = Deno.env.get('APNS_BUNDLE_ID') || 'com.agendahof.swift' // Bundle ID
 const APNS_ENDPOINT = Deno.env.get('APNS_ENDPOINT') || 'https://api.push.apple.com'
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 console.log('🚀 Edge Function initialized')
-console.log('APNs Endpoint:', APNS_ENDPOINT)
 
 serve(async (req) => {
   try {
     console.log('📨 Received request to send daily financial notifications')
 
+    // Validate Environment Variables
+    if (!APNS_KEY_ID || !APNS_TEAM_ID || !APNS_KEY_PEM || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !Deno.env.get('APNS_BUNDLE_ID')) {
+      const missing = []
+      if (!APNS_KEY_ID) missing.push('APNS_KEY_ID')
+      if (!APNS_TEAM_ID) missing.push('APNS_TEAM_ID')
+      if (!APNS_KEY_PEM) missing.push('APNS_KEY')
+      if (!SUPABASE_URL) missing.push('SUPABASE_URL')
+      if (!SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+      if (!Deno.env.get('APNS_BUNDLE_ID')) missing.push('APNS_BUNDLE_ID')
+
+      console.warn(`⚠️ Potentially missing env vars: ${missing.join(', ')}`)
+      // Not throwing for APNS_BUNDLE_ID for backward compatibility if user hasn't set it yet but code has default
+    }
+
+    console.log('APNs Endpoint:', APNS_ENDPOINT)
+    console.log('APNs Topic:', APNS_TOPIC)
+
     // Initialize Supabase client with service role for full access
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
     // Get all active device tokens
     const { data: deviceTokens, error: tokensError } = await supabase
@@ -80,9 +96,9 @@ serve(async (req) => {
 
       console.log(`  💵 Revenue: R$ ${financialData.totalRevenue} | Patients: ${financialData.patientCount}`)
 
-      // Skip if no patients (no activity today)
-      if (financialData.patientCount === 0) {
-        console.log(`  ⏭️  Skipping user ${userId}: no patients today`)
+      // Skip if no patients AND no revenue (no activity today)
+      if (financialData.patientCount === 0 && financialData.totalRevenue === 0) {
+        console.log(`  ⏭️  Skipping user ${userId}: no patients and no revenue today`)
         continue
       }
 
@@ -96,9 +112,18 @@ serve(async (req) => {
           )
           successCount++
           console.log(`  ✅ Sent to device ${device.device_token.substring(0, 10)}...`)
-        } catch (error) {
+        } catch (error: any) {
           failCount++
-          console.error(`  ❌ Failed to send to device:`, error)
+          console.error(`  ❌ Failed to send to device:`, error.message)
+
+          // Cleanup stale tokens
+          if (error.message.includes('410') || error.message.includes('404') || error.message.includes('Unregistered') || error.message.includes('BadDeviceToken')) {
+            console.log(`  🗑️ Deactivating stale token: ${device.device_token.substring(0, 10)}...`)
+            await supabase
+              .from('device_tokens')
+              .update({ is_active: false })
+              .eq('device_token', device.device_token)
+          }
         }
       }
     }
@@ -130,27 +155,34 @@ serve(async (req) => {
 })
 
 /**
+ * Calculates current date in São Paulo timezone (yyyy-mm-dd)
+ */
+function getSaoPauloDate(isoString: string | Date): string {
+  const date = typeof isoString === 'string' ? new Date(isoString) : isoString
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date)
+}
+
+/**
  * Calculate financial data for a user for today (São Paulo timezone)
  */
 async function calculateFinancialData(supabase: any, userId: string) {
   // Get today's date range in São Paulo timezone
   const now = new Date()
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  })
-  const todayStr = formatter.format(now)
+  const todayStr = getSaoPauloDate(now)
   const startOfDay = `${todayStr}T00:00:00-03:00`
   const endOfDay = `${todayStr}T23:59:59-03:00`
 
   console.log(`  📅 Date range: ${startOfDay} to ${endOfDay}`)
 
-  // Fetch appointments for today (non-cancelled, non-personal)
+  // Fetch appointments for today for patient count
   const { data: appointments, error: aptError } = await supabase
     .from('appointments')
-    .select('id, procedure_id')
+    .select('id')
     .eq('user_id', userId)
     .gte('start', startOfDay)
     .lte('start', endOfDay)
@@ -164,46 +196,216 @@ async function calculateFinancialData(supabase: any, userId: string) {
 
   const patientCount = appointments?.length || 0
 
-  // Calculate revenue from procedures
-  let totalRevenue = 0
+  // Calculate revenue from all sources in parallel
+  try {
+    const [proceduresRevenue, salesRevenue, subscriptionsRevenue, coursesRevenue] = await Promise.all([
+      fetchProceduresRevenue(supabase, userId, todayStr),
+      fetchSalesRevenue(supabase, userId, todayStr),
+      fetchSubscriptionsRevenue(supabase, userId, todayStr),
+      fetchCoursesRevenue(supabase, userId, todayStr)
+    ])
 
-  if (appointments && appointments.length > 0) {
-    const procedureIds = appointments
-      .map(apt => apt.procedure_id)
-      .filter(id => id != null)
+    const totalRevenue = proceduresRevenue + salesRevenue + subscriptionsRevenue + coursesRevenue
 
-    if (procedureIds.length > 0) {
-      const { data: procedures, error: procError } = await supabase
-        .from('procedures')
-        .select('total_cost, installments, paid_installments')
-        .in('id', procedureIds)
+    console.log(`  💰 Revenue breakdown for ${todayStr}:`)
+    console.log(`    Procedures: R$ ${proceduresRevenue}`)
+    console.log(`    Sales: R$ ${salesRevenue}`)
+    console.log(`    Subscriptions: R$ ${subscriptionsRevenue}`)
+    console.log(`    Courses: R$ ${coursesRevenue}`)
+    console.log(`    TOTAL: R$ ${totalRevenue}`)
 
-      if (procError) {
-        console.error('  ❌ Error fetching procedures:', procError)
-        throw procError
+    return {
+      patientCount,
+      totalRevenue,
+      formattedRevenue: formatCurrency(totalRevenue)
+    }
+  } catch (error) {
+    console.error('  ⚠️ Error calculating total revenue:', error)
+    // Return 0 if calculation fails, but keep patientCount
+    return {
+      patientCount,
+      totalRevenue: 0,
+      formattedRevenue: formatCurrency(0)
+    }
+  }
+}
+
+/**
+ * Fetch procedures revenue from patients table
+ */
+async function fetchProceduresRevenue(supabase: any, userId: string, dateStr: string): Promise<number> {
+  try {
+    const { data: patients, error: patientsError } = await supabase
+      .from('patients')
+      .select('planned_procedures')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+
+    if (patientsError) throw patientsError
+
+    let total = 0
+
+    for (const patient of patients || []) {
+      if (!patient.planned_procedures) continue
+
+      let procedures = patient.planned_procedures
+      if (typeof procedures === 'string') {
+        procedures = JSON.parse(procedures)
       }
+      if (!Array.isArray(procedures)) continue
 
-      // Calculate revenue (same logic as FinancialReportViewModel)
-      for (const proc of procedures || []) {
-        if (proc.installments && proc.installments > 1) {
-          // Parceled payment: count only paid installments
-          const installmentValue = proc.total_cost / proc.installments
-          const paidInstallments = proc.paid_installments || 0
-          totalRevenue += installmentValue * paidInstallments
-        } else {
-          // Full payment
-          totalRevenue += proc.total_cost || 0
+      const completedProcs = procedures.filter((p: any) => p.status === 'completed')
+
+      for (const proc of completedProcs) {
+        const procDate = proc.performedAt || proc.completedAt
+        if (!procDate) continue
+
+        // Revert: Use substring to match iOS logic exactly (ignore timezone shifts)
+        const procDateOnly = procDate.substring(0, 10)
+
+
+
+        const isMatch = procDateOnly === dateStr
+
+        // Case 1: Parcelado
+        if (proc.permitirParcelado && proc.pagamentos?.length > 0) {
+          for (const pag of proc.pagamentos) {
+            if (!pag.data) continue
+            // Dates in pagamentos usually come as 'yyyy-mm-dd' string from frontend, 
+            // but to be safe we treat it if it's full ISO
+            const pagDate = pag.data.includes('T') ? getSaoPauloDate(pag.data) : pag.data.substring(0, 10)
+
+            if (pagDate === dateStr) {
+              total += pag.valor || 0
+            }
+          }
+        }
+        // Case 2: Split payments
+        else if (proc.paymentSplits?.length > 0) {
+          // Check splits individually if they have dates, otherwise fallback to procedure date?
+          // Assuming splits are usually paid on procedure date unless specified elsewhere.
+          // But existing logic checked procDateOnly === dateStr.
+          if (isMatch) {
+            for (const split of proc.paymentSplits) {
+              total += split.amount || 0
+            }
+          }
+        }
+        // Case 3: Traditional single payment
+        else if (!proc.permitirParcelado && isMatch) {
+          const val = proc.totalValue || proc.value || 0
+          total += val
         }
       }
     }
-  }
 
-  return {
-    patientCount,
-    totalRevenue,
-    formattedRevenue: formatCurrency(totalRevenue)
+
+    return total
+  } catch (error) {
+    console.error('  ⚠️ Error fetching procedures revenue:', error)
+    return 0
   }
 }
+
+/**
+ * Fetch sales revenue
+ */
+async function fetchSalesRevenue(supabase: any, userId: string, dateStr: string): Promise<number> {
+  try {
+    const { data: sales, error } = await supabase
+      .from('sales')
+      .select('total_amount, sold_at, created_at')
+      .eq('user_id', userId)
+      .eq('payment_status', 'paid')
+
+    if (error) throw error
+
+    let total = 0
+    for (const sale of sales || []) {
+      const saleDate = sale.sold_at || sale.created_at
+      if (!saleDate) continue
+
+      // Fix: Convert to Sao Paulo date
+      if (getSaoPauloDate(saleDate) === dateStr) {
+        total += sale.total_amount || 0
+      }
+    }
+    return total
+  } catch (error) {
+    console.error('  ⚠️ Error fetching sales:', error)
+    return 0
+  }
+}
+
+/**
+ * Fetch subscriptions revenue
+ */
+async function fetchSubscriptionsRevenue(supabase: any, userId: string, dateStr: string): Promise<number> {
+  try {
+    // 1. Get subscriptions for user
+    const { data: subscriptions, error: subsError } = await supabase
+      .from('patient_subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+
+    if (subsError || !subscriptions?.length) return 0
+
+    const subscriptionIds = subscriptions.map((s: any) => s.id)
+
+    // 2. Get payments for these subscriptions on the specific date
+    const { data: payments, error: paymentsError } = await supabase
+      .from('subscription_payments')
+      .select('amount, paid_at')
+      .in('subscription_id', subscriptionIds)
+      .eq('status', 'paid')
+
+    if (paymentsError) throw paymentsError
+
+    let total = 0
+    for (const payment of payments || []) {
+      if (!payment.paid_at) continue
+
+      // Fix: Convert to Sao Paulo date
+      if (getSaoPauloDate(payment.paid_at) === dateStr) {
+        total += payment.amount || 0
+      }
+    }
+    return total
+  } catch (error) {
+    console.error('  ⚠️ Error fetching subscriptions:', error)
+    return 0
+  }
+}
+
+/**
+ * Fetch courses revenue
+ */
+async function fetchCoursesRevenue(supabase: any, userId: string, dateStr: string): Promise<number> {
+  try {
+    const { data: enrollments, error } = await supabase
+      .from('enrollments')
+      .select('amount_paid, enrollment_date')
+      .eq('user_id', userId)
+      .gt('amount_paid', 0)
+
+    if (error) throw error
+
+    let total = 0
+    for (const enrollment of enrollments || []) {
+      if (!enrollment.enrollment_date) continue
+
+      // Fix: Convert to Sao Paulo date
+      if (getSaoPauloDate(enrollment.enrollment_date) === dateStr) {
+        total += enrollment.amount_paid || 0
+      }
+    }
+    return total
+  } catch (error) {
+    console.error('  ⚠️ Error fetching courses:', error)
+    return 0
+  }
+}
+
 
 /**
  * Format currency in Brazilian Real
@@ -281,6 +483,9 @@ async function sendPushNotification(deviceToken: string, data: any, isSandbox: b
  */
 async function generateAPNsJWT(): Promise<string> {
   try {
+    // Check if key is available
+    if (!APNS_KEY_PEM) throw new Error('APNS_KEY is missing')
+
     // Import the private key from PEM format
     const pemHeader = "-----BEGIN PRIVATE KEY-----"
     const pemFooter = "-----END PRIVATE KEY-----"
