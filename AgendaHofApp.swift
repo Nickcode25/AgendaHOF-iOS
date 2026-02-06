@@ -208,8 +208,16 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: supabase.isAuthenticated)
         // O DeepLinkManager controla o estado da sheet de reset
-        .sheet(isPresented: $deepLinkManager.showResetPassword) {
-            ResetPasswordView(token: deepLinkManager.resetToken ?? "")
+        // Usamos onReceive para garantir que abrirá mesmo se outra sheet estiver aberta (o manager envia dismissAllSheets antes)
+        .sheet(isPresented: $deepLinkManager.showResetPassword, onDismiss: {
+            deepLinkManager.showResetPassword = false
+            deepLinkManager.resetToken = nil
+        }) {
+            if let token = deepLinkManager.resetToken {
+                ResetPasswordView(token: token)
+            } else {
+                Text("Erro: Token não encontrado")
+            }
         }
         .onChange(of: isCheckingAuth) { _, newValue in
             if !newValue {
@@ -290,6 +298,7 @@ extension Notification.Name {
 struct WelcomeView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var animateGradient = false
+    @State private var showSignUp = false
     
     var body: some View {
         NavigationStack {
@@ -320,7 +329,7 @@ struct WelcomeView: View {
                     Spacer()
                     
                     // Bottom Actions
-                    VStack(spacing: 20) {
+                VStack(spacing: 20) {
                         // Login Button
                         NavigationLink(destination: LoginView()) {
                             Text("Entrar")
@@ -333,8 +342,10 @@ struct WelcomeView: View {
                                 .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
                         }
                         
-                        // Sign Up Button
-                        NavigationLink(destination: SignUpView()) {
+                        // Sign Up Button (via Sheet for consistency)
+                        Button {
+                            showSignUp = true
+                        } label: {
                             Text("Criar conta")
                                 .font(.system(size: 17, weight: .medium))
                                 .foregroundColor(.white.opacity(0.9))
@@ -344,6 +355,9 @@ struct WelcomeView: View {
                     .padding(.bottom, 60) // Safe area padding
                 }
             }
+        }
+        .sheet(isPresented: $showSignUp) {
+            SignUpView()
         }
     }
     

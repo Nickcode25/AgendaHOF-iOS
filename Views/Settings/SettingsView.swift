@@ -156,6 +156,14 @@ struct SettingsView: View {
                     Text(Constants.appVersion)
                         .foregroundColor(.secondary)
                 }
+
+                NavigationLink(destination: LegalInfoView()) {
+                    HStack {
+                        Image(systemName: "info.circle.fill") // Icone para combinar com os outros
+                            .foregroundColor(.gray)
+                        Text("Informações Legais")
+                    }
+                }
             }
 
 

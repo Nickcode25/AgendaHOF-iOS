@@ -1,4 +1,5 @@
 import SwiftUI
+import Contacts
 
 struct PatientsListView: View {
     @StateObject private var patientService = PatientService()
@@ -124,8 +125,9 @@ struct PatientsListView: View {
             .presentationDragIndicator(.hidden)
         }
 
+
         .sheet(isPresented: $showContactPicker) {
-            CustomContactPickerView { contacts in
+            ContactPickerView { contacts in
                 showContactPicker = false
                 Task {
                     await handleBatchImport(contacts)
@@ -328,7 +330,7 @@ struct NewPatientView: View {
     @State private var name = ""
     @State private var phone = ""
 
-    @State private var showContactPicker = false
+
 
     @State private var isLoading = false
     @State private var showError = false
@@ -352,18 +354,7 @@ struct NewPatientView: View {
 
                 }
 
-                // Botão para importar contato
-                Section {
-                    Button {
-                        showContactPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "person.crop.circle.badge.plus")
-                            Text("Importar Contato")
-                        }
-                        .foregroundColor(.appPrimary)
-                    }
-                }
+
             }
             .navigationTitle("Novo Paciente")
             .navigationBarTitleDisplayMode(.inline)
@@ -388,16 +379,7 @@ struct NewPatientView: View {
             } message: {
                 Text(errorMessage)
             }
-            .sheet(isPresented: $showContactPicker) {
-                ContactPicker { contact in
-                    name = contact.name
-                    if let contactPhone = contact.phone {
-                        phone = formatPhoneBrazil(contactPhone)
-                    }
 
-                    showContactPicker = false
-                }
-            }
         }
         .onAppear {
             populateFields()

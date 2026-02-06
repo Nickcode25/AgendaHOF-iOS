@@ -28,7 +28,8 @@
 		3718E60C2F21913F00EBCE8D /* ExampleSubscriptionGatedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3718E6092F21913F00EBCE8D /* ExampleSubscriptionGatedView.swift */; };
 		3718E60D2F21913F00EBCE8D /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3718E60A2F21913F00EBCE8D /* PaywallView.swift */; };
 		37206CCC2F218A1800CD4ACD /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37206CCB2F218A1800CD4ACD /* StoreKit.framework */; };
-		37209A5C2F1067F0000E350C /* CustomContactPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */; };
+		37209A5C2F1067F0000E350C /* ContactPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37209A5B2F1067F0000E350C /* ContactPickerView.swift */; };
+		372291BE2F33CE47004A632B /* LegalInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 372291BD2F33CE47004A632B /* LegalInfoView.swift */; };
 		37D164212F2CE891004C9481 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D164202F2CE891004C9481 /* PushNotificationManager.swift */; };
 		39E3C34DBA9DD3ECE85FC5C4 /* EditRecurringBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2AB3110D5F03853509D92DB /* EditRecurringBlockView.swift */; };
 		41A0AF040D0950E8A118E26D /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEC53DCF046BB187ADD590 /* AgendaView.swift */; };
@@ -149,7 +150,8 @@
 		3718E6092F21913F00EBCE8D /* ExampleSubscriptionGatedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExampleSubscriptionGatedView.swift; sourceTree = "<group>"; };
 		3718E60A2F21913F00EBCE8D /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		37206CCB2F218A1800CD4ACD /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
-		37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomContactPickerView.swift; sourceTree = "<group>"; };
+		37209A5B2F1067F0000E350C /* ContactPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPickerView.swift; sourceTree = "<group>"; };
+		372291BD2F33CE47004A632B /* LegalInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalInfoView.swift; sourceTree = "<group>"; };
 		37D164202F2CE891004C9481 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 		39E5BF262FBAEAC2BCCD0960 /* MockSupabaseManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MockSupabaseManager.swift; sourceTree = "<group>"; };
 		3A9578000F01CFD33A2E9583 /* InactivePatientsViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InactivePatientsViewModelTests.swift; sourceTree = "<group>"; };
@@ -502,7 +504,7 @@
 		9B0411BEB392E1F72436F7AF /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				37209A5B2F1067F0000E350C /* CustomContactPickerView.swift */,
+				37209A5B2F1067F0000E350C /* ContactPickerView.swift */,
 				D0C3888277E836B839C08367 /* AvatarView.swift */,
 				127EF4F927CC5D746852D6C3 /* EmptyStateView.swift */,
 				5D5F7B7E6BE3B1EEE2228758 /* LoadingView.swift */,
@@ -585,6 +587,7 @@
 		CC016246921ADBDBB5897FD3 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				372291BD2F33CE47004A632B /* LegalInfoView.swift */,
 				3DE7668D92C2F35C312AC4FD /* SettingsView.swift */,
 				022282F2139043B887E3FE39 /* InactivePatientsView.swift */,
 				1490807C226955D433A2A184 /* SupportView.swift */,
@@ -842,6 +845,7 @@
 				3718E60C2F21913F00EBCE8D /* ExampleSubscriptionGatedView.swift in Sources */,
 				3718E60D2F21913F00EBCE8D /* PaywallView.swift in Sources */,
 				C01E4912987BA492D13CE0CD /* Patient.swift in Sources */,
+				372291BE2F33CE47004A632B /* LegalInfoView.swift in Sources */,
 				303A15293BDBCDCAEF40C95C /* PatientDetailView.swift in Sources */,
 				DE3867D9978171FC693F9AFE /* PatientService.swift in Sources */,
 				E677FE4EFF44745E171E4F39 /* PatientsListView.swift in Sources */,
@@ -864,7 +868,7 @@
 				32E156FA3190480EB6E13A8E /* InactivePatient.swift in Sources */,
 				3639628225DE4338B76015C2 /* InactivePatientsViewModel.swift in Sources */,
 				C2D1F763B2A948ADAA00EB94 /* InactivePatientsView.swift in Sources */,
-				37209A5C2F1067F0000E350C /* CustomContactPickerView.swift in Sources */,
+				37209A5C2F1067F0000E350C /* ContactPickerView.swift in Sources */,
 				1B0CFA65642C1546F6587BF1 /* Constants.swift in Sources */,
 				95474FC041985A9B7A14B521 /* DeepLinkManager.swift in Sources */,
 				8B9440454BC0C5B0F5C51519 /* AppLogger.swift in Sources */,
@@ -983,7 +987,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 21;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				INFOPLIST_FILE = Info.plist;
@@ -1167,7 +1171,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AgendaHOF.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 21;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = J5YU2V26FV;
 				ENABLE_TESTABILITY = YES;

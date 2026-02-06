@@ -14,15 +14,11 @@ class SupabaseManager: ObservableObject {
     @Published var isLoading = false
 
     private init() {
-        // Graceful handling: se URL inválida, não crashar o app
-        // Em vez disso, criar client com URL placeholder que falhará nas requisições
-        // mas permitirá que o app abra e mostre erro tratável ao usuário
         let url: URL
         if let validURL = URL(string: Constants.supabaseURL) {
             url = validURL
         } else {
             AppLogger.error("❌ CRITICAL: Invalid Supabase URL in Constants. Check your configuration.")
-            // URL placeholder - requisições falharão com erro tratável, não crash
             url = URL(string: "https://invalid.supabase.co")!
         }
         
@@ -38,30 +34,79 @@ class SupabaseManager: ObservableObject {
             )
         )
 
-        // Observar mudanças de autenticação
+        // ✅ MUDANÇA CRÍTICA: Observer de auth apenas atualiza dados, NUNCA força logout
         Task {
             for await (event, session) in client.auth.authStateChanges {
-                switch event {
-                case .signedIn:
-                    self.currentSession = session
-                    self.currentUser = session?.user
-                    await loadUserProfile()
-                    
-                    // Não definir isAuthenticated = true aqui imediatamente.
-                    // Deixar que signIn() ou checkSession() façam a verificação de acesso.
-                    // Se definirmos true aqui, a UI pode transicionar antes da verificação de plano.
-                    
-                case .signedOut:
-                    self.currentSession = nil
-                    self.currentUser = nil
-                    self.userProfile = nil
-                    self.isAuthenticated = false
-                case .tokenRefreshed:
-                    self.currentSession = session
-                default:
-                    break
-                }
+                await handleAuthStateChange(event: event, session: session)
             }
+        }
+    }
+
+    // ✅ NOVO: Método separado para tratar mudanças de autenticação
+    private func handleAuthStateChange(event: AuthChangeEvent, session: Session?) async {
+        AppLogger.log("🔔 [Auth] Auth state changed: \(event)", category: .auth)
+        
+        switch event {
+        case .signedIn:
+            // ✅ Atualizar sessão e usuário
+            self.currentSession = session
+            self.currentUser = session?.user
+            
+            // ✅ Carregar perfil apenas se ainda não temos ou se mudou o usuário
+            if self.userProfile == nil || self.userProfile?.id != session?.user.id.uuidString {
+                await loadUserProfile()
+            }
+            
+            // ✅ IMPORTANTE: Só marcar como autenticado se for login novo
+            // Não sobrescrever se já estava autenticado (evita race condition)
+            if !self.isAuthenticated {
+                self.isAuthenticated = true
+                AppLogger.log("✅ [Auth] Usuario autenticado via authStateChanges", category: .auth)
+            }
+            
+        case .tokenRefreshed:
+            // ✅ CRÍTICO: Apenas atualizar token, NUNCA alterar isAuthenticated
+            self.currentSession = session
+            AppLogger.log("🔄 [Auth] Token renovado automaticamente", category: .auth)
+            // ❌ NÃO fazer logout ou alterar isAuthenticated aqui!
+            
+        case .signedOut:
+            // ✅ Só fazer logout se for um signOut EXPLÍCITO do usuário
+            // (não por erro de rede ou expiração de token)
+            AppLogger.log("🚪 [Auth] SignedOut event recebido", category: .auth)
+            
+            // ✅ Verificar se foi logout intencional ou erro
+            // Se ainda temos sessão local válida, pode ser refresh falhado temporário
+            if self.currentSession != nil {
+                AppLogger.log("⚠️ [Auth] SignedOut recebido mas sessão local ainda existe - ignorando", category: .auth)
+                // NÃO fazer logout - pode ser apenas falha temporária de rede
+                return
+            }
+            
+            // Se não temos sessão, aí sim limpar
+            self.currentSession = nil
+            self.currentUser = nil
+            self.userProfile = nil
+            self.isAuthenticated = false
+            
+        case .initialSession:
+            // ✅ Sessão inicial - apenas atualizar dados sem mudar estado de auth
+            if let session = session {
+                self.currentSession = session
+                self.currentUser = session.user
+                await loadUserProfile()
+                AppLogger.log("🔵 [Auth] Sessão inicial carregada", category: .auth)
+            }
+            
+        case .passwordRecovery, .userUpdated:
+            // ✅ Eventos que não devem afetar autenticação
+            if let session = session {
+                self.currentSession = session
+                self.currentUser = session.user
+            }
+            
+        @unknown default:
+            AppLogger.log("⚠️ [Auth] Evento desconhecido: \(event)", category: .auth)
         }
     }
 
@@ -79,14 +124,11 @@ class SupabaseManager: ObservableObject {
         self.currentSession = session
         self.currentUser = session.user
         
-        // Carregar perfil primeiro
         await loadUserProfile()
         
-        // ✅ MUDANÇA: Sempre permitir login, independentemente do plano
-        // O paywall será exibido automaticamente dentro do app
+        // ✅ Sempre permitir login
         self.isAuthenticated = true
         
-        // Verificar acesso via SubscriptionManager (para exibir paywall, não bloquear)
         await SubscriptionManager.shared.checkAccess()
         
         let accessState = SubscriptionManager.shared.accessState
@@ -101,18 +143,12 @@ class SupabaseManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        // 1. Criar usuário no Supabase Auth com Metadados
-        // O Trigger 'handle_new_user' no banco de dados irá ler estes metadados
-        // e criar o registro na tabela user_profiles automaticamente.
-        
-        // Monta os metadados (professionalName é opcional)
         var metadata: [String: AnyJSON] = [
             "full_name": AnyJSON.string(name),
             "phone": AnyJSON.string(phone),
             "trial_end_date": AnyJSON.string(trialEndDate)
         ]
         
-        // Adiciona professional_name apenas se foi preenchido
         if let profName = professionalName, !profName.isEmpty {
             metadata["professional_name"] = AnyJSON.string(profName)
         }
@@ -125,21 +161,19 @@ class SupabaseManager: ObservableObject {
 
         self.currentSession = session.session
         self.currentUser = session.user
-        self.isAuthenticated = session.session != nil
 
-        // Aguardar um momento para o Trigger rodar e criar o perfil
-        try? await Task.sleep(nanoseconds: 2 * 1_000_000_000) // Aumentado para 2 segundos
+        try? await Task.sleep(nanoseconds: 2 * 1_000_000_000)
         
-        // Tentar carregar o perfil criado pelo Trigger
         await loadUserProfile()
         
-        // FALBACK: Se o trigger falhou ou demorou demais, criamos manualmente
+        // FALLBACK: Se o trigger falhou
         if self.userProfile == nil {
             AppLogger.log("⚠️ Aviso: Trigger demorou ou falhou. Criando perfil manualmente via App...", category: .auth)
             
-            let userId = session.user.id
+                // Corrigido: session.user não é opcional
+                let user = session.user
             
-            // display_name: usa professional_name se existir, senão usa full_name
+            let userId = user.id
             let displayName = (professionalName != nil && !professionalName!.isEmpty) ? professionalName! : name
             
             do {
@@ -151,10 +185,10 @@ class SupabaseManager: ObservableObject {
                     "phone": AnyJSON.string(phone),
                     "role": AnyJSON.string("owner"),
                     "clinic_id": AnyJSON.string(userId.uuidString),
-                    "is_active": AnyJSON.bool(true)
+                    "is_active": AnyJSON.bool(true),
+                    "trial_end_date": AnyJSON.string(trialEndDate)
                 ]
                 
-                // Adiciona professional_name apenas se foi preenchido
                 if let profName = professionalName, !profName.isEmpty {
                     userProfile["professional_name"] = AnyJSON.string(profName)
                 }
@@ -164,12 +198,10 @@ class SupabaseManager: ObservableObject {
                     .insert(userProfile)
                     .execute()
 
-                // Tentar carregar novamente
                 await loadUserProfile()
                 AppLogger.log("✅ Perfil criado manualmente com sucesso!", category: .auth)
             } catch {
                 AppLogger.error("❌ Erro fatal ao criar perfil (Fallback): \(error)")
-                // Se falhar o fallback, aí sim deslogamos
                 try? await client.auth.signOut()
                 self.currentSession = nil
                 self.currentUser = nil
@@ -177,63 +209,168 @@ class SupabaseManager: ObservableObject {
                 throw error
             }
         }
+        
+        // Criar Profissional Automaticamente
+        let profName = (professionalName != nil && !professionalName!.isEmpty) ? professionalName! : name
+        
+        let newProfessional = Professional.Insert(
+            userId: session.user.id.uuidString,
+            name: profName,
+            specialty: "Harmonização Orofacial",
+            phone: phone,
+            email: email,
+            isActive: true
+        )
+        
+        do {
+            try await client
+                .from("professionals")
+                .insert(newProfessional)
+                .execute()
+            AppLogger.log("✅ [Auth] Profissional automático criado: \(profName)", category: .auth)
+        } catch {
+            AppLogger.error("❌ [Auth] Erro ao criar profissional automático: \(error)")
+        }
+        
+        await SubscriptionManager.shared.checkAccess()
+        
+        let accessState = SubscriptionManager.shared.accessState
+        if accessState.hasAccess {
+            AppLogger.log("✅ [Auth] Cadastro concluído. Acesso liberado: \(accessState.planType.displayName)", category: .auth)
+        } else {
+            AppLogger.log("⚠️ [Auth] Cadastro concluído mas sem acesso (Trial falhou?)", category: .auth)
+        }
+        
+        self.isAuthenticated = true
     }
 
     func signOut() async throws {
+        // ✅ CRÍTICO: Só este método deve fazer logout de verdade
+        AppLogger.log("🚪 [Auth] Usuario solicitou logout", category: .auth)
+        
         try await client.auth.signOut()
+        
+        // ✅ Limpar tudo após logout bem-sucedido
         self.currentSession = nil
         self.currentUser = nil
         self.userProfile = nil
         self.isAuthenticated = false
+        
+        AppLogger.log("✅ [Auth] Logout concluído", category: .auth)
     }
 
     func checkSession() async {
+        // ✅ MUDANÇA CRÍTICA: Método muito mais tolerante a erros
         do {
             let session = try await client.auth.session
+            
+            // ✅ Sessão válida encontrada
             self.currentSession = session
             self.currentUser = session.user
-            await loadUserProfile()
             
-            // ✅ IMPORTANTE: Separar autenticação de acesso
-            // A sessão do Supabase é válida = usuário está autenticado
-            // A verificação de subscription é separada (feita no checkAccess)
+            // ✅ Carregar perfil apenas se necessário
+            if self.userProfile == nil || self.userProfile?.id != session.user.id.uuidString {
+                await loadUserProfile()
+            }
+            
+            // ✅ Marcar como autenticado
             self.isAuthenticated = true
             
-            // Verificar acesso via SubscriptionManager (para paywall, não logout)
+            // ✅ Verificar acesso (para paywall, não logout)
             await SubscriptionManager.shared.checkAccess()
             
             let accessState = SubscriptionManager.shared.accessState
             if accessState.hasAccess {
                 AppLogger.log("✅ [Auth] Sessão restaurada. Plano: \(accessState.planType.displayName) via \(accessState.source.displayName)", category: .auth)
             } else {
-                // ✅ MUDANÇA: Não fazer logout, apenas logar
-                // O app vai mostrar paywall em vez de deslogar
                 AppLogger.log("⚠️ [Auth] Sessão válida mas sem subscription ativa. Paywall será exibido.", category: .auth)
             }
-        } catch {
-            // Verificar se é erro de autenticação real (401) ou apenas erro de rede
-            let nsError = error as NSError
-            let isAuthError = nsError.code == 401 || 
-                              error.localizedDescription.lowercased().contains("unauthorized") ||
-                              error.localizedDescription.lowercased().contains("jwt expired") ||
-                              error.localizedDescription.lowercased().contains("invalid token")
             
-            if isAuthError {
-                // Erro de autenticação real - sessão inválida
-                AppLogger.log("🚫 [Auth] Sessão inválida ou expirada: \(error.localizedDescription)", category: .auth)
-                self.currentSession = nil
+        } catch {
+            // ✅ MUDANÇA CRÍTICA: Tratar erros com muito mais cuidado
+            await handleSessionError(error)
+        }
+    }
+    
+    // ✅ NOVO: Método separado para tratar erros de sessão
+    private func handleSessionError(_ error: Error) async {
+        let errorString = error.localizedDescription.lowercased()
+        
+        // ✅ Lista mais específica de erros que realmente significam "sessão inválida"
+        let definiteAuthErrors = [
+            "invalid grant",
+            "invalid_grant",
+            "refresh_token_not_found",
+            "jwt expired",
+            "invalid token",
+            "invalid_token",
+            "token has expired",
+            "user not found",
+            "session not found",
+            "session_not_found"
+        ]
+        
+        let isDefiniteAuthError = definiteAuthErrors.contains { errorString.contains($0) }
+        
+        // ✅ Também verificar código HTTP
+        let nsError = error as NSError
+        let isUnauthorized = nsError.code == 401
+        
+        if isDefiniteAuthError || isUnauthorized {
+            AppLogger.log("🔴 [Auth] Erro de autenticação definitivo detectado: \(error.localizedDescription)", category: .auth)
+            
+            // ✅ TENTATIVA DE RE-AUTENTICAÇÃO SILENCIOSA
+            if UserDefaults.standard.bool(forKey: Constants.rememberMeKey),
+               let savedEmail = UserDefaults.standard.string(forKey: Constants.savedEmailKey),
+               let savedPassword = KeychainManager.shared.getPassword(for: savedEmail) {
+                
+                AppLogger.log("🔄 [Auth] Tentando re-autenticação silenciosa...", category: .auth)
+                
+                do {
+                    try await signIn(email: savedEmail, password: savedPassword)
+                    AppLogger.log("✅ [Auth] Re-autenticação silenciosa bem-sucedida!", category: .auth)
+                    return // ✅ Sucesso - não fazer logout
+                } catch {
+                    AppLogger.error("❌ [Auth] Falha na re-autenticação silenciosa: \(error)")
+                }
+            }
+            
+            // ✅ Só fazer logout se re-auth falhou E não temos sessão local
+            if self.currentSession == nil {
+                AppLogger.log("🚫 [Auth] Fazendo logout por sessão inválida", category: .auth)
                 self.currentUser = nil
                 self.userProfile = nil
                 self.isAuthenticated = false
             } else {
-                // Erro de rede ou outro - manter sessão local
-                AppLogger.log("⚠️ [Auth] Erro de rede ao verificar sessão (mantendo estado): \(error.localizedDescription)", category: .auth)
-                
-                // Se já temos uma sessão local, assumimos que ainda é válida
-                if self.currentSession != nil {
-                    self.isAuthenticated = true
-                    AppLogger.log("✅ [Auth] Sessão local mantida (modo offline)", category: .auth)
+                AppLogger.log("⚠️ [Auth] Erro de sessão mas mantendo sessão local temporariamente", category: .auth)
+            }
+            
+        } else {
+            // ✅ MUDANÇA CRÍTICA: Erros de rede NÃO causam logout
+            AppLogger.log("⚠️ [Auth] Erro temporário ao verificar sessão (provavelmente rede): \(error.localizedDescription)", category: .auth)
+            
+            // ✅ MANTER sessão local
+            if self.currentSession != nil {
+                // ✅ Já temos sessão - considerar válida até prova em contrário
+                self.isAuthenticated = true
+                AppLogger.log("✅ [Auth] Mantendo sessão local (modo offline/tolerante)", category: .auth)
+            } else {
+                // ✅ Não temos sessão - tentar re-auth silenciosa antes de desistir
+                if UserDefaults.standard.bool(forKey: Constants.rememberMeKey),
+                   let savedEmail = UserDefaults.standard.string(forKey: Constants.savedEmailKey),
+                   let savedPassword = KeychainManager.shared.getPassword(for: savedEmail) {
+                    
+                    AppLogger.log("🔄 [Auth] Sem sessão local mas tentando re-login...", category: .auth)
+                    
+                    do {
+                        try await signIn(email: savedEmail, password: savedPassword)
+                        AppLogger.log("✅ [Auth] Re-login bem-sucedido!", category: .auth)
+                    } catch {
+                        AppLogger.error("❌ [Auth] Re-login falhou: \(error)")
+                        self.isAuthenticated = false
+                    }
                 } else {
+                    AppLogger.log("🔵 [Auth] Sem sessão e sem credenciais salvas", category: .auth)
                     self.isAuthenticated = false
                 }
             }
@@ -241,7 +378,11 @@ class SupabaseManager: ObservableObject {
     }
 
     func resetPassword(email: String) async throws {
-        try await client.auth.resetPasswordForEmail(email)
+        if let redirectURL = URL(string: "agendahof://reset-password") {
+            try await client.auth.resetPasswordForEmail(email, redirectTo: redirectURL)
+        } else {
+            try await client.auth.resetPasswordForEmail(email)
+        }
     }
 
     // MARK: - User Profile
@@ -260,16 +401,16 @@ class SupabaseManager: ObservableObject {
 
             self.userProfile = profile
         } catch {
-            AppLogger.error("Erro ao carregar perfil: \(error)")
+            AppLogger.error("❌ [Auth] Erro ao carregar perfil: \(error)")
+            // ✅ NÃO fazer logout por erro ao carregar perfil
         }
     }
 
-    /// Recarrega o perfil do usuário (público para uso após edições)
     func fetchUserProfile() async {
         await loadUserProfile()
     }
 
-    // MARK: - Effective User ID (para staff)
+    // MARK: - Effective User ID
 
     var effectiveUserId: String? {
         if userProfile?.role == .staff {

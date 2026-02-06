@@ -46,7 +46,7 @@ class DeepLinkManager: ObservableObject {
         var error: String?
         var errorCode: String?
         
-        // 1. Tentar extrair do fragment (Padrão Supabase)
+        // 1. Tentar extrair do fragment (Padrão Supabase muitas vezes manda no fragmento)
         if let fragment = url.fragment {
             let fragmentComponents = URLComponents(string: "?\(fragment)")
             accessToken = fragmentComponents?.queryItems?.first(where: { $0.name == "access_token" })?.value
@@ -57,10 +57,16 @@ class DeepLinkManager: ObservableObject {
             errorCode = fragmentComponents?.queryItems?.first(where: { $0.name == "error_code" })?.value
         }
         
-        // 2. Fallback: Query string
+        // 2. Fallback: Query string (Padrão novo com redirect personalizado)
+        // Quando usamos redirectTo, o Supabase muitas vezes manda como query param
         if accessToken == nil {
             accessToken = components.queryItems?.first(where: { $0.name == "access_token" })?.value
             tokenType = components.queryItems?.first(where: { $0.name == "type" })?.value
+            
+            // Tentar capturar o code se for flow PKCE (embora reset use geralmente access_token implícito no link mágico)
+            if accessToken == nil {
+                 accessToken = components.queryItems?.first(where: { $0.name == "code" })?.value
+            }
         }
         
         // 3. Fallback Legacy

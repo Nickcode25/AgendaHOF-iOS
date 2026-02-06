@@ -86,19 +86,39 @@ serve(async (req) => {
                 continue
             }
 
+            // Generate JWT token once per batch to avoid APNs rate limits (TooManyProviderTokenUpdates)
+            let jwt = ''
+            try {
+                jwt = await generateAPNsJWT()
+            } catch (error) {
+                console.error('❌ Failed to generate APNs JWT:', error)
+                failCount += devices.length
+                continue
+            }
+
             // Send notification to all devices for this user
             for (const device of devices) {
                 try {
                     await sendPushNotification(
                         device.device_token,
                         financialData,
-                        device.environment === 'sandbox'
+                        device.environment === 'sandbox',
+                        jwt
                     )
                     successCount++
                     console.log(`  ✅ Sent to device ${device.device_token.substring(0, 10)}...`)
                 } catch (error) {
                     failCount++
                     console.error(`  ❌ Failed to send to device:`, error)
+
+                    // Auto-cleanup: Delete invalid tokens (410 Gone / 404 BadDeviceToken)
+                    if (error.message && (error.message.includes('410') || error.message.includes('404'))) {
+                        console.log(`  🗑️ Removing invalid token: ${device.device_token.substring(0, 10)}...`)
+                        await supabase
+                            .from('device_tokens')
+                            .delete()
+                            .eq('device_token', device.device_token)
+                    }
                 }
             }
         }
@@ -410,10 +430,10 @@ function getWeeklyMotivationalMessage(revenue: number, patientCount: number, for
 /**
  * Send push notification via APNs
  */
-async function sendPushNotification(deviceToken: string, data: any, isSandbox: boolean) {
-    // Generate JWT token for APNs authentication
-    const jwt = await generateAPNsJWT()
-
+/**
+ * Send push notification via APNs
+ */
+async function sendPushNotification(deviceToken: string, data: any, isSandbox: boolean, jwt: string) {
     const endpoint = isSandbox
         ? 'https://api.sandbox.push.apple.com'
         : 'https://api.push.apple.com'

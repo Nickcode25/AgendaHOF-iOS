@@ -63,6 +63,7 @@ struct SignUpView: View {
         } message: {
             Text(viewModel.errorMessage ?? "Erro desconhecido")
         }
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header Section

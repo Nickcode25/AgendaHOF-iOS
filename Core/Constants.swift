@@ -27,7 +27,7 @@ enum Constants {
     static let resetPasswordEndpoint = "\(backendURL)/api/auth/reset-password"
 
     /// Endpoint para forgot password
-    static let forgotPasswordEndpoint = "\(backendURL)/api/auth/forgot-password"
+    static let forgotPasswordEndpoint = "\(backendURL)/api/auth/request-password-reset"
 
     // MARK: - Deep Links
 

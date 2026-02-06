@@ -43,13 +43,10 @@ struct SubscriptionLogic {
              return referenceDate <= nextBilling
         }
         
-        // Se status active, tem tolerância de 3 dias
+        // Se status active, CONFIAMOS no status do Stripe/Supabase
+        // O Webhook do Stripe se encarrega de mudar para past_due ou unpaid se falhar
         if sub.status == .active {
-            guard let nextBilling = sub.nextBillingDate else { return true } // Se active e sem data, assume valido
-            
-            // Tolerância de 3 dias
-            let gracePeriod = Calendar.current.date(byAdding: .day, value: paidGracePeriodDays, to: nextBilling) ?? nextBilling
-            return referenceDate <= gracePeriod
+            return true
         }
         
         return false

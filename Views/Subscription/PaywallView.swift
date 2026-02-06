@@ -221,18 +221,28 @@ struct PaywallView: View {
     
     private var legalSection: some View {
         VStack(spacing: 8) {
+            Button("Restaurar Compras") {
+                Task {
+                    await subscriptionManager.restorePurchases()
+                }
+            }
+            .font(.subheadline)
+            .fontWeight(.medium)
+            .foregroundStyle(.primary)
+            .padding(.bottom, 8)
+            
             Text("Ao assinar, você concorda com os")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
             HStack(spacing: 4) {
-                Link("Termos de Uso", destination: URL(string: "https://agendahof.com/termos")!)
+                Link("Termos de Uso", destination: URL(string: "https://agendahof.com/terms")!)
                 Text("e")
-                Link("Política de Privacidade", destination: URL(string: "https://agendahof.com/privacidade")!)
+                Link("Política de Privacidade", destination: URL(string: "https://agendahof.com/privacy")!)
             }
             .font(.caption)
             
-            Text("A assinatura será renovada automaticamente. Você pode cancelar a qualquer momento nas configurações da App Store.")
+            Text("Assinatura com renovação automática mensal ou anual. Cancele a qualquer momento em Ajustes > Assinaturas.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

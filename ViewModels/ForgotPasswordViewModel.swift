@@ -43,8 +43,8 @@ class ForgotPasswordViewModel: ObservableObject {
             }
 
             // SEGURANÇA: Sempre mostra sucesso para prevenir enumeração
-            // O backend não envia email se o usuário não existir
-            if httpResponse.statusCode == 200 || httpResponse.statusCode == 400 {
+            // O backend retorna success=true mesmo se o email não existir
+            if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
                 success = true
                 startResendTimer()
             } else {
