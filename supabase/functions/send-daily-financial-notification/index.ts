@@ -405,8 +405,10 @@ async function fetchCoursesRevenue(supabase: any, userId: string, dateStr: strin
     for (const enrollment of enrollments || []) {
       if (!enrollment.enrollment_date) continue
 
-      // Fix: Convert to Sao Paulo date
-      if (getSaoPauloDate(enrollment.enrollment_date) === dateStr) {
+      // Fix: Extract date string directly (matches iOS behavior and avoids timezone shifts)
+      const enrollmentDate = enrollment.enrollment_date.substring(0, 10)
+
+      if (enrollmentDate === dateStr) {
         total += enrollment.amount_paid || 0
       }
     }
