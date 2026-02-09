@@ -129,14 +129,8 @@ async function calculateNextWeekAppointments(supabase: any, userId: string) {
   let daysUntilNextMonday: number
 
   if (currentDayOfWeek === 0) {
-    // It's Sunday
-    if (currentHour < 20) {
-      // Before 20:00: next week starts tomorrow (Monday)
-      daysUntilNextMonday = 1
-    } else {
-      // After 20:00: next week starts in 8 days (next Monday)
-      daysUntilNextMonday = 8
-    }
+    // It's Sunday - preview is always for the week starting tomorrow (Monday)
+    daysUntilNextMonday = 1
   } else {
     // Monday to Saturday: calculate days to next Monday
     daysUntilNextMonday = (8 - currentDayOfWeek) % 7
