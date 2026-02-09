@@ -240,6 +240,13 @@ struct EditRecurringBlockView: View {
         return selectedDays.sorted().map { dayNames[$0] }.joined(separator: ", ")
     }
 
+    // MARK: - Helper
+
+    private var realBlockId: String {
+        // Extrair o UUID real caso seja um bloco virtual (ex: "UUID_DATA")
+        block.id.components(separatedBy: "_").first ?? block.id
+    }
+
     // MARK: - Save
 
     private func save() async {
@@ -262,7 +269,7 @@ struct EditRecurringBlockView: View {
             try await supabase.client
                 .from("recurring_blocks")
                 .update(update)
-                .eq("id", value: block.id)
+                .eq("id", value: realBlockId)
                 .execute()
 
             onSave()
@@ -284,7 +291,7 @@ struct EditRecurringBlockView: View {
             try await supabase.client
                 .from("recurring_blocks")
                 .delete()
-                .eq("id", value: block.id)
+                .eq("id", value: realBlockId)
                 .execute()
 
             onSave()
