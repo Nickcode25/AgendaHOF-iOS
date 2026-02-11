@@ -60,6 +60,9 @@ class SubscriptionManager: ObservableObject {
         Task {
             await loadProducts()
         }
+        
+        // ✅ Tentar restaurar estado do cache imediatamente
+        restoreStateFromCache()
     }
     
     deinit {
@@ -90,9 +93,16 @@ class SubscriptionManager: ObservableObject {
         }
         
         guard let profile = supabase.userProfile else {
+            // ✅ Fallback: Se não conseguiu carregar perfil (erro de rede/cache), tentar usar AccessState salvo
+            if let cached = loadAccessStateFromCache() {
+                AppLogger.log("⚠️ [Access] Perfil ausente, mas usando cache de acesso: \(cached.planType.displayName)", category: .business)
+                finalizeAccess(cached)
+                return
+            }
+            
             accessState = .noAccess
             isLoading = false
-            AppLogger.error("[Access] Falha ao carregar perfil para verificação.")
+            AppLogger.error("[Access] Falha ao carregar perfil e sem cache de acesso.")
             return
         }
         
@@ -144,19 +154,32 @@ class SubscriptionManager: ObservableObject {
             AppLogger.log("⚠️ [Access] Nenhuma assinatura válida encontrada.", category: .business)
             
         } catch {
-            // ✅ MELHORIA: Em caso de erro de rede, preservar estado anterior
-            let isNetworkError = error.localizedDescription.lowercased().contains("network") ||
-                                 error.localizedDescription.lowercased().contains("connection") ||
-                                 error.localizedDescription.lowercased().contains("timeout") ||
-                                 error.localizedDescription.lowercased().contains("offline")
+            // ✅ MELHORIA: Em caso de erro, priorizar acesso cacheado para evitar bloqueio indevido
+            AppLogger.error("[Access] Erro ao buscar assinaturas: \(error)")
             
-            if isNetworkError && previousAccessState.hasAccess {
-                AppLogger.log("⚠️ [Access] Erro de rede, mantendo estado anterior: \(previousAccessState.planType.displayName)", category: .business)
+            // Tentar usar estado anterior (memória)
+            if previousAccessState.hasAccess {
+                AppLogger.log("⚠️ [Access] Erro na busca, mantendo estado anterior: \(previousAccessState.planType.displayName)", category: .business)
                 finalizeAccess(previousAccessState)
                 return
             }
             
-            AppLogger.error("[Access] Erro ao buscar assinaturas: \(error)")
+            // Tentar usar cache (disco)
+            if let cached = loadAccessStateFromCache() {
+                AppLogger.log("⚠️ [Access] Erro na busca, usando cache local prevetivo: \(cached.planType.displayName)", category: .business)
+                finalizeAccess(cached)
+                return
+            }
+            
+            // Se não tem cache, verificar se é erro de rede explicito antes de falhar
+            let isNetworkError = error.localizedDescription.lowercased().contains("network") ||
+                                 error.localizedDescription.lowercased().contains("connection") ||
+                                 error.localizedDescription.lowercased().contains("offline") ||
+                                 error.localizedDescription.lowercased().contains("internet")
+            
+            if isNetworkError {
+                 AppLogger.log("⚠️ [Access] Erro de rede confirmado e sem cache. O usuário pode ficar sem acesso.", category: .business)
+            }
         }
         
         // ---------------------------------------------------------
@@ -531,6 +554,9 @@ class SubscriptionManager: ObservableObject {
         }
         self.accessState = state
         self.isLoading = false
+        
+        // ✅ PERSISTÊNCIA: Salvar estado de acesso no cache
+        saveAccessStateToCache(state)
     }
     
     /// Reseta o estado de compra para idle
@@ -547,5 +573,37 @@ class SubscriptionManager: ObservableObject {
     /// Retorna o produto recomendado (Premium - melhor custo-benefício)
     var recommendedProduct: Product? {
         storeProducts.first { $0.id == "com.agendahof.premium" }
+    }
+    
+    // MARK: - Persistence
+    
+    private func saveAccessStateToCache(_ state: AccessState) {
+        if let encoded = try? JSONEncoder().encode(state) {
+            UserDefaults.standard.set(encoded, forKey: "cached_access_state")
+            UserDefaults.standard.set(Date(), forKey: "cached_access_state_date")
+        }
+    }
+    
+    /// Tenta recuperar o estado de acesso do cache se for válido (menos de 24h)
+    private func loadAccessStateFromCache() -> AccessState? {
+        guard let data = UserDefaults.standard.data(forKey: "cached_access_state"),
+              let date = UserDefaults.standard.object(forKey: "cached_access_state_date") as? Date else {
+            return nil
+        }
+        
+        // Validade do cache: 7 dias (aumentado para evitar bloqueio em viagens/offline longo)
+        if Date().timeIntervalSince(date) > 7 * 24 * 3600 {
+            return nil
+        }
+        
+        return try? JSONDecoder().decode(AccessState.self, from: data)
+    }
+    
+    /// Método público para tentar restaurar estado inicial sem rede
+    func restoreStateFromCache() {
+        if let cached = loadAccessStateFromCache() {
+            self.accessState = cached
+            AppLogger.log("🔄 [Access] Estado restaurado do cache local: \(cached.planType.displayName)", category: .business)
+        }
     }
 }

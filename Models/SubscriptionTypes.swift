@@ -127,3 +127,14 @@ struct AccessState {
     }
 }
 
+extension AccessState: Codable {
+    enum CodingKeys: String, CodingKey {
+        case hasActiveSubscription
+        case isInTrial
+        case isCourtesy
+        case planType
+        case expirationDate
+        case source
+    }
+}
+

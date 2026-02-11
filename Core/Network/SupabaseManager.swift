@@ -52,6 +52,11 @@ class SupabaseManager: ObservableObject {
             self.currentSession = session
             self.currentUser = session?.user
             
+            // ✅ PERSISTÊNCIA: Cachear usuário para offline
+            if let user = session?.user {
+                saveUserToCache(user)
+            }
+            
             // ✅ Carregar perfil apenas se ainda não temos ou se mudou o usuário
             if self.userProfile == nil || self.userProfile?.id != session?.user.id.uuidString {
                 await loadUserProfile()
@@ -262,6 +267,10 @@ class SupabaseManager: ObservableObject {
         self.userProfile = nil
         self.isAuthenticated = false
         
+        // Limpar cache local
+        UserDefaults.standard.removeObject(forKey: "cached_supabase_user")
+        UserDefaults.standard.removeObject(forKey: "cached_access_state")
+        
         AppLogger.log("✅ [Auth] Logout concluído", category: .auth)
     }
 
@@ -273,6 +282,7 @@ class SupabaseManager: ObservableObject {
             // ✅ Sessão válida encontrada
             self.currentSession = session
             self.currentUser = session.user
+            saveUserToCache(session.user) // ✅ Atualizar cache
             
             // ✅ Carregar perfil apenas se necessário
             if self.userProfile == nil || self.userProfile?.id != session.user.id.uuidString {
@@ -361,6 +371,19 @@ class SupabaseManager: ObservableObject {
                 self.isAuthenticated = true
                 AppLogger.log("✅ [Auth] Mantendo sessão local (modo offline/tolerante)", category: .auth)
             } else {
+                // ✅ TENTAR RESTAURAR USUÁRIO DO CACHE (Para suportar reiniciar app offline)
+                if let cachedUser = loadUserFromCache() {
+                    self.currentUser = cachedUser
+                    self.isAuthenticated = true
+                    AppLogger.log("✅ [Auth] Usuário restaurado do cache local (Offline Mode)", category: .auth)
+                    
+                    // Disparar verificação de acesso (vai usar cache do SubscriptionManager)
+                    Task {
+                        await SubscriptionManager.shared.checkAccess()
+                    }
+                    return
+                }
+                
                 // ✅ Não temos sessão - tentar re-auth silenciosa antes de desistir
                 if UserDefaults.standard.bool(forKey: Constants.rememberMeKey),
                    let savedEmail = UserDefaults.standard.string(forKey: Constants.savedEmailKey),
@@ -373,6 +396,12 @@ class SupabaseManager: ObservableObject {
                         AppLogger.log("✅ [Auth] Re-login bem-sucedido!", category: .auth)
                     } catch {
                         AppLogger.error("❌ [Auth] Re-login falhou: \(error)")
+                        // Última chance: se falhar login e tiver user cacheado (caso raro onde signIn falha mas cache existe)
+                        if let cachedUser = loadUserFromCache() {
+                             self.currentUser = cachedUser
+                             self.isAuthenticated = true
+                             return
+                        }
                         self.isAuthenticated = false
                     }
                 } else {
@@ -406,14 +435,55 @@ class SupabaseManager: ObservableObject {
                 .value
 
             self.userProfile = profile
+            
+            // ✅ PERSISTÊNCIA: Salvar perfil no cache local
+            saveUserProfileToCache(profile)
+            
         } catch {
             AppLogger.error("❌ [Auth] Erro ao carregar perfil: \(error)")
-            // ✅ NÃO fazer logout por erro ao carregar perfil
+            // ✅ PERSISTÊNCIA: Tentar carregar do cache se falhar a rede
+            if self.userProfile == nil {
+                if let cachedProfile = loadUserProfileFromCache(userId: userId.uuidString) {
+                    self.userProfile = cachedProfile
+                    AppLogger.log("⚠️ [Auth] Perfil carregado do cache local (offline)", category: .auth)
+                }
+            }
         }
     }
 
     func fetchUserProfile() async {
         await loadUserProfile()
+    }
+    
+    // MARK: - Persistence Helpers
+    
+    private func saveUserProfileToCache(_ profile: UserProfile) {
+        if let encoded = try? JSONEncoder().encode(profile) {
+            UserDefaults.standard.set(encoded, forKey: "cached_user_profile_\(profile.id)")
+        }
+    }
+    
+    private func loadUserProfileFromCache(userId: String) -> UserProfile? {
+        guard let data = UserDefaults.standard.data(forKey: "cached_user_profile_\(userId)"),
+              let profile = try? JSONDecoder().decode(UserProfile.self, from: data) else {
+            return nil
+        }
+        return profile
+    }
+    
+    // ✅ User object cache
+    private func saveUserToCache(_ user: User) {
+        if let encoded = try? JSONEncoder().encode(user) {
+            UserDefaults.standard.set(encoded, forKey: "cached_supabase_user")
+        }
+    }
+    
+    private func loadUserFromCache() -> User? {
+        guard let data = UserDefaults.standard.data(forKey: "cached_supabase_user"),
+              let user = try? JSONDecoder().decode(User.self, from: data) else {
+            return nil
+        }
+        return user
     }
 
     // MARK: - Effective User ID
