@@ -271,12 +271,10 @@ async function fetchProceduresRevenue(supabase: any, userId: string, dateStr: st
 
         const isMatch = procDateOnly === dateStr
 
-        // Case 1: Parcelado
+        // Case 1: Procedimento com pagamentos PARCIAIS lançados (PIX/Dinheiro)
         if (proc.permitirParcelado && proc.pagamentos?.length > 0) {
           for (const pag of proc.pagamentos) {
             if (!pag.data) continue
-            // Dates in pagamentos usually come as 'yyyy-mm-dd' string from frontend, 
-            // but to be safe we treat it if it's full ISO
             const pagDate = pag.data.includes('T') ? getSaoPauloDate(pag.data) : pag.data.substring(0, 10)
 
             if (pagDate === dateStr) {
@@ -284,19 +282,26 @@ async function fetchProceduresRevenue(supabase: any, userId: string, dateStr: st
             }
           }
         }
-        // Case 2: Split payments
+        // Case 2: "Pagar Depois" (permitirParcelado mas sem pagamentos ainda)
+        else if (proc.permitirParcelado) {
+          // Receita R$ 0,00 - aguardando entrada de caixa
+          continue
+        }
+        // Case 3: Split payments
         else if (proc.paymentSplits?.length > 0) {
-          // Check splits individually if they have dates, otherwise fallback to procedure date?
-          // Assuming splits are usually paid on procedure date unless specified elsewhere.
-          // But existing logic checked procDateOnly === dateStr.
           if (isMatch) {
             for (const split of proc.paymentSplits) {
               total += split.amount || 0
             }
           }
         }
-        // Case 3: Traditional single payment
-        else if (!proc.permitirParcelado && isMatch) {
+        // Case 4: Traditional single payment
+        else if (isMatch) {
+          // 🚨 FIX: Se estiver PENDENTE, ignorar (Regime de Caixa)
+          if (proc.statusPagamento?.toLowerCase() === "pendente") {
+            continue
+          }
+
           const val = proc.totalValue || proc.value || 0
           total += val
         }

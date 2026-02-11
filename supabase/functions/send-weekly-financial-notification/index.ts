@@ -263,8 +263,9 @@ async function fetchProceduresRevenue(supabase: any, userId: string, startDate: 
             for (const proc of completedProcs) {
                 const procDate = proc.performedAt || proc.completedAt || ''
                 const procDateOnly = procDate.substring(0, 10)
+                const isMatch = procDateOnly >= startDate && procDateOnly <= endDate
 
-                // Case 1: Parcelado (installment payments with dates)
+                // Case 1: Procedimento com pagamentos PARCIAIS lançados (PIX/Dinheiro)
                 if (proc.permitirParcelado && proc.pagamentos?.length > 0) {
                     for (const pag of proc.pagamentos) {
                         const pagDate = pag.data.substring(0, 10)
@@ -273,14 +274,26 @@ async function fetchProceduresRevenue(supabase: any, userId: string, startDate: 
                         }
                     }
                 }
-                // Case 2: Split payments (multiple payment methods)
-                else if (proc.paymentSplits?.length > 0 && procDateOnly >= startDate && procDateOnly <= endDate) {
-                    for (const split of proc.paymentSplits) {
-                        total += split.amount || 0
+                // Case 2: "Pagar Depois" (permitirParcelado mas sem pagamentos ainda)
+                else if (proc.permitirParcelado) {
+                    // Receita R$ 0,00 - aguardando entrada de caixa
+                    continue
+                }
+                // Case 3: Split payments (multiple payment methods)
+                else if (proc.paymentSplits?.length > 0) {
+                    if (isMatch) {
+                        for (const split of proc.paymentSplits) {
+                            total += split.amount || 0
+                        }
                     }
                 }
-                // Case 3: Traditional single payment
-                else if (!proc.permitirParcelado && procDateOnly >= startDate && procDateOnly <= endDate) {
+                // Case 4: Traditional single payment
+                else if (isMatch) {
+                    // 🚨 FIX: Se estiver PENDENTE, ignorar (Regime de Caixa)
+                    if (proc.statusPagamento?.toLowerCase() === "pendente") {
+                        continue
+                    }
+
                     total += proc.totalValue || proc.value || 0
                 }
             }

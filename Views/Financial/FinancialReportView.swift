@@ -545,6 +545,15 @@ struct FinancialReportView: View {
                             procedureDateOnly.count == 10,
                             procedureDateOnly >= startDateStr && procedureDateOnly <= endDateStr {
                         
+                        // 🚨 FIX: Se estiver PENDENTE, ignorar (Regime de Caixa)
+                        if let paymentStatus = procedure.statusPagamento?.lowercased(), 
+                           paymentStatus == "pendente" {
+                            #if DEBUG
+                            print("   ⏳ [Procedures] \(patient.name) - Ignorado (Status Pendente)")
+                            #endif
+                            continue
+                        }
+                        
                         let value = Decimal(procedure.totalValue ?? procedure.value ?? 0)
                         total += value
                         count += 1
