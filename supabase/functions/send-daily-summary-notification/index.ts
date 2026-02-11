@@ -65,6 +65,9 @@ serve(async (req) => {
         let successCount = 0
         let failCount = 0
 
+        // ✅ Generate JWT token ONCE per function execution (Apple recommends reusing for ~20-60 mins)
+        // Regenerating per device causes "APNs error 429: TooManyProviderTokenUpdates"
+        const jwt = await generateAPNsJWT()
         // Process each user
         for (const [userId, devices] of userDevices.entries()) {
             console.log(`📅 Calculating today's appointments for user ${userId}`)
@@ -80,7 +83,8 @@ serve(async (req) => {
                     await sendPushNotification(
                         device.device_token,
                         summaryData,
-                        device.environment === 'sandbox'
+                        device.environment === 'sandbox',
+                        jwt
                     )
                     successCount++
                     console.log(`  ✅ Sent to device ${device.device_token.substring(0, 10)}...`)
@@ -214,9 +218,8 @@ function getNotificationMessage(count: number, firstAppointment: any): string {
 /**
  * Send push notification via APNs
  */
-async function sendPushNotification(deviceToken: string, data: any, isSandbox: boolean) {
-    // Generate JWT token for APNs authentication
-    const jwt = await generateAPNsJWT()
+async function sendPushNotification(deviceToken: string, data: any, isSandbox: boolean, jwt: string) {
+    // JWT is now passed in to avoid rate limiting
 
     const endpoint = isSandbox
         ? 'https://api.sandbox.push.apple.com'

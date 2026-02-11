@@ -107,11 +107,14 @@ class NotificationManager: ObservableObject {
         // 2. Agendar novas notificações baseado nas preferências
         let defaults = UserDefaults.standard
         
+        // DESATIVADO: Resumo diário agora é enviado via Push pelo servidor
+        /*
         if defaults.bool(forKey: "daily_summary_enabled") {
             let hour = defaults.integer(forKey: "daily_summary_hour")
             let minute = defaults.integer(forKey: "daily_summary_minute")
             await scheduleDailySummary(hour: hour == 0 ? 8 : hour, minute: minute)
         }
+        */
         
         // DESATIVADO: Notificação financeira agora é enviada pelo Supabase
         // A notificação local calculava R$ 0,00 (incorreto)

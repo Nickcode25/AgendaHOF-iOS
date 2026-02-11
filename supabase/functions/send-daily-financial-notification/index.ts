@@ -87,6 +87,9 @@ serve(async (req) => {
     let successCount = 0
     let failCount = 0
 
+    // Generate JWT token ONCE for the entire batch execution
+    const jwt = await generateAPNsJWT()
+
     // Process each owner
     for (const [userId, devices] of userDevices.entries()) {
       console.log(`💰 Calculating financial data for user ${userId}`)
@@ -99,16 +102,6 @@ serve(async (req) => {
       // Skip if no patients AND no revenue (no activity today)
       if (financialData.patientCount === 0 && financialData.totalRevenue === 0) {
         console.log(`  ⏭️  Skipping user ${userId}: no patients and no revenue today`)
-        continue
-      }
-
-      // Generate JWT token once per batch to avoid APNs rate limits (TooManyProviderTokenUpdates)
-      let jwt = ''
-      try {
-        jwt = await generateAPNsJWT()
-      } catch (error) {
-        console.error('❌ Failed to generate APNs JWT:', error)
-        failCount += devices.length
         continue
       }
 

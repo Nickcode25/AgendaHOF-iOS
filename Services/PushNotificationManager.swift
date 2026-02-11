@@ -77,6 +77,7 @@ class PushNotificationManager: NSObject, ObservableObject {
                 let platform: String
                 let environment: String
                 let is_active: Bool
+                let updated_at: String
             }
             
             let deviceTokenData = DeviceTokenData(
@@ -84,13 +85,15 @@ class PushNotificationManager: NSObject, ObservableObject {
                 device_token: token,
                 platform: "ios",
                 environment: environment,
-                is_active: true
+                is_active: true,
+                updated_at: ISO8601DateFormatter().string(from: Date())
             )
             
-            // Upsert: insere ou atualiza se já existir
+            // ✅ Upsert: se o token já existe (mesmo em outra conta), ele é atualizado para a conta atual
+            // A restrição única deve ser baseada no par (device_token, environment)
             try await supabase.client
                 .from("device_tokens")
-                .upsert(deviceTokenData)
+                .upsert(deviceTokenData, onConflict: "device_token,environment")
                 .execute()
             
             isRegistered = true
@@ -103,24 +106,34 @@ class PushNotificationManager: NSObject, ObservableObject {
     
     /// Desativa o device token ao fazer logout
     func deactivateDeviceToken() async {
-        guard let token = deviceToken,
-              let userId = supabase.currentUser?.id else {
-            return
-        }
+        guard let token = deviceToken else { return }
+        
+        let environment: String
+        #if DEBUG
+        environment = "sandbox"
+        #else
+        environment = "production"
+        #endif
         
         do {
-            struct DeviceTokenUpdate: Encodable {
+            struct DeviceTokenDeactivate: Encodable {
                 let is_active: Bool
+                let updated_at: String
             }
+            
+            let updateData = DeviceTokenDeactivate(
+                is_active: false,
+                updated_at: ISO8601DateFormatter().string(from: Date())
+            )
             
             try await supabase.client
                 .from("device_tokens")
-                .update(DeviceTokenUpdate(is_active: false))
-                .eq("user_id", value: userId.uuidString)
+                .update(updateData)
                 .eq("device_token", value: token)
+                .eq("environment", value: environment)
                 .execute()
             
-            AppLogger.log("📱 Device token desativado no Supabase", category: .notification)
+            AppLogger.log("📱 Device token desativado no Supabase (ambiente: \(environment))", category: .notification)
             
         } catch {
             AppLogger.error("Erro ao desativar device token", error: error)

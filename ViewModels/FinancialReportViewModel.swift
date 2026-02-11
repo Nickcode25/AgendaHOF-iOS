@@ -172,7 +172,9 @@ class FinancialReportViewModel: ObservableObject {
                     let procedureDateOnly = String(procedureDate.prefix(10)) // Extrair YYYY-MM-DD
                     
                     // ══════════════════════════════════════════════════════════
-                    // CASO 1: Procedimento com pagamento parcelado (PIX/Dinheiro)
+                    // REGRA 1: Procedimento com pagamentos PARCIAIS lançados
+                    // CONDIÇÃO: permitirParcelado == true E tem pagamentos lançados
+                    // AÇÃO: Somar cada pagamento na sua respectiva data
                     // ══════════════════════════════════════════════════════════
                     if proc.permitirParcelado == true,
                        let pagamentos = proc.pagamentos,
@@ -184,13 +186,27 @@ class FinancialReportViewModel: ObservableObject {
                                 total += Decimal(pagamento.valor)
                                 
                                 #if DEBUG
-                                print("   💳 [Parcelado] \(proc.displayName) - \(patient.name): R$ \(pagamento.valor) em \(paymentDate)")
+                                print("   💳 [Regra 1: Parcelado] \(proc.displayName) - \(patient.name): R$ \(pagamento.valor) em \(paymentDate)")
                                 #endif
                             }
                         }
                     }
                     // ══════════════════════════════════════════════════════════
-                    // CASO 2: Procedimento com múltiplas formas de pagamento
+                    // REGRA 2: "Pagar Depois" (Sem pagamentos lançados)
+                    // CONDIÇÃO: permitirParcelado == true E pagamentos VAZIO
+                    // AÇÃO: Receita R$ 0,00 (não soma nada)
+                    // ══════════════════════════════════════════════════════════
+                    else if proc.permitirParcelado == true {
+                        // Se caiu aqui, é porque pagamentos está nil ou vazio
+                        #if DEBUG
+                        if isDateInRange(procedureDateOnly, start: startString, end: endString) {
+                            print("   ⏳ [Regra 2: Pagar Depois] \(proc.displayName) - \(patient.name): Receita R$ 0,00 (Aguardando pagamento)")
+                        }
+                        #endif
+                        continue
+                    }
+                    // ══════════════════════════════════════════════════════════
+                    // CASO EXTRA: Múltiplas formas (Legacy do App)
                     // ══════════════════════════════════════════════════════════
                     else if let splits = proc.paymentSplits,
                             !splits.isEmpty,
@@ -207,16 +223,26 @@ class FinancialReportViewModel: ObservableObject {
                         }
                     }
                     // ══════════════════════════════════════════════════════════
-                    // CASO 3: Procedimento tradicional (pagamento único)
+                    // REGRA 3: Procedimento Tradicional (Pagamento Único / Legacy)
+                    // CONDIÇÃO: !permitirParcelado (fallback)
+                    // AÇÃO: Considerar valor total na data do procedimento
+                    // ⚠️ CRITICAL FIX: Se estiver PENDENTE, ignorar (Regime de Caixa)
                     // ══════════════════════════════════════════════════════════
-                    else if proc.permitirParcelado != true,
-                            isDateInRange(procedureDateOnly, start: startString, end: endString) {
+                    else if isDateInRange(procedureDateOnly, start: startString, end: endString) {
+                        
+                        // 🚨 FIX: Verificar se está pendente explícitamente
+                        if let status = proc.statusPagamento?.lowercased(), status == "pendente" {
+                            #if DEBUG
+                            print("   ⏳ [Regra 3: Pendente] \(proc.displayName) - \(patient.name): Ignorado (Status Pendente)")
+                            #endif
+                            continue
+                        }
                         
                         let value = proc.totalValue ?? proc.value ?? 0
                         total += Decimal(value)
                         
                         #if DEBUG
-                        print("   💰 [Tradicional] \(proc.displayName) - \(patient.name): R$ \(value) em \(procedureDateOnly)")
+                        print("   💰 [Regra 3: Tradicional] \(proc.displayName) - \(patient.name): R$ \(value) em \(procedureDateOnly)")
                         #endif
                     }
                 }

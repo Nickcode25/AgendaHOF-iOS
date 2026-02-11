@@ -248,6 +248,12 @@ class SupabaseManager: ObservableObject {
         // ✅ CRÍTICO: Só este método deve fazer logout de verdade
         AppLogger.log("🚪 [Auth] Usuario solicitou logout", category: .auth)
         
+        // 1. Limpar tokens de push no servidor antes de invalidar a sessão
+        await PushNotificationManager.shared.deactivateDeviceToken()
+        
+        // 2. Cancelar todas as notificações locais agendadas
+        await NotificationManager.shared.cancelAllScheduledNotifications()
+        
         try await client.auth.signOut()
         
         // ✅ Limpar tudo após logout bem-sucedido

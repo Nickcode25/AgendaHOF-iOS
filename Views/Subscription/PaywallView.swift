@@ -94,6 +94,9 @@ struct PaywallView: View {
                 }
             }
         }
+        // Impede que o usuário feche o Paywall deslizando para baixo
+        // Isso força o uso do botão "X" (que faz logout) ou a assinatura
+        .interactiveDismissDisabled()
     }
     
     // MARK: - Background
