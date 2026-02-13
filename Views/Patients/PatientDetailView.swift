@@ -404,12 +404,27 @@ struct EditPatientView: View {
                 birthDateValue = AnyEncodable(NSNull())
             }
             
+            // Normalizar telefone
+            var phoneE164: String? = nil
+            if !phone.isEmpty {
+                if let normalized = PhoneFormatter.normalizeBR(phone) {
+                    phoneE164 = normalized
+                } else {
+                    errorMessage = "Telefone inválido. Verifique o DDD e número."
+                    showError = true
+                    isLoading = false
+                    return
+                }
+            }
+            
             let updates: [String: AnyEncodable] = [
                 "name": AnyEncodable(name),
                 "phone": AnyEncodable(phone.isEmpty ? NSNull() : phone),
+                "phone_e164": AnyEncodable(phoneE164 ?? NSNull()),
                 "birth_date": birthDateValue,
                 "notes": AnyEncodable(notes.isEmpty ? NSNull() : notes)
             ]
+
 
             try await patientService.updatePatient(id: patient.id, updates: updates)
             onSave()

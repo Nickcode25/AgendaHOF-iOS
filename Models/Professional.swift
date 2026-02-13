@@ -8,7 +8,9 @@ struct Professional: Identifiable, Codable, Hashable {
     var specialty: String?
     var cro: String?
     var phone: String?
+    var phoneE164: String?
     var email: String?
+
     var cpf: String?
     var zipCode: String?
     var street: String?
@@ -25,8 +27,11 @@ struct Professional: Identifiable, Codable, Hashable {
         case id
         case createdAt = "created_at"
         case userId = "user_id"
-        case name, specialty, cro, phone, email
+        case name, specialty, cro, phone
+        case phoneE164 = "phone_e164"
+        case email
         case photoUrl = "photo_url"
+
         case isActive = "is_active"
         case cpf
         case zipCode = "zip_code"
@@ -40,7 +45,9 @@ struct Professional: Identifiable, Codable, Hashable {
         var specialty: String?
         var cro: String?
         var phone: String?
+        var phoneE164: String?
         var email: String?
+
         var cpf: String?
         var zipCode: String?
         var street: String?
@@ -55,8 +62,11 @@ struct Professional: Identifiable, Codable, Hashable {
 
         enum CodingKeys: String, CodingKey {
             case userId = "user_id"
-            case name, specialty, cro, phone, email
+            case name, specialty, cro, phone
+            case phoneE164 = "phone_e164"
+            case email
             case photoUrl = "photo_url"
+
             case isActive = "is_active"
             case cpf
             case zipCode = "zip_code"

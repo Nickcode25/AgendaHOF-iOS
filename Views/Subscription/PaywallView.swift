@@ -8,36 +8,30 @@ struct PaywallView: View {
     @EnvironmentObject var supabase: SupabaseManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-    
+
     @State private var selectedProduct: Product?
     @State private var showingAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background gradient
                 backgroundGradient
-                
+
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Header
                         headerSection
-                        
-                        // Planos
+
                         if subscriptionManager.storeProducts.isEmpty {
                             loadingPlansView
                         } else {
                             plansSection
                         }
-                        
-                        // Botão de Compra
+
                         purchaseButton
-                        
-                        // Termos e Políticas
                         legalSection
-                        
+
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 20)
@@ -47,17 +41,8 @@ struct PaywallView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        // Se o usuário já tem acesso, apenas fecha a view
-                        // Se não tem acesso, faz logout
-                        if subscriptionManager.accessState.hasAccess {
-                            dismiss()
-                        } else {
-                            Task {
-                                try? await supabase.signOut()
-                            }
-                        }
-                    } label: {
+                    // ✅ X sempre FECHA (não desloga)
+                    Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title2)
                             .foregroundStyle(.secondary)
@@ -77,30 +62,25 @@ struct PaywallView: View {
             .onChange(of: subscriptionManager.purchaseState) { _, newState in
                 handlePurchaseStateChange(newState)
             }
-            .onAppear {
-                Task {
-                    await subscriptionManager.loadProducts()
-                    // Selecionar produto recomendado por padrão
-                    if selectedProduct == nil {
-                        selectedProduct = subscriptionManager.recommendedProduct
-                    }
+            // ✅ Se não precisa mais mostrar paywall, fecha
+            .onChange(of: subscriptionManager.shouldShowPaywall) { _, shouldShow in
+                if !shouldShow {
+                    dismiss()
                 }
             }
-            .onDisappear {
-                // Recarregar verificação de acesso ao fechar paywall
-                // Isso garante que mudanças de plano sejam refletidas na UI
-                Task {
-                    await subscriptionManager.checkAccess()
+            // ✅ Seta recomendado (e carrega produtos só se necessário)
+            .task {
+                await subscriptionManager.loadProducts()
+                if selectedProduct == nil {
+                    selectedProduct = subscriptionManager.recommendedProduct
                 }
             }
         }
-        // Impede que o usuário feche o Paywall deslizando para baixo
-        // Isso força o uso do botão "X" (que faz logout) ou a assinatura
         .interactiveDismissDisabled()
     }
-    
+
     // MARK: - Background
-    
+
     private var backgroundGradient: some View {
         LinearGradient(
             gradient: Gradient(colors: [
@@ -112,30 +92,25 @@ struct PaywallView: View {
         )
         .ignoresSafeArea()
     }
-    
+
     // MARK: - Header
-    
+
     private var headerSection: some View {
         VStack(spacing: 16) {
-            // Ícone
             Image(systemName: "crown.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(
-                    LinearGradient(
-                        colors: [.yellow, .orange],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    LinearGradient(colors: [.yellow, .orange],
+                                   startPoint: .topLeading,
+                                   endPoint: .bottomTrailing)
                 )
                 .shadow(color: .orange.opacity(0.3), radius: 10, x: 0, y: 5)
-            
-            // Título
+
             Text("Desbloqueie o Acesso Completo")
                 .font(.title2)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
-            
-            // Subtítulo
+
             Text("Gerencie sua agenda, pacientes e finanças sem limites")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -143,35 +118,33 @@ struct PaywallView: View {
         }
         .padding(.bottom, 8)
     }
-    
+
     // MARK: - Loading Plans
-    
+
     private var loadingPlansView: some View {
         VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.2)
+            ProgressView().scaleEffect(1.2)
             Text("Carregando planos...")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(height: 200)
     }
-    
+
     // MARK: - Plans Section
-    
+
     private var plansSection: some View {
         VStack(spacing: 12) {
-            // Ordenar: Premium primeiro (recomendado), depois Pro, depois Básico
             let sortedProducts = subscriptionManager.storeProducts.sorted { p1, p2 in
                 let order = ["com.agendahof.premium": 0, "com.agendahof.pro": 1, "com.agendahof.basic": 2]
                 return (order[p1.id] ?? 3) < (order[p2.id] ?? 3)
             }
-            
+
             ForEach(sortedProducts, id: \.id) { product in
                 PlanCard(
                     product: product,
                     isSelected: selectedProduct?.id == product.id,
-                    isRecommended: product.id == "com.agendahof.premium"  // Premium é o recomendado
+                    isRecommended: product.id == "com.agendahof.premium"
                 ) {
                     withAnimation(.spring(response: 0.3)) {
                         selectedProduct = product
@@ -180,33 +153,31 @@ struct PaywallView: View {
             }
         }
     }
-    
+
     // MARK: - Purchase Button
-    
+
     private var purchaseButton: some View {
         Button {
             guard let product = selectedProduct else { return }
-            Task {
-                await subscriptionManager.purchase(product)
-            }
+            Task { await subscriptionManager.purchase(product) }
         } label: {
             Group {
                 if subscriptionManager.purchaseState == .purchasing {
                     HStack(spacing: 12) {
-                        ProgressView()
-                            .tint(.white)
+                        ProgressView().tint(.white)
                         Text("Processando...")
                     }
                 } else {
-                    Text("Assinar Agora")
-                        .fontWeight(.semibold)
+                    Text("Assinar Agora").fontWeight(.semibold)
                 }
             }
             .frame(maxWidth: .infinity)
             .frame(height: 56)
             .background(
                 LinearGradient(
-                    colors: selectedProduct != nil ? [Color(hex: "ff6b00"), Color(hex: "ff8c00")] : [.gray],
+                    colors: selectedProduct != nil
+                        ? [Color(hex: "ff6b00"), Color(hex: "ff8c00")]
+                        : [.gray],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
@@ -219,59 +190,68 @@ struct PaywallView: View {
         .padding(.top, 8)
     }
 
-    
     // MARK: - Legal Section
-    
+
     private var legalSection: some View {
         VStack(spacing: 8) {
             Button("Restaurar Compras") {
-                Task {
-                    await subscriptionManager.restorePurchases()
-                }
+                Task { await subscriptionManager.restorePurchases() }
             }
             .font(.subheadline)
             .fontWeight(.medium)
             .foregroundStyle(.primary)
             .padding(.bottom, 8)
-            
+
             Text("Ao assinar, você concorda com os")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            
+
             HStack(spacing: 4) {
                 Link("Termos de Uso", destination: URL(string: "https://agendahof.com/terms")!)
                 Text("e")
                 Link("Política de Privacidade", destination: URL(string: "https://agendahof.com/privacy")!)
             }
             .font(.caption)
-            
+
             Text("Assinatura com renovação automática mensal ou anual. Cancele a qualquer momento em Ajustes > Assinaturas.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 4)
+
+            // ✅ Logout EXPLÍCITO (não automático no X)
+            Button(role: .destructive) {
+                Task {
+                    try? await supabase.signOut()
+                    dismiss()
+                }
+            } label: {
+                Text("Sair da conta")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            .padding(.top, 10)
         }
         .padding(.top, 16)
     }
-    
+
     // MARK: - Handle Purchase State
-    
+
     private func handlePurchaseStateChange(_ state: PurchaseState) {
         switch state {
         case .success:
             alertTitle = "Parabéns! 🎉"
             alertMessage = "Sua assinatura foi ativada com sucesso!\n\nAgora você tem acesso completo ao Agenda HOF. Aproveite todas as funcionalidades premium!"
             showingAlert = true
-            
+
         case .failed(let message):
             alertTitle = "Ops! Algo deu errado"
             alertMessage = "Não foi possível completar sua assinatura.\n\n\(message)\n\nTente novamente ou entre em contato com o suporte."
             showingAlert = true
-            
+
         case .cancelled:
-            // Não mostrar alerta para cancelamento
             subscriptionManager.resetPurchaseState()
-            
+
         default:
             break
         }
@@ -285,22 +265,22 @@ struct PlanCard: View {
     let isSelected: Bool
     let isRecommended: Bool
     let onTap: () -> Void
-    
+
     @Environment(\.colorScheme) private var colorScheme
-    
+
     private var planType: PlanType {
         PlanType.fromAppleProductId(product.id)
     }
-    
+
     private var planColor: Color {
         switch planType {
-        case .basic: return Color(hex: "6c757d")  // Cinza
-        case .pro: return Color(hex: "0d6efd")    // Azul
-        case .premium: return Color(hex: "ff6b00") // Laranja (destaque)
+        case .basic: return Color(hex: "6c757d")
+        case .pro: return Color(hex: "0d6efd")
+        case .premium: return Color(hex: "ff6b00")
         default: return .gray
         }
     }
-    
+
     private var planIcon: String {
         switch planType {
         case .basic: return "star"
@@ -309,57 +289,35 @@ struct PlanCard: View {
         default: return "questionmark"
         }
     }
-    
+
     private var features: [String] {
         switch planType {
         case .basic:
-            return [
-                "Até 25 agendamentos/mês",
-                "Agenda inteligente",
-                "Cadastro de até 25 pacientes"
-            ]
+            return ["Até 25 agendamentos/mês", "Agenda inteligente", "Cadastro de até 25 pacientes"]
         case .pro:
-            return [
-                "Agendamentos ilimitados",
-                "Agenda inteligente",
-                "Pacientes ilimitados",
-                "Histórico de atendimentos",
-                "Gestão de Profissionais",
-                "Gestão de Procedimentos"
-            ]
+            return ["Agendamentos ilimitados", "Agenda inteligente", "Pacientes ilimitados", "Histórico de atendimentos", "Gestão de Profissionais", "Gestão de Procedimentos"]
         case .premium:
-            return [
-                "Tudo do Plano Pro",
-                "WhatsApp integrado",
-                "Registro de vendas",
-                "Controle de despesas",
-                "Relatórios financeiros",
-                "Controle de Estoque",
-                "Gestão de Alunos",
-                "Gestão de Cursos",
-                "Gestão de Funcionários"
-            ]
+            return ["Tudo do Plano Pro", "WhatsApp integrado", "Registro de vendas", "Controle de despesas", "Relatórios financeiros", "Controle de Estoque", "Gestão de Alunos", "Gestão de Cursos", "Gestão de Funcionários"]
         default:
             return []
         }
     }
-    
+
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    // Ícone e Nome
                     HStack(spacing: 10) {
                         Image(systemName: planIcon)
                             .font(.title2)
                             .foregroundStyle(planColor)
-                        
+
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
                                 Text(planType.displayName)
                                     .font(.headline)
                                     .foregroundStyle(.primary)
-                                
+
                                 if isRecommended {
                                     Text("RECOMENDADO")
                                         .font(.system(size: 9, weight: .bold))
@@ -370,23 +328,22 @@ struct PlanCard: View {
                                         .clipShape(Capsule())
                                 }
                             }
-                            
+
                             Text(product.description)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
                     }
-                    
+
                     Spacer()
-                    
-                    // Preço
+
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(product.displayPrice)
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundStyle(.primary)
-                        
+
                         if let subscription = product.subscription {
                             Text("/\(subscription.subscriptionPeriod.unit.localizedDescription)")
                                 .font(.caption)
@@ -394,19 +351,16 @@ struct PlanCard: View {
                         }
                     }
                 }
-                
-                // Features (expandidas quando selecionado)
+
                 if isSelected {
-                    Divider()
-                        .padding(.vertical, 4)
-                    
+                    Divider().padding(.vertical, 4)
+
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(features, id: \.self) { feature in
                             HStack(spacing: 8) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.caption)
                                     .foregroundStyle(planColor)
-                                
                                 Text(feature)
                                     .font(.caption)
                                     .foregroundStyle(.primary)
@@ -455,4 +409,5 @@ extension Product.SubscriptionPeriod.Unit {
 #Preview {
     PaywallView()
         .environmentObject(SubscriptionManager.shared)
+        .environmentObject(SupabaseManager.shared)
 }

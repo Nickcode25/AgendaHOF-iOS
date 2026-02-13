@@ -139,3 +139,43 @@ enum Formatters {
         return "\(part1).\(part2).\(part3)-\(part4)"
     }
 }
+
+// MARK: - Phone Formatter Helper
+
+public struct PhoneFormatter {
+    /// Normaliza um telefone brasileiro para o formato E.164
+    /// - Parameter input: Telefone em qualquer formato (ex: (31) 98888-8888, 31988888888, +55 31...)
+    /// - Returns: Telefone no formato +55XXXXXXXXXXX ou nil se inválido
+    public static func normalizeBR(_ input: String) -> String? {
+        let digits = input.onlyDigits
+        
+        // Regra 1: Vazio ou tamanho inválido
+        if digits.isEmpty { return nil }
+        
+        // Regra 2: Já começa com 55 (DDI Brasil)
+        if digits.hasPrefix("55") {
+            // Pode ter 12 dígitos (55 + DDD + 8 números - fixo antigo/raro) ou 13 (55 + DDD + 9 números - celular)
+            // Mas vamos focar nos celulares atuais (11 dígitos com DDD) -> total 13 com DDI
+            // E fixos atuais (10 dígitos com DDD) -> total 12 com DDI
+            if digits.count == 12 || digits.count == 13 {
+                return "+" + digits
+            }
+        }
+        
+        // Regra 3: Sem DDI (apenas DDD + Número)
+        // Celular: DDD (2) + 9 dígitos = 11
+        // Fixo: DDD (2) + 8 dígitos = 10
+        if digits.count == 10 || digits.count == 11 {
+            return "+55" + digits
+        }
+        
+        // Qualquer outro caso é considerado inválido para nossas regras estritas
+        return nil
+    }
+}
+
+extension String {
+    var onlyDigits: String {
+        return self.filter { $0.isNumber }
+    }
+}

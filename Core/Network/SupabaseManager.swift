@@ -12,6 +12,9 @@ class SupabaseManager: ObservableObject {
     @Published var userProfile: UserProfile?
     @Published var isAuthenticated = false
     @Published var isLoading = false
+    
+    // ✅ NOVO: Flag para identificar logout explícito
+    private var userInitiatedSignOut = false
 
     private init() {
         let url: URL
@@ -76,17 +79,14 @@ class SupabaseManager: ObservableObject {
             // ❌ NÃO fazer logout ou alterar isAuthenticated aqui!
             
         case .signedOut:
-            // ✅ Só fazer logout se for um signOut EXPLÍCITO do usuário
-            // (não por erro de rede ou expiração de token)
             AppLogger.log("🚪 [Auth] SignedOut event recebido", category: .auth)
             
-            // ✅ Verificar se foi logout intencional ou erro
-            // Se ainda temos sessão local válida, pode ser refresh falhado temporário
-            if self.currentSession != nil {
-                AppLogger.log("⚠️ [Auth] SignedOut recebido mas sessão local ainda existe - ignorando", category: .auth)
-                // NÃO fazer logout - pode ser apenas falha temporária de rede
+            // ✅ CRÍTICO: Ignorar logout se não foi iniciado pelo usuário (Ghost Logout Prevention)
+            guard userInitiatedSignOut else {
+                AppLogger.log("⚠️ [Auth] SignedOut NÃO iniciado pelo usuário. Ignorando para evitar logout fantasma.", category: .auth)
                 return
             }
+            // Se foi iniciado pelo usuário, segue fluxo normal de limpeza
             
             // Se não temos sessão, aí sim limpar
             self.currentSession = nil
@@ -144,7 +144,7 @@ class SupabaseManager: ObservableObject {
         }
     }
 
-    func signUp(email: String, password: String, name: String, professionalName: String?, phone: String, trialEndDate: String) async throws {
+    func signUp(email: String, password: String, name: String, professionalName: String?, phone: String, phoneE164: String?, trialEndDate: String) async throws {
         isLoading = true
         defer { isLoading = false }
 
@@ -153,6 +153,10 @@ class SupabaseManager: ObservableObject {
             "phone": AnyJSON.string(phone),
             "trial_end_date": AnyJSON.string(trialEndDate)
         ]
+        
+        if let phoneE164 = phoneE164 {
+            metadata["phone_e164"] = AnyJSON.string(phoneE164)
+        }
         
         if let profName = professionalName, !profName.isEmpty {
             metadata["professional_name"] = AnyJSON.string(profName)
@@ -197,6 +201,10 @@ class SupabaseManager: ObservableObject {
                 if let profName = professionalName, !profName.isEmpty {
                     userProfile["professional_name"] = AnyJSON.string(profName)
                 }
+                
+                if let phoneE164 = phoneE164 {
+                    userProfile["phone_e164"] = AnyJSON.string(phoneE164)
+                }
 
                 try await client
                     .from("user_profiles")
@@ -223,9 +231,11 @@ class SupabaseManager: ObservableObject {
             name: profName,
             specialty: "Harmonização Orofacial",
             phone: phone,
+            phoneE164: phoneE164,
             email: email,
             isActive: true
         )
+
         
         do {
             try await client
@@ -251,7 +261,11 @@ class SupabaseManager: ObservableObject {
 
     func signOut() async throws {
         // ✅ CRÍTICO: Só este método deve fazer logout de verdade
-        AppLogger.log("🚪 [Auth] Usuario solicitou logout", category: .auth)
+        AppLogger.log("🚪 [Auth] Usuario solicitou logout (EXPLICITO)", category: .auth)
+        
+        // Seta flag para permitir logout no handler
+        userInitiatedSignOut = true
+        defer { userInitiatedSignOut = false } // Reseta flag ao terminar
         
         // 1. Limpar tokens de push no servidor antes de invalidar a sessão
         await PushNotificationManager.shared.deactivateDeviceToken()
@@ -317,22 +331,22 @@ class SupabaseManager: ObservableObject {
             "invalid grant",
             "invalid_grant",
             "refresh_token_not_found",
-            "jwt expired",
             "invalid token",
             "invalid_token",
-            "token has expired",
-            "user not found",
             "session not found",
             "session_not_found"
+            // "jwt expired" REMOVIDO: deve ser tratado como transitório/refreshable
         ]
         
         let isDefiniteAuthError = definiteAuthErrors.contains { errorString.contains($0) }
         
-        // ✅ Também verificar código HTTP
+        // ✅ TAMBÉM verificar código HTTP, mas com CUIDADO
         let nsError = error as NSError
-        let isUnauthorized = nsError.code == 401
-        
-        if isDefiniteAuthError || isUnauthorized {
+        // 401 pode ser "Token Expired" (que deveria ter refresh) OU "Unauthorized" genérico
+        // Se for 401 e NÃO for um dos erros definitivos acima, pode ser apenas falha no refresh
+        // devido a rede instável. NÃO fazer logout imediato.
+
+        if isDefiniteAuthError {
             AppLogger.log("🔴 [Auth] Erro de autenticação definitivo detectado: \(error.localizedDescription)", category: .auth)
             
             // ✅ TENTATIVA DE RE-AUTENTICAÇÃO SILENCIOSA
@@ -352,18 +366,21 @@ class SupabaseManager: ObservableObject {
             }
             
             // ✅ Só fazer logout se re-auth falhou E não temos sessão local
+            // SE tivermos sessão local, TALVEZ valha a pena manter se for apenas token expired
+            // mas invalid_grant geralmente é fatal.
             if self.currentSession == nil {
                 AppLogger.log("🚫 [Auth] Fazendo logout por sessão inválida", category: .auth)
                 self.currentUser = nil
                 self.userProfile = nil
                 self.isAuthenticated = false
             } else {
-                AppLogger.log("⚠️ [Auth] Erro de sessão mas mantendo sessão local temporariamente", category: .auth)
+                AppLogger.log("⚠️ [Auth] Erro de sessão mas mantendo sessão local temporariamente (Hopeful strict)", category: .auth)
             }
             
         } else {
-            // ✅ MUDANÇA CRÍTICA: Erros de rede NÃO causam logout
-            AppLogger.log("⚠️ [Auth] Erro temporário ao verificar sessão (provavelmente rede): \(error.localizedDescription)", category: .auth)
+            // ✅ MUDANÇA CRÍTICA: Erros de rede E 401 genéricos NÃO causam logout
+            // Assumimos que pode ser falha temporária do servidor ou rede
+            AppLogger.log("⚠️ [Auth] Erro temporário ou 401 genérico ao verificar sessão: \(error.localizedDescription)", category: .auth)
             
             // ✅ MANTER sessão local
             if self.currentSession != nil {

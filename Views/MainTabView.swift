@@ -2,59 +2,123 @@ import SwiftUI
 
 struct MainTabView: View {
     @State private var selectedTab = 0
+    @State private var isPaywallPresented = false
+
     @EnvironmentObject var supabase: SupabaseManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
 
     init() {
-        // Configurar aparência da Tab Bar para não ser transparente
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithOpaqueBackground()
         tabBarAppearance.backgroundColor = UIColor.systemBackground
-
         UITabBar.appearance().standardAppearance = tabBarAppearance
         UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
     }
 
+    private var isBlocked: Bool {
+        subscriptionManager.didFinishInitialAccessCheck &&
+        !subscriptionManager.hasComputedAccess
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Agenda
-            NavigationStack {
-                AgendaView()
-            }
-            .tabItem {
-                Label("Agenda", systemImage: "calendar")
-            }
-            .tag(0)
+            NavigationStack { AgendaView() }
+                .tabItem { Label("Agenda", systemImage: "calendar") }
+                .tag(0)
 
-            // Pacientes
-            NavigationStack {
-                PatientsListView()
-            }
-            .tabItem {
-                Label("Pacientes", systemImage: "person.2.fill")
-            }
-            .tag(1)
+            NavigationStack { PatientsListView() }
+                .tabItem { Label("Pacientes", systemImage: "person.2.fill") }
+                .tag(1)
 
-            // Ajustes
-            NavigationStack {
-                SettingsView()
-            }
-            .tabItem {
-                Label("Ajustes", systemImage: "gearshape.fill")
-            }
-            .tag(2)
+            NavigationStack { SettingsView() }
+                .tabItem { Label("Ajustes", systemImage: "gearshape.fill") }
+                .tag(2)
         }
         .tint(.appPrimary)
-        // ✅ NOVO: Mostrar paywall automaticamente se não tiver acesso
-        .sheet(isPresented: .constant(subscriptionManager.shouldShowPaywall)) {
+
+        // 🔒 Bloqueia totalmente interação se não tiver acesso computado
+        .allowsHitTesting(!isBlocked)
+
+        // MARK: - Overlay
+        .overlay {
+            if subscriptionManager.isLoading {
+                ZStack {
+                    Color.black.opacity(0.2).ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(1.2)
+
+                        Text("Atualizando assinatura...")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                    }
+                    .padding(20)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+
+            } else if isBlocked {
+                ZStack {
+                    Color.black.opacity(0.4).ignoresSafeArea()
+
+                    VStack(spacing: 16) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.white)
+
+                        Text("Assinatura necessária")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+
+                        Button("Assinar agora") {
+                            isPaywallPresented = true
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.white)
+                        .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+
+        // MARK: - Fonte única da verdade do Paywall
+        .onChange(of: subscriptionManager.shouldShowPaywall) { _, _ in
+            updatePaywallState()
+        }
+        .onChange(of: subscriptionManager.didFinishInitialAccessCheck) { _, _ in
+            updatePaywallState()
+        }
+
+        // Fecha sheet se deslogar
+        .onChange(of: supabase.isAuthenticated) { _, isAuth in
+            if !isAuth {
+                isPaywallPresented = false
+            }
+        }
+
+        // Estado inicial
+        .onAppear {
+            updatePaywallState()
+        }
+
+        // MARK: - Sheet
+        .sheet(isPresented: $isPaywallPresented) {
             PaywallView()
                 .environmentObject(subscriptionManager)
                 .environmentObject(supabase)
         }
     }
-}
 
-#Preview {
-    MainTabView()
-        .environmentObject(SupabaseManager.shared)
+    // MARK: - Helpers
+    private func updatePaywallState() {
+        guard supabase.isAuthenticated else {
+            isPaywallPresented = false
+            return
+        }
+
+        // ✅ Regra única: se precisa mostrar paywall, abre. Se não, fecha.
+        isPaywallPresented = subscriptionManager.shouldShowPaywall
+    }
 }

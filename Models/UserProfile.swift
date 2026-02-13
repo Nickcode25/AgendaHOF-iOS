@@ -11,7 +11,9 @@ struct UserProfile: Identifiable, Codable {
     var username: String?
     var profilePhoto: String?
     var phone: String?
+    var phoneE164: String?
     var secondaryPhone: String?
+
     var isActive: Bool
     var isPremium: Bool  // Status de assinatura do backend (Stripe)
     let createdAt: Date
@@ -26,9 +28,12 @@ struct UserProfile: Identifiable, Codable {
         case socialName = "social_name"
         case username
         case profilePhoto = "profile_photo"
+
         case phone
+        case phoneE164 = "phone_e164"
         case secondaryPhone = "secondary_phone"
         case isActive = "is_active"
+
         case isPremium = "is_premium"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -61,6 +66,8 @@ struct UserProfile: Identifiable, Codable {
         } else {
             phone = nil
         }
+        
+        phoneE164 = try container.decodeIfPresent(String.self, forKey: .phoneE164)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -75,6 +82,7 @@ struct UserProfile: Identifiable, Codable {
         try container.encodeIfPresent(username, forKey: .username)
         try container.encodeIfPresent(profilePhoto, forKey: .profilePhoto)
         try container.encodeIfPresent(phone, forKey: .phone)
+        try container.encodeIfPresent(phoneE164, forKey: .phoneE164)
         try container.encodeIfPresent(secondaryPhone, forKey: .secondaryPhone)
         try container.encode(isActive, forKey: .isActive)
         try container.encode(isPremium, forKey: .isPremium)

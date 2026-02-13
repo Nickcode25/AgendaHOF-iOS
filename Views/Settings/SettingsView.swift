@@ -513,27 +513,15 @@ struct EditProfileView: View {
     }
 
     private func validatePhone() {
-        let numbers = phone.filter { $0.isNumber }
-
-        if numbers.isEmpty {
+        if phone.isEmpty {
             phoneValidationError = nil
             return
         }
-
-        if numbers.count < 10 {
-            phoneValidationError = "Telefone incompleto. Digite DDD + número"
-        } else if numbers.count > 11 {
-            phoneValidationError = "Telefone inválido. Máximo 11 dígitos"
-        } else if numbers.count == 10 || numbers.count == 11 {
-            // Validar DDD (11-99)
-            let ddd = Int(numbers.prefix(2)) ?? 0
-            if ddd < 11 || ddd > 99 {
-                phoneValidationError = "DDD inválido"
-            } else {
-                phoneValidationError = nil
-            }
+        
+        if PhoneFormatter.normalizeBR(phone) != nil {
+             phoneValidationError = nil
         } else {
-            phoneValidationError = "Telefone inválido"
+             phoneValidationError = "Telefone inválido. Verifique o DDD e o número."
         }
     }
 
@@ -542,23 +530,25 @@ struct EditProfileView: View {
         let numbers = value.filter { $0.isNumber }
         var result = ""
 
+        // Remove DDI 55 se vier com ele (ex: 55319...)
+        if numbers.hasPrefix("55") && numbers.count > 11 {
+             let numbersWithoutDDI = String(numbers.dropFirst(2))
+             // Apenas remover se o restante parecer um número válido com DDD
+             return formatBR(numbersWithoutDDI)
+        }
+        
+        return formatBR(numbers)
+    }
+    
+    private func formatBR(_ numbers: String) -> String {
+        var result = ""
         for (index, char) in numbers.prefix(11).enumerated() {
-            if index == 0 {
-                result += "("
-            }
-            if index == 2 {
-                result += ") "
-            }
-            // Para 11 dígitos: (XX) XXXXX-XXXX
-            // Para 10 dígitos: (XX) XXXX-XXXX
-            if numbers.count <= 10 && index == 6 {
-                result += "-"
-            } else if numbers.count == 11 && index == 7 {
-                result += "-"
-            }
+            if index == 0 { result += "(" }
+            if index == 2 { result += ") " }
+            if numbers.count <= 10 && index == 6 { result += "-" }
+            else if numbers.count == 11 && index == 7 { result += "-" }
             result += String(char)
         }
-
         return result
     }
 
@@ -574,13 +564,20 @@ struct EditProfileView: View {
         isLoading = true
 
         do {
-            let phoneNumbers = phone.filter { $0.isNumber }
+            // Normalizar telefone
+            var phoneE164: String? = nil
+            if !phone.isEmpty {
+                phoneE164 = PhoneFormatter.normalizeBR(phone)
+            }
+            
+            let phoneToSave = phone.isEmpty ? nil : phone
 
             try await supabase.client
                 .from("user_profiles")
                 .update([
                     "full_name": fullName.trimmed,
-                    "phone": phoneNumbers.isEmpty ? nil : phoneNumbers,
+                    "phone": phoneToSave,
+                    "phone_e164": phoneE164,
                     "username": username.trimmed.isEmpty ? nil : username.trimmed
                 ] as [String: String?])
                 .eq("id", value: supabase.currentUser?.id.uuidString ?? "")
@@ -597,6 +594,7 @@ struct EditProfileView: View {
 
         isLoading = false
     }
+
 }
 
 // MARK: - Notifications Settings View

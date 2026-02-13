@@ -436,11 +436,25 @@ struct NewPatientView: View {
         isLoading = true
 
         do {
+            // Normalizar telefone
+            var phoneE164: String? = nil
+            if !phone.isEmpty {
+                if let normalized = PhoneFormatter.normalizeBR(phone) {
+                    phoneE164 = normalized
+                } else {
+                    errorMessage = "Telefone inválido. Verifique o DDD e número."
+                    showError = true
+                    isLoading = false // Reset loading
+                    return
+                }
+            }
+
             let patient = Patient.Insert(
                 userId: userId,
                 name: name.trimmingCharacters(in: .whitespaces),
                 birthDate: nil,
-                phone: phone.isEmpty ? nil : phone
+                phone: phone.isEmpty ? nil : phone,
+                phoneE164: phoneE164
             )
 
             _ = try await service.createPatient(patient)
@@ -450,6 +464,7 @@ struct NewPatientView: View {
             errorMessage = error.localizedDescription
             showError = true
         }
+
 
         isLoading = false
     }
@@ -475,6 +490,25 @@ extension PatientsListView {
             
             // Format phone
             let formattedPhone = contact.phone.map { formatPhoneBrazil($0) }
+            
+            // Normalize E164
+            var phoneE164: String? = nil
+            if let phone = formattedPhone {
+                 phoneE164 = PhoneFormatter.normalizeBR(phone)
+            }
+            
+            // Se tiver telefone mas for inválido, ignoramos ou salvamos sem E164? 
+            // Regra: "Caso contrário -> inválido e bloquear salvamento". 
+            // Mas em batch import pode ser agressivo bloquear tudo. 
+            // Vamos salvar sem E164 se falhar (fallback) ou ignorar?
+            // "Requisitos obrigatórios: Sempre que o app salvar... Normalizar... Caso contrário inválido e bloquear".
+            // Então se tiver telefone e não normalizar, PULAMOS esse contato.
+            
+            if let phone = formattedPhone, !phone.isEmpty && phoneE164 == nil {
+                 print("Telefone inválido para \(contact.name): \(phone). Ignorando contato.")
+                 continue
+            }
+
             let name = contact.name.trimmingCharacters(in: .whitespaces)
             
             // Verificação de duplicidade simples (Nome E (Telefone OU Sem Telefone))
@@ -494,7 +528,8 @@ extension PatientsListView {
                 userId: userId,
                 name: name,
                 birthDate: contact.birthday,
-                phone: formattedPhone
+                phone: formattedPhone,
+                phoneE164: phoneE164
             )
             
             do {

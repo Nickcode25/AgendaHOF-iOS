@@ -121,9 +121,9 @@ class AuthViewModel: ObservableObject {
             return
         }
 
-        // Validação básica de telefone (10 ou 11 dígitos para BR)
-        guard cleanPhone.count >= 10 && cleanPhone.count <= 11 else {
-            showError(message: "Digite um telefone válido com DDD")
+        // Validação e Normalização de Telefone
+        guard let phoneE164 = PhoneFormatter.normalizeBR(phone) else {
+            showError(message: "Telefone inválido. Verifique o DDD e o número.")
             return
         }
 
@@ -157,13 +157,15 @@ class AuthViewModel: ObservableObject {
                 password: password, 
                 name: name, 
                 professionalName: professionalName.isEmpty ? nil : professionalName, // Opcional
-                phone: cleanPhone, // Telefone limpo (apenas números)
+                phone: phone, // Mantém o original para exibição
+                phoneE164: phoneE164, // E.164 para backend
                 trialEndDate: trialEndDateString
             )
             showSuccess(message: "Conta criada! Verifique seu email para confirmar.")
         } catch {
             showError(message: error.authErrorMessage)
         }
+
 
         isLoading = false
     }

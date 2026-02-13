@@ -9,7 +9,9 @@ struct Patient: Identifiable, Codable, Hashable {
     var cpf: String?
     var birthDate: Date?
     var phone: String?
+    var phoneE164: String?
     var email: String?
+
     var address: String?
     var photoUrl: String?
     var notes: String?
@@ -31,8 +33,11 @@ struct Patient: Identifiable, Codable, Hashable {
         case userId = "user_id"
         case name, cpf
         case birthDate = "birth_date"
-        case phone, email, address
+        case phone
+        case phoneE164 = "phone_e164"
+        case email, address
         case photoUrl = "photo_url"
+
         case notes
         case isActive = "is_active"
         case plannedProcedures = "planned_procedures"
@@ -50,8 +55,10 @@ struct Patient: Identifiable, Codable, Hashable {
         cpf: String? = nil,
         birthDate: Date? = nil,
         phone: String? = nil,
+        phoneE164: String? = nil,
         email: String? = nil,
         address: String? = nil,
+
         photoUrl: String? = nil,
         notes: String? = nil,
         isActive: Bool,
@@ -73,8 +80,10 @@ struct Patient: Identifiable, Codable, Hashable {
         self.cpf = cpf
         self.birthDate = birthDate
         self.phone = phone
+        self.phoneE164 = phoneE164
         self.email = email
         self.address = address
+
         self.photoUrl = photoUrl
         self.notes = notes
         self.isActive = isActive
@@ -110,9 +119,13 @@ struct Patient: Identifiable, Codable, Hashable {
             birthDate = nil
         }
 
+
+        
         phone = try container.decodeIfPresent(String.self, forKey: .phone)
+        phoneE164 = try container.decodeIfPresent(String.self, forKey: .phoneE164)
         email = try container.decodeIfPresent(String.self, forKey: .email)
         address = try container.decodeIfPresent(String.self, forKey: .address)
+
         photoUrl = try container.decodeIfPresent(String.self, forKey: .photoUrl)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
         isActive = try container.decode(Bool.self, forKey: .isActive)
@@ -149,8 +162,10 @@ struct Patient: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(cpf, forKey: .cpf)
         try container.encodeIfPresent(birthDate, forKey: .birthDate)
         try container.encodeIfPresent(phone, forKey: .phone)
+        try container.encodeIfPresent(phoneE164, forKey: .phoneE164)
         try container.encodeIfPresent(email, forKey: .email)
         try container.encodeIfPresent(address, forKey: .address)
+
         try container.encodeIfPresent(photoUrl, forKey: .photoUrl)
         try container.encodeIfPresent(notes, forKey: .notes)
         try container.encode(isActive, forKey: .isActive)
@@ -172,8 +187,10 @@ struct Patient: Identifiable, Codable, Hashable {
         var cpf: String?
         var birthDate: Date?
         var phone: String?
+        var phoneE164: String?
         var email: String?
         var address: String?
+
         var photoUrl: String?
         var notes: String?
         var isActive: Bool = true
@@ -190,8 +207,11 @@ struct Patient: Identifiable, Codable, Hashable {
             case userId = "user_id"
             case name, cpf
             case birthDate = "birth_date"
-            case phone, email, address
+            case phone
+            case phoneE164 = "phone_e164"
+            case email, address
             case photoUrl = "photo_url"
+
             case notes
             case isActive = "is_active"
             case cep, street, number, complement, neighborhood, city, state
