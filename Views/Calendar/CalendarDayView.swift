@@ -191,7 +191,7 @@ struct CalendarDayView: View {
         DispatchQueue.main.async {
             self.dragStartPoint = point
             self.ghostEventRawY = self.snapToGrid(y: point.y)
-            self.ghostEventHeight = CalendarConstants.hourHeight / 4
+            self.ghostEventHeight = CalendarConstants.hourHeight / 2  // ✅ Google-like: 30 min inicial
             self.impactFeedback.impactOccurred()
         }
     }
@@ -202,18 +202,33 @@ struct CalendarDayView: View {
         let diff = point.y - startPoint.y
         let minHeight = CalendarConstants.hourHeight / 4
         
-        DispatchQueue.main.async {
+        // ✅ Google-like: animação suave com interactive spring
+        withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.95)) {
             if diff >= 0 {
-                self.ghostEventHeight = max(minHeight, self.snapToGrid(y: diff))
+                self.ghostEventHeight = max(minHeight, self.snapDeltaToGrid(diff))
             } else {
                 self.ghostEventRawY = self.snapToGrid(y: point.y)
-                self.ghostEventHeight = max(minHeight, self.snapToGrid(y: startPoint.y - point.y))
+                self.ghostEventHeight = max(minHeight, self.snapDeltaToGrid(startPoint.y - point.y))
             }
         }
     }
 
     private func finishCreatingEvent() {
         guard isDragging else { return }
+        
+        let minHeight = CalendarConstants.hourHeight / 4   // 15 min
+        let requiredHeight = minHeight * 2                 // ✅ 30 min (ajuste se quiser)
+        
+        // ✅ se não houve criação real, só cancela
+        guard ghostEventHeight >= requiredHeight else {
+            DispatchQueue.main.async {
+                self.isDragging = false
+                self.dragStartPoint = nil
+                self.ghostEventRawY = 0
+                self.ghostEventHeight = 0
+            }
+            return
+        }
         
         let start = ghostStartTime
         let end = ghostEndTime
@@ -223,6 +238,7 @@ struct CalendarDayView: View {
             
             self.isDragging = false
             self.dragStartPoint = nil
+            self.ghostEventRawY = 0
             self.ghostEventHeight = 0
         }
     }
@@ -232,6 +248,11 @@ struct CalendarDayView: View {
     private func snapToGrid(y: CGFloat) -> CGFloat {
         let step = CalendarConstants.hourHeight / 4
         return (y / step).rounded() * step
+    }
+    
+    private func snapDeltaToGrid(_ delta: CGFloat) -> CGFloat {
+        let step = CalendarConstants.hourHeight / 4
+        return (abs(delta) / step).rounded() * step
     }
 
     private var ghostStartTime: Date {
@@ -469,8 +490,11 @@ struct LongPressGestureView: UIViewRepresentable {
             target: context.coordinator,
             action: #selector(Coordinator.handleLongPress(_:))
         )
-        longPress.minimumPressDuration = 0.5
-        longPress.allowableMovement = .infinity
+        
+        // ✅ Google Calendar-like configuration
+        longPress.minimumPressDuration = 0.5      // Google-like: ~0.45–0.55
+        longPress.allowableMovement = 12          // pequeno, mas não tão rígido
+        longPress.cancelsTouchesInView = false    // ✅ não "mata" o scroll
         longPress.delegate = context.coordinator
         
         view.addGestureRecognizer(longPress)
@@ -511,6 +535,7 @@ struct LongPressGestureView: UIViewRepresentable {
             
             switch gesture.state {
             case .began:
+                // ✅ Google-like: ghost aparece imediatamente ao ativar
                 isActive = true
                 onLongPressStart(location)
                 
@@ -530,6 +555,7 @@ struct LongPressGestureView: UIViewRepresentable {
             }
         }
         
+        // ✅ Antes de ativar, permite scroll. Depois, bloqueia (via scrollDisabled)
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
