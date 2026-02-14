@@ -15,6 +15,7 @@ class SupabaseManager: ObservableObject {
     
     // ✅ NOVO: Flag para identificar logout explícito
     private var userInitiatedSignOut = false
+    private var isCheckingSessionNow = false
 
     private init() {
         let url: URL
@@ -315,6 +316,11 @@ class SupabaseManager: ObservableObject {
     }
 
     func checkSession() async {
+        // Evita checkSession concorrente (causa múltiplas chamadas de access em loop visual)
+        if isCheckingSessionNow { return }
+        isCheckingSessionNow = true
+        defer { isCheckingSessionNow = false }
+
         // ✅ MUDANÇA CRÍTICA: Método muito mais tolerante a erros
         do {
             let session = try await client.auth.session
@@ -332,15 +338,9 @@ class SupabaseManager: ObservableObject {
             // ✅ Marcar como autenticado
             self.isAuthenticated = true
             
-            // ✅ Verificar acesso (para paywall, não logout)
-            await SubscriptionManager.shared.checkAccess()
-            
-            let accessState = SubscriptionManager.shared.accessState
-            if accessState.hasAccess {
-                AppLogger.log("✅ [Auth] Sessão restaurada. Plano: \(accessState.planType.displayName) via \(accessState.source.displayName)", category: .auth)
-            } else {
-                AppLogger.log("⚠️ [Auth] Sessão válida mas sem subscription ativa. Paywall será exibido.", category: .auth)
-            }
+            // ✅ Verificar acesso em background (não bloquear restauração de sessão)
+            SubscriptionManager.shared.refreshAccess(silent: true)
+            AppLogger.log("✅ [Auth] Sessão restaurada. Revalidação de assinatura em background.", category: .auth)
             
         } catch {
             // ✅ MUDANÇA CRÍTICA: Tratar erros com muito mais cuidado
@@ -420,10 +420,8 @@ class SupabaseManager: ObservableObject {
                     self.isAuthenticated = true
                     AppLogger.log("✅ [Auth] Usuário restaurado do cache local (Offline Mode)", category: .auth)
                     
-                    // Disparar verificação de acesso (vai usar cache do SubscriptionManager)
-                    Task {
-                        await SubscriptionManager.shared.checkAccess()
-                    }
+                    // Disparar verificação de acesso em background
+                    SubscriptionManager.shared.refreshAccess(silent: true)
                     return
                 }
                 

@@ -2,23 +2,30 @@ import Foundation
 import WidgetKit
 
 /// Gerenciador de dados compartilhados entre o app principal e os widgets
-/// Usa App Groups para compartilhar dados via UserDefaults
+/// Usa App Groups via arquivo JSON no container compartilhado.
 @MainActor
 class WidgetDataManager {
     static let shared = WidgetDataManager()
 
     // IMPORTANTE: Configurar App Group no Xcode primeiro!
-    // 1. Target AgendaHOF → Signing & Capabilities → + Capability → App Groups
+    // 1. Target AgendaHOF -> Signing & Capabilities -> + Capability -> App Groups
     // 2. Marcar: group.com.agendahof.shared
     // 3. Repetir para o target AgendaWidget
     private let appGroupIdentifier = "group.com.agendahof.shared"
-    private let widgetDataKey = "widgetAppointments"
+    private let widgetDataFileName = "widgetAppointments.json"
 
     private init() {}
 
+    private func widgetDataURL() -> URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)?
+            .appendingPathComponent(widgetDataFileName)
+    }
+
     /// Salvar agendamentos para os widgets acessarem
     func saveAppointments<T: AppointmentConvertible>(_ appointments: [T], status: ((String) -> String)? = nil) {
-        // Converter para modelo simplificado (sem dependências de Supabase)
+        let _ = status
+
         let widgetAppointments = appointments.map { appointment in
             WidgetAppointment(
                 id: appointment.id,
@@ -26,7 +33,7 @@ class WidgetDataManager {
                 procedure: appointment.procedure ?? "Sem procedimento",
                 start: appointment.start,
                 end: appointment.end,
-                status: "scheduled", // Status genérico para widgets
+                status: "scheduled",
                 isPersonal: appointment.isPersonal ?? false,
                 title: appointment.title
             )
@@ -37,12 +44,11 @@ class WidgetDataManager {
             lastUpdate: Date()
         )
 
-        // Salvar no App Group UserDefaults
-        guard let userDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
-            print("❌ [Widget] Failed to access App Group UserDefaults")
+        guard let fileURL = widgetDataURL() else {
+            print("❌ [Widget] Failed to resolve App Group container URL")
             print("⚠️ [Widget] Verifique se o App Group está configurado corretamente:")
-            print("   1. Target AgendaHOF → Signing & Capabilities")
-            print("   2. + Capability → App Groups")
+            print("   1. Target AgendaHOF -> Signing & Capabilities")
+            print("   2. + Capability -> App Groups")
             print("   3. Marcar: \(appGroupIdentifier)")
             return
         }
@@ -51,8 +57,7 @@ class WidgetDataManager {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(widgetData)
-            userDefaults.set(data, forKey: widgetDataKey)
-            userDefaults.synchronize()  // Forçar sync imediato
+            try data.write(to: fileURL, options: .atomic)
 
             #if DEBUG
             print("✅ [Widget] Saved \(widgetAppointments.count) appointments")
@@ -60,32 +65,34 @@ class WidgetDataManager {
             print("📅 [Widget] Today: \(widgetData.todayAppointments.count) appointments")
             #endif
 
-            // Notificar os widgets para atualizar
             WidgetCenter.shared.reloadAllTimelines()
 
             #if DEBUG
             print("🔄 [Widget] Timeline reload requested")
             #endif
         } catch {
-            print("❌ [Widget] Error encoding data: \(error.localizedDescription)")
+            print("❌ [Widget] Error writing shared widget data: \(error.localizedDescription)")
         }
     }
 
     /// Carregar agendamentos do App Group (usado pelos widgets)
     static func loadAppointments() -> [WidgetAppointment] {
         let appGroupIdentifier = "group.com.agendahof.shared"
-        let widgetDataKey = "widgetAppointments"
+        let fileName = "widgetAppointments.json"
 
-        guard let userDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
+        guard let containerURL = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
             #if DEBUG
-            print("❌ [Widget] Failed to access App Group UserDefaults")
+            print("❌ [Widget] Failed to resolve App Group container URL")
             #endif
             return []
         }
 
-        guard let data = userDefaults.data(forKey: widgetDataKey) else {
+        let fileURL = containerURL.appendingPathComponent(fileName)
+
+        guard let data = try? Data(contentsOf: fileURL) else {
             #if DEBUG
-            print("⚠️ [Widget] No data found in UserDefaults")
+            print("⚠️ [Widget] No shared file found")
             #endif
             return []
         }
@@ -109,14 +116,18 @@ class WidgetDataManager {
 
     /// Limpar dados dos widgets (útil no logout)
     func clearWidgetData() {
-        guard let userDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
+        guard let fileURL = widgetDataURL() else {
             return
         }
 
-        userDefaults.removeObject(forKey: widgetDataKey)
-        userDefaults.synchronize()
+        do {
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try FileManager.default.removeItem(at: fileURL)
+            }
+        } catch {
+            print("❌ [Widget] Error clearing shared widget data: \(error.localizedDescription)")
+        }
 
-        // Atualizar widgets para mostrar estado vazio
         WidgetCenter.shared.reloadAllTimelines()
 
         #if DEBUG
@@ -135,33 +146,34 @@ class WidgetDataManager {
 
     /// Verificar se App Group está configurado corretamente
     func verifyAppGroupAccess() -> Bool {
-        guard let userDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
+        guard let containerURL = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
             print("❌ [Widget] App Group not accessible")
             print("⚠️ [Widget] Configure o App Group:")
-            print("   1. Apple Developer → Certificates, Identifiers & Profiles")
+            print("   1. Apple Developer -> Certificates, Identifiers & Profiles")
             print("   2. Create App Group: \(appGroupIdentifier)")
-            print("   3. Xcode → Target → Signing & Capabilities → Add App Group")
+            print("   3. Xcode -> Target -> Signing & Capabilities -> Add App Group")
             return false
         }
 
-        // Testar escrita e leitura
-        let testKey = "widget_test"
+        let testURL = containerURL.appendingPathComponent("widget_access_test.txt")
         let testValue = "test_\(Date().timeIntervalSince1970)"
 
-        userDefaults.set(testValue, forKey: testKey)
-        userDefaults.synchronize()
+        do {
+            try testValue.data(using: .utf8)?.write(to: testURL, options: .atomic)
+            let readValue = try String(contentsOf: testURL, encoding: .utf8)
+            try? FileManager.default.removeItem(at: testURL)
 
-        let readValue = userDefaults.string(forKey: testKey)
-        userDefaults.removeObject(forKey: testKey)
-
-        let success = readValue == testValue
-
-        if success {
-            print("✅ [Widget] App Group access verified")
-        } else {
-            print("❌ [Widget] App Group test failed")
+            let success = readValue == testValue
+            if success {
+                print("✅ [Widget] App Group access verified")
+            } else {
+                print("❌ [Widget] App Group test failed")
+            }
+            return success
+        } catch {
+            print("❌ [Widget] App Group test failed: \(error.localizedDescription)")
+            return false
         }
-
-        return success
     }
 }

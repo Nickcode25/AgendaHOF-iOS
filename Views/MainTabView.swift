@@ -17,8 +17,7 @@ struct MainTabView: View {
     }
 
     private var isBlocked: Bool {
-        subscriptionManager.didFinishInitialAccessCheck &&
-        !subscriptionManager.effectiveHasAccess
+        subscriptionManager.shouldShowPaywall
     }
 
     var body: some View {

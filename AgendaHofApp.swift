@@ -160,6 +160,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isCheckingAuth = true
+    @State private var lastForegroundValidation: Date = .distantPast
 
     var body: some View {
         Group {
@@ -187,15 +188,15 @@ struct ContentView: View {
         // 🔁 Foreground: revalida sessão e acesso
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
+                let now = Date()
+                // Evita rajada de revalidações (ex: app voltando de permissões / sheets)
+                guard now.timeIntervalSince(lastForegroundValidation) > 15 else { return }
+                lastForegroundValidation = now
+
                 Task {
                     AppLogger.log("🔄 [Lifecycle] App voltou para active. Revalidando sessão/acesso...", category: .auth)
 
                     await supabase.checkSession()
-
-                    if supabase.isAuthenticated {
-                        // ✅ Sem await (evita concorrência)
-                        subscriptionManager.refreshAccess()
-                    }
                 }
             }
         }
@@ -206,8 +207,6 @@ struct ContentView: View {
             isCheckingAuth = false
 
             if supabase.isAuthenticated {
-                // ✅ Sem await
-                subscriptionManager.refreshAccess()
                 await migrateAndScheduleNotifications()
             }
         }

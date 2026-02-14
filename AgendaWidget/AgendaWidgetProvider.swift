@@ -1,13 +1,19 @@
+import Foundation
 import WidgetKit
 import SwiftUI
 
 // Função helper para carregar agendamentos do App Group
 func loadWidgetAppointments() -> [WidgetAppointment] {
     let appGroupIdentifier = "group.com.agendahof.shared"
-    let widgetDataKey = "widgetAppointments"
+    let fileName = "widgetAppointments.json"
 
-    guard let userDefaults = UserDefaults(suiteName: appGroupIdentifier),
-          let data = userDefaults.data(forKey: widgetDataKey) else {
+    guard let containerURL = FileManager.default
+        .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+        return []
+    }
+
+    let fileURL = containerURL.appendingPathComponent(fileName)
+    guard let data = try? Data(contentsOf: fileURL) else {
         return []
     }
 

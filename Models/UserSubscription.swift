@@ -2,6 +2,7 @@ import Foundation
 
 enum SubscriptionStatus: String, Codable {
     case active = "active"
+    case trialing = "trialing"
     case pendingCancellation = "pending_cancellation"
     case cancelled = "cancelled"
     case pastDue = "past_due"
@@ -48,6 +49,12 @@ extension UserSubscription {
     /// Verifica se é uma cortesia (100% de desconto)
     var isCourtesy: Bool {
         return discountPercentage == 100
+    }
+
+    /// Melhor data de expiração disponível.
+    /// `next_billing_date` é preferível; se ausente, usa `current_period_end`.
+    var effectiveExpirationDate: Date? {
+        nextBillingDate ?? currentPeriodEnd
     }
     
     /// Determina o plano seguindo a lógica do Web (Prioridades 1, 2, 3)
@@ -100,7 +107,7 @@ extension UserSubscription {
         // Se o planId for nulo mas o status for active (vindo do Stripe via Web),
         // assumimos que é um plano Premium legado ou migrado.
         // A Web exibe como Premium, então o App deve espelhar isso.
-        if status == .active {
+        if status == .active || status == .trialing {
             return .premium
         }
         

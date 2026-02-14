@@ -152,11 +152,6 @@ struct SettingsView: View {
                     showSupport = true
                 }
                 
-                LabeledContent("Versão") {
-                    Text(Constants.appVersion)
-                        .foregroundColor(.secondary)
-                }
-
                 NavigationLink(destination: LegalInfoView()) {
                     HStack {
                         Image(systemName: "info.circle.fill") // Icone para combinar com os outros

@@ -11,6 +11,12 @@ class SubscriptionManager: ObservableObject {
         case noAccess
         case unknown
     }
+    
+    private enum LocalAccessResolution {
+        case hasAccess(AccessState)
+        case noAccess
+        case indeterminate
+    }
 
     @Published var accessState: AccessState = .noAccess
     @Published var accessStatus: AccessStatus = .unknown
@@ -41,6 +47,8 @@ class SubscriptionManager: ObservableObject {
     // ✅ EVITA CONCORRÊNCIA / “BRIGA” DE ESTADOS
     private var accessCheckTask: Task<Void, Never>?
     private var lastRefreshStartedAt: Date?
+    private var noAccessConfirmationPending = false
+    private var noAccessConfirmationTask: Task<Void, Never>?
 
     private init() {
         transactionListener = listenForTransactions()
@@ -53,12 +61,14 @@ class SubscriptionManager: ObservableObject {
     deinit {
         transactionListener?.cancel()
         accessCheckTask?.cancel()
+        noAccessConfirmationTask?.cancel()
     }
 
     // MARK: - Public API (use essa)
     /// Chame isso em vez de chamar `checkAccess()` diretamente em vários lugares.
-    func refreshAccess() {
-        if let last = lastRefreshStartedAt,
+    /// `silent = true` evita mostrar overlay de loading durante refresh em background/foreground.
+    func refreshAccess(silent: Bool = true, force: Bool = false) {
+        if !force, let last = lastRefreshStartedAt,
            Date().timeIntervalSince(last) < 10.0,
            accessCheckTask != nil { // Só bloqueia se já tiver task rodando ou range muito curto
             return
@@ -70,19 +80,19 @@ class SubscriptionManager: ObservableObject {
 
         accessCheckTask = Task { [weak self] in
             guard let self else { return }
-            await self.checkAccessInternal()
+            await self.checkAccessInternal(showLoader: !silent)
         }
     }
     
     // MARK: - Compatibilidade com código antigo
     /// Wrapper async para manter compatibilidade com chamadas antigas `await checkAccess()`
-    func checkAccess() async {
+    func checkAccess(silent: Bool = false) async {
         // cancela qualquer check anterior
         accessCheckTask?.cancel()
 
         accessCheckTask = Task { [weak self] in
             guard let self else { return }
-            await self.checkAccessInternal()
+            await self.checkAccessInternal(showLoader: !silent)
         }
 
         // aguarda terminar (para fluxos que dependem do resultado)
@@ -90,72 +100,205 @@ class SubscriptionManager: ObservableObject {
     }
 
     // MARK: - Verificação Backend-First (Internal)
-    private func checkAccessInternal() async {
-        didFinishInitialAccessCheck = false
-        isLoading = true
-        errorMessage = nil
-
-        // cancelamento
-        if Task.isCancelled {
-            isLoading = false
-            return
+    private func checkAccessInternal(showLoader: Bool) async {
+        if showLoader {
+            isLoading = true
         }
 
-
-
+        defer {
+            if showLoader {
+                isLoading = false
+            }
+            didFinishInitialAccessCheck = true
+        }
 
         do {
-            
             let token = try await supabase.validAccessToken()
-            let accessResponse = try await AccessAPI.fetchAccess(accessToken: token)
+            let response = try await AccessAPI.fetchAccess(accessToken: token)
 
-            if accessResponse.hasAccess {
-                let plan = PlanType(rawValue: (accessResponse.planType ?? "basic")) ?? .basic
+            if response.hasAccess {
+                clearPendingNoAccessConfirmation()
+                let plan = PlanType(rawValue: (response.planType ?? "basic")) ?? .basic
                 finalizeAccess(
                     .active(plan: plan,
-                            expiresAt: accessResponse.expiresAtDate,
+                            expiresAt: response.expiresAtDate,
                             isCourtesy: false,
                             source: .backend),
                     status: .hasAccess
                 )
             } else {
-                finalizeAccess(.noAccess, status: .noAccess)
+                AppLogger.log("⚠️ [Access] Backend retornou sem acesso. Executando fallback local...", category: .business)
+                let localResolution = await resolveLocalSupabaseAccess()
+                switch localResolution {
+                case .hasAccess(let fallbackState):
+                    clearPendingNoAccessConfirmation()
+                    AppLogger.log("✅ [Access] Fallback local confirmou acesso ativo.", category: .business)
+                    finalizeAccess(fallbackState, status: .hasAccess)
+                case .noAccess:
+                    applyDeterministicNoAccess(context: "Backend sem acesso")
+                case .indeterminate:
+                    AppLogger.warning("[Access] Estado local indeterminado após resposta sem acesso do backend. Mantendo estado atual.")
+                    if let knownAccessState = bestKnownAccessStateForUncertainCheck() {
+                        finalizeAccess(knownAccessState, status: .unknown)
+                    } else {
+                        finalizeAccess(accessState, status: .unknown)
+                    }
+                    clearPendingNoAccessConfirmation()
+                }
             }
 
         } catch {
-            // Se for 401 vindo do backend (Sessão inválida/Revogada)
-            // Se for 401 vindo do backend (Sessão inválida/Revogada)
-            if let err = error as? URLError, err.code == .userAuthenticationRequired {
-                AppLogger.error("[Access] 401 Unauthorized - Forçando logout.")
-                do {
-                    try await supabase.signOut() // Desloga
-                } catch {
-                    AppLogger.error("❌ [Auth] Falha ao fazer signOut após 401: \(error)")
+            if Task.isCancelled { return }
+            AppLogger.error("❌ [Access] Erro na API de acesso: \(error)")
+
+            let localResolution = await resolveLocalSupabaseAccess()
+            switch localResolution {
+            case .hasAccess(let fallbackState):
+                clearPendingNoAccessConfirmation()
+                AppLogger.log("✅ [Access] Fallback local confirmou acesso após erro de API.", category: .business)
+                finalizeAccess(fallbackState, status: .hasAccess)
+            case .noAccess:
+                applyDeterministicNoAccess(context: "Fallback local sem acesso após erro de API")
+            case .indeterminate:
+                if let knownAccessState = bestKnownAccessStateForUncertainCheck() {
+                    finalizeAccess(knownAccessState, status: .unknown)
+                } else if lastVerifiedHadAccess {
+                    finalizeAccess(accessState, status: .unknown)
+                } else {
+                    finalizeAccess(accessState, status: .unknown)
                 }
-                finalizeAccess(.noAccess, status: .noAccess) // Bloqueia
-                return
+                clearPendingNoAccessConfirmation()
+            }
+        }
+    }
+
+    private func bestKnownAccessStateForUncertainCheck() -> AccessState? {
+        if accessState.hasAccess { return accessState }
+        if previousAccessState.hasAccess { return previousAccessState }
+        if let cachedState = loadAccessStateFromCache(), cachedState.hasAccess { return cachedState }
+        return nil
+    }
+
+    private func applyDeterministicNoAccess(context: String) {
+        if shouldConfirmNoAccessBeforeBlocking() {
+            noAccessConfirmationPending = true
+            AppLogger.warning("[Access] \(context). Confirmando novamente antes de abrir paywall.")
+
+            if let knownAccessState = bestKnownAccessStateForUncertainCheck() {
+                finalizeAccess(knownAccessState, status: .unknown)
+            } else {
+                finalizeAccess(accessState, status: .unknown)
             }
 
-            // Ignorar erro de cancelamento (ex: refreshAccess chamando cancel())
-            if let err = error as? URLError, err.code == .cancelled {
-                AppLogger.warning("[Access] Request cancelado. Ignorando.")
-                return
+            scheduleNoAccessConfirmationRefresh()
+            return
+        }
+
+        clearPendingNoAccessConfirmation()
+        finalizeAccess(.noAccess, status: .noAccess)
+    }
+
+    private func shouldConfirmNoAccessBeforeBlocking() -> Bool {
+        if noAccessConfirmationPending {
+            // Segunda confirmação já em andamento; pode aplicar noAccess.
+            return false
+        }
+
+        // Se havia acesso conhecido recentemente, exige dupla confirmação.
+        if accessState.hasAccess || previousAccessState.hasAccess { return true }
+        if let cachedState = loadAccessStateFromCache(), cachedState.hasAccess { return true }
+
+        if lastVerifiedHadAccess, let lastVerifiedAt {
+            let withinOfflineGrace = Date().timeIntervalSince(lastVerifiedAt) < (offlineGraceHours * 3600)
+            if withinOfflineGrace { return true }
+        }
+
+        return false
+    }
+
+    private func scheduleNoAccessConfirmationRefresh() {
+        noAccessConfirmationTask?.cancel()
+        noAccessConfirmationTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.noAccessConfirmationTask = nil }
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            if Task.isCancelled { return }
+            self.refreshAccess(silent: true, force: true)
+        }
+    }
+
+    private func clearPendingNoAccessConfirmation() {
+        noAccessConfirmationPending = false
+        noAccessConfirmationTask?.cancel()
+        noAccessConfirmationTask = nil
+    }
+
+    /// Fallback local: consulta `user_subscriptions` diretamente no Supabase
+    /// para evitar falso negativo temporário da API `/api/access`.
+    private func resolveLocalSupabaseAccess() async -> LocalAccessResolution {
+        guard let currentUser = supabase.currentUser else { return .indeterminate }
+
+        if supabase.userProfile == nil {
+            await supabase.fetchUserProfile()
+        }
+        guard let profile = supabase.userProfile else { return .indeterminate }
+
+        let staffCheck = SubscriptionLogic.checkStaffAccess(profile: profile)
+        if let blockedState = staffCheck.access {
+            return blockedState.hasAccess ? .hasAccess(blockedState) : .noAccess
+        }
+
+        let targetUserId = staffCheck.targetUserId ?? currentUser.id.uuidString
+
+        do {
+            let subscriptions: [UserSubscription] = try await supabase.client
+                .from("user_subscriptions")
+                .select()
+                .eq("user_id", value: targetUserId)
+                .in("status", values: [
+                    SubscriptionStatus.active.rawValue,
+                    SubscriptionStatus.trialing.rawValue,
+                    SubscriptionStatus.pendingCancellation.rawValue
+                ])
+                .execute()
+                .value
+
+            if let localState = SubscriptionLogic.evaluateSubscriptions(subscriptions) {
+                return .hasAccess(
+                    .active(
+                        plan: localState.planType,
+                        expiresAt: localState.expirationDate,
+                        isCourtesy: localState.isCourtesy,
+                        source: .backend
+                    )
+                )
             }
-
-            AppLogger.error("[Access] Railway /api/access falhou: \(error)")
-
-            // fallback: mantém acesso anterior por grace
-            if previousAccessState.hasAccess {
-                finalizeAccess(previousAccessState, status: .unknown)
-                return
+            
+            // Fallback de trial local para evitar falso bloqueio quando a API do backend diverge
+            // ou está indisponível.
+            var trialMeta: String?
+            if let jsonValue = currentUser.userMetadata["trial_end_date"] {
+                switch jsonValue {
+                case .string(let value):
+                    trialMeta = value
+                default:
+                    trialMeta = nil
+                }
             }
-
-            if let cached = loadAccessStateFromCache(), cached.hasAccess {
-                finalizeAccess(cached, status: .unknown)
-                return
+            
+            let trialState = SubscriptionLogic.checkTrial(
+                createdAt: currentUser.createdAt,
+                trialEndDateMetadata: trialMeta
+            )
+            
+            if trialState.isInTrial {
+                return .hasAccess(trialState)
             }
-
-            finalizeAccess(.noAccess, status: .unknown)
+            
+            return .noAccess
+        } catch {
+            AppLogger.error("❌ [Access] Erro no fallback local: \(error)")
+            return .indeterminate
         }
     }
 
@@ -339,12 +482,11 @@ class SubscriptionManager: ObservableObject {
 
         self.accessState = state
         self.accessStatus = status
-        self.isLoading = false
-        self.didFinishInitialAccessCheck = true
-
-        // Atualiza "última verificação" sempre que o RESULTADO for determinístico
-        // OU quando o state atual tiver acesso (pra suportar fallback em erro).
-        if status == .hasAccess || status == .noAccess || state.hasAccess {
+        
+        // isLoading e didFinishInitialAccessCheck são controlados pelo defer no caller
+        // Atualiza "última verificação" APENAS se o resultado for determinístico (veio do backend).
+        // Se for .unknown (fallback), mantêm o timestamp original para não estender o grace period artificialmente.
+        if status == .hasAccess || status == .noAccess {
             self.lastVerifiedAt = Date()
             self.lastVerifiedHadAccess = state.hasAccess
         }
@@ -383,7 +525,7 @@ class SubscriptionManager: ObservableObject {
     }
 
     var shouldShowPaywall: Bool {
-        didFinishInitialAccessCheck && !effectiveHasAccess && !isLoading
+        didFinishInitialAccessCheck && accessStatus == .noAccess && !isLoading
     }
 
     var recommendedProduct: Product? {

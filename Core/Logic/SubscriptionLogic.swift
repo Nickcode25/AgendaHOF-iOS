@@ -17,8 +17,11 @@ struct SubscriptionLogic {
             if !profile.isActive {
                 return (true, nil, .noAccess) // Staff inativo = Bloqueado
             }
-            if let clinicId = profile.clinicId {
-                return (true, clinicId, nil) // Staff ativo com clínica = Verificar dono
+            if let parentUserId = profile.parentUserId, !parentUserId.isEmpty {
+                return (true, parentUserId, nil) // Staff ativo com dono explícito
+            }
+            if let clinicId = profile.clinicId, !clinicId.isEmpty {
+                return (true, clinicId, nil) // Compatibilidade legado
             } else {
                 return (true, nil, .noAccess) // Staff sem clínica = Bloqueado
             }
@@ -32,20 +35,20 @@ struct SubscriptionLogic {
     static func validateSubscription(_ sub: UserSubscription, referenceDate: Date = Date()) -> Bool {
         // Cortesia (100% OFF)
         if sub.isCourtesy {
-            return sub.status == .active
+            return sub.status == .active || sub.status == .trialing
         }
         
         // Assinatura Paga
         // Se status for pending_cancellation, usuário tem acesso até a data final
         if sub.status == .pendingCancellation {
-             guard let nextBilling = sub.nextBillingDate else { return false }
+             guard let nextBilling = sub.effectiveExpirationDate else { return false }
              // Acesso vai até o fim do período (next_billing_date) EXATO
              return referenceDate <= nextBilling
         }
         
         // Se status active, CONFIAMOS no status do Stripe/Supabase
         // O Webhook do Stripe se encarrega de mudar para past_due ou unpaid se falhar
-        if sub.status == .active {
+        if sub.status == .active || sub.status == .trialing {
             return true
         }
         
@@ -71,7 +74,7 @@ struct SubscriptionLogic {
         for sub in sorted {
             if validateSubscription(sub, referenceDate: referenceDate) {
                 // A struct UserSubscription agora calcula o planType baseado na lógica da Web
-                return .active(plan: sub.planType, expiresAt: sub.nextBillingDate, isCourtesy: sub.isCourtesy, source: .backend)
+                return .active(plan: sub.planType, expiresAt: sub.effectiveExpirationDate, isCourtesy: sub.isCourtesy, source: .backend)
             }
         }
         
