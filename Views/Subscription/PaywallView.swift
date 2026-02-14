@@ -41,19 +41,17 @@ struct PaywallView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    // ✅ X sempre FECHA (não desloga)
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
+                    if !subscriptionManager.shouldShowPaywall {
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
             .alert(alertTitle, isPresented: $showingAlert) {
                 Button("OK", role: .cancel) {
-                    if subscriptionManager.purchaseState == .success {
-                        dismiss()
-                    }
                     subscriptionManager.resetPurchaseState()
                 }
             } message: {
@@ -222,8 +220,14 @@ struct PaywallView: View {
             // ✅ Logout EXPLÍCITO (não automático no X)
             Button(role: .destructive) {
                 Task {
-                    try? await supabase.signOut()
-                    dismiss()
+                    do {
+                        try await supabase.signOut()
+                        dismiss()
+                    } catch {
+                        alertTitle = "Erro ao sair"
+                        alertMessage = error.localizedDescription
+                        showingAlert = true
+                    }
                 }
             } label: {
                 Text("Sair da conta")

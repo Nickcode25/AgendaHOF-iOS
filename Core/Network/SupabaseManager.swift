@@ -81,17 +81,23 @@ class SupabaseManager: ObservableObject {
         case .signedOut:
             AppLogger.log("🚪 [Auth] SignedOut event recebido", category: .auth)
             
-            // ✅ CRÍTICO: Ignorar logout se não foi iniciado pelo usuário (Ghost Logout Prevention)
-            guard userInitiatedSignOut else {
-                AppLogger.log("⚠️ [Auth] SignedOut NÃO iniciado pelo usuário. Ignorando para evitar logout fantasma.", category: .auth)
+            if userInitiatedSignOut {
+                // logout explícito: limpa tudo
+                self.currentSession = nil
+                self.currentUser = nil
+                self.userProfile = nil
+                self.isAuthenticated = false
                 return
             }
-            // Se foi iniciado pelo usuário, segue fluxo normal de limpeza
             
-            // Se não temos sessão, aí sim limpar
+            // 🔥 Logout não iniciado pelo usuário:
+            // não “expulsa” a pessoa à força, mas evita estado inconsistente.
             self.currentSession = nil
             self.currentUser = nil
             self.userProfile = nil
+            
+            // Aqui você tem 2 opções:
+            // (A) Recomendado: marcar como deslogado e mostrar tela de login
             self.isAuthenticated = false
             
         case .initialSession:
@@ -99,6 +105,7 @@ class SupabaseManager: ObservableObject {
             if let session = session {
                 self.currentSession = session
                 self.currentUser = session.user
+                self.isAuthenticated = true // ✅ Marcar como autenticado
                 await loadUserProfile()
                 AppLogger.log("🔵 [Auth] Sessão inicial carregada", category: .auth)
             }
@@ -116,6 +123,25 @@ class SupabaseManager: ObservableObject {
     }
 
     // MARK: - Auth Methods
+
+    /// Sempre retorna um access token válido (refresca a sessão se precisar).
+    func validAccessToken() async throws -> String {
+        // 1) tenta pegar a sessão atual pelo client (fonte confiável)
+        let session = try await client.auth.session
+
+        // 2) se tiver expirada (ou quase), refresca
+        // Margin de 60s para evitar race condition
+        let margin: TimeInterval = 60
+        
+        let expirationDate = Date(timeIntervalSince1970: session.expiresAt)
+        if expirationDate.timeIntervalSinceNow < margin {
+            AppLogger.log("🔄 [Auth] Token próximo de expirar. Renovando...", category: .auth)
+            let refreshedSession = try await client.auth.refreshSession()
+            return refreshedSession.accessToken
+        }
+
+        return session.accessToken
+    }
 
     func signIn(email: String, password: String) async throws {
         isLoading = true

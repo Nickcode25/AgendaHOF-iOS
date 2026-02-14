@@ -40,6 +40,7 @@ class SubscriptionManager: ObservableObject {
 
     // ✅ EVITA CONCORRÊNCIA / “BRIGA” DE ESTADOS
     private var accessCheckTask: Task<Void, Never>?
+    private var lastRefreshStartedAt: Date?
 
     private init() {
         transactionListener = listenForTransactions()
@@ -57,6 +58,13 @@ class SubscriptionManager: ObservableObject {
     // MARK: - Public API (use essa)
     /// Chame isso em vez de chamar `checkAccess()` diretamente em vários lugares.
     func refreshAccess() {
+        if let last = lastRefreshStartedAt,
+           Date().timeIntervalSince(last) < 10.0,
+           accessCheckTask != nil { // Só bloqueia se já tiver task rodando ou range muito curto
+            return
+        }
+        lastRefreshStartedAt = Date()
+
         // Cancela um check anterior (ex: onAppear + scenePhase.active)
         accessCheckTask?.cancel()
 
@@ -81,197 +89,77 @@ class SubscriptionManager: ObservableObject {
         await accessCheckTask?.value
     }
 
-    // MARK: - Verificação Híbrida (Internal)
+    // MARK: - Verificação Backend-First (Internal)
     private func checkAccessInternal() async {
         didFinishInitialAccessCheck = false
         isLoading = true
         errorMessage = nil
 
-        // Se cancelou, sai silenciosamente
+        // cancelamento
         if Task.isCancelled {
             isLoading = false
             return
         }
 
-        guard let currentUser = supabase.currentUser else {
-            finalizeAccess(.noAccess, status: .noAccess)
-            AppLogger.log("⚠️ [Access] Sem usuário logado.", category: .auth)
-            return
-        }
 
-        if supabase.userProfile == nil {
-            await supabase.fetchUserProfile()
-        }
 
-        if Task.isCancelled {
-            isLoading = false
-            return
-        }
 
-        guard let profile = supabase.userProfile else {
-            if let cached = loadAccessStateFromCache() {
-                AppLogger.log("⚠️ [Access] Perfil ausente, usando cache de acesso: \(cached.planType.displayName)", category: .business)
-                let status: AccessStatus = cached.hasAccess ? .unknown : .noAccess
-                finalizeAccess(cached, status: status)
-                return
-            }
-
-            finalizeAccess(.noAccess, status: .unknown)
-            AppLogger.error("[Access] Falha ao carregar perfil e sem cache de acesso.")
-            return
-        }
-
-        AppLogger.log("🔐 [Access] Iniciando verificação híbrida para: \(profile.nameForDisplay)", category: .business)
-
-        // PASSO 1: Staff
-        let staffCheck = SubscriptionLogic.checkStaffAccess(profile: profile)
-        if let finalState = staffCheck.access {
-            AppLogger.log("🚫 [Access] Decisão no passo Staff: \(finalState.planType)", category: .business)
-            finalizeAccess(finalState, status: finalState.hasAccess ? .hasAccess : .noAccess)
-            return
-        }
-
-        let targetUserId = staffCheck.targetUserId ?? currentUser.id.uuidString
-        if staffCheck.isStaff {
-            AppLogger.log("👨‍⚕️ [Access] Staff detectado. Verificando assinaturas do dono: \(targetUserId)", category: .business)
-        }
-
-        // PASSO 2: Stripe/Web no banco
         do {
-            let subscriptions: [UserSubscription] = try await supabase.client
-                .from("user_subscriptions")
-                .select()
-                .eq("user_id", value: targetUserId)
-                .in("status", values: [SubscriptionStatus.active.rawValue, SubscriptionStatus.pendingCancellation.rawValue])
-                .execute()
-                .value
+            
+            let token = try await supabase.validAccessToken()
+            let accessResponse = try await AccessAPI.fetchAccess(accessToken: token)
 
-            AppLogger.log("📋 [Access] Assinaturas encontradas: \(subscriptions.count)", category: .business)
-
-            if let activeState = SubscriptionLogic.evaluateSubscriptions(subscriptions) {
-                AppLogger.log("✅ [Access] Assinatura VÁLIDA encontrada: \(activeState.planType.displayName)", category: .business)
-                finalizeAccess(activeState, status: .hasAccess)
-                return
+            if accessResponse.hasAccess {
+                let plan = PlanType(rawValue: (accessResponse.planType ?? "basic")) ?? .basic
+                finalizeAccess(
+                    .active(plan: plan,
+                            expiresAt: accessResponse.expiresAtDate,
+                            isCourtesy: false,
+                            source: .backend),
+                    status: .hasAccess
+                )
+            } else {
+                finalizeAccess(.noAccess, status: .noAccess)
             }
-
-            AppLogger.log("⚠️ [Access] Nenhuma assinatura válida encontrada.", category: .business)
 
         } catch {
-            AppLogger.error("[Access] Erro ao buscar assinaturas: \(error)")
+            // Se for 401 vindo do backend (Sessão inválida/Revogada)
+            // Se for 401 vindo do backend (Sessão inválida/Revogada)
+            if let err = error as? URLError, err.code == .userAuthenticationRequired {
+                AppLogger.error("[Access] 401 Unauthorized - Forçando logout.")
+                do {
+                    try await supabase.signOut() // Desloga
+                } catch {
+                    AppLogger.error("❌ [Auth] Falha ao fazer signOut após 401: \(error)")
+                }
+                finalizeAccess(.noAccess, status: .noAccess) // Bloqueia
+                return
+            }
 
+            // Ignorar erro de cancelamento (ex: refreshAccess chamando cancel())
+            if let err = error as? URLError, err.code == .cancelled {
+                AppLogger.warning("[Access] Request cancelado. Ignorando.")
+                return
+            }
+
+            AppLogger.error("[Access] Railway /api/access falhou: \(error)")
+
+            // fallback: mantém acesso anterior por grace
             if previousAccessState.hasAccess {
                 finalizeAccess(previousAccessState, status: .unknown)
                 return
             }
 
-            if let cached = loadAccessStateFromCache() {
+            if let cached = loadAccessStateFromCache(), cached.hasAccess {
                 finalizeAccess(cached, status: .unknown)
                 return
             }
 
-            let isNetworkError =
-                error.localizedDescription.lowercased().contains("network") ||
-                error.localizedDescription.lowercased().contains("connection") ||
-                error.localizedDescription.lowercased().contains("offline") ||
-                error.localizedDescription.lowercased().contains("internet")
-
-            if isNetworkError {
-                finalizeAccess(.noAccess, status: .unknown)
-                return
-            }
-        }
-
-        if Task.isCancelled {
-            isLoading = false
-            return
-        }
-
-        // PASSO 3: Apple IAP
-        if let appleState = await checkAppleSubscription() {
-            AppLogger.log("✅ [Access] Assinatura Apple ativa: \(appleState.planType.displayName)", category: .business)
-            finalizeAccess(appleState, status: .hasAccess)
-            return
-        }
-
-        // PASSO 3.5: is_premium flag
-        if profile.isPremium {
-            AppLogger.log("✅ [Access] Usuário premium via Backend (is_premium flag)", category: .business)
-            finalizeAccess(.active(plan: .premium, expiresAt: nil, isCourtesy: false, source: .backend), status: .hasAccess)
-            return
-        }
-
-        // PASSO 4: Cortesia revogada
-        do {
-            let cancelledSubs: [UserSubscription] = try await supabase.client
-                .from("user_subscriptions")
-                .select()
-                .eq("user_id", value: targetUserId)
-                .eq("status", value: SubscriptionStatus.cancelled.rawValue)
-                .eq("discount_percentage", value: 100)
-                .limit(1)
-                .execute()
-                .value
-
-            if SubscriptionLogic.checkRevokedCourtesy(cancelledSubs) {
-                AppLogger.log("🚫 [Access] Cortesia revogada detectada. Trial bloqueado.", category: .business)
-                finalizeAccess(.noAccess, status: .noAccess)
-                return
-            }
-        } catch {
-            AppLogger.error("[Access] Erro no check anti-abuso: \(error)")
-        }
-
-        // PASSO 5: Trial
-        if staffCheck.isStaff {
-            AppLogger.log("🚫 [Access] Staff sem assinatura ativa do dono. Trial não aplicável.", category: .business)
-            finalizeAccess(.noAccess, status: .noAccess)
-            return
-        }
-
-        var trialMeta: String?
-        if let jsonValue = currentUser.userMetadata["trial_end_date"] {
-            if case .string(let value) = jsonValue {
-                trialMeta = value
-            }
-        }
-
-        let trialState = SubscriptionLogic.checkTrial(createdAt: currentUser.createdAt, trialEndDateMetadata: trialMeta)
-
-        if trialState.isInTrial {
-            AppLogger.log("🎁 [Access] Período de Trial VÁLIDO.", category: .business)
-            finalizeAccess(trialState, status: .hasAccess)
-        } else {
-            AppLogger.log("⏰ [Access] Trial expirado.", category: .business)
-            finalizeAccess(.noAccess, status: .noAccess)
+            finalizeAccess(.noAccess, status: .unknown)
         }
     }
 
-    // MARK: - StoreKit: Verificação Apple
-    private func checkAppleSubscription() async -> AccessState? {
-        var bestSubscription: (productID: String, planType: PlanType, expirationDate: Date?)?
 
-        for await result in Transaction.currentEntitlements {
-            switch result {
-            case .verified(let transaction):
-                if productIds.contains(transaction.productID) {
-                    let planType = PlanType.fromAppleProductId(transaction.productID)
-                    let expirationDate = transaction.expirationDate
-
-                    if bestSubscription == nil || planType.tierLevel > bestSubscription!.planType.tierLevel {
-                        bestSubscription = (transaction.productID, planType, expirationDate)
-                    }
-                }
-            case .unverified(_, let error):
-                AppLogger.error("[StoreKit] Transação não verificada: \(error)")
-            }
-        }
-
-        if let best = bestSubscription {
-            return .active(plan: best.planType, expiresAt: best.expirationDate, isCourtesy: false, source: .apple)
-        }
-
-        return nil
-    }
 
     // MARK: - StoreKit: Produtos
     func loadProducts() async {
@@ -287,6 +175,7 @@ class SubscriptionManager: ObservableObject {
     }
 
     // MARK: - Compra / Restore (mantive igual ao seu)
+    // MARK: - Compra / Restore
     func purchase(_ product: Product) async {
         purchaseState = .purchasing
         errorMessage = nil
@@ -297,14 +186,24 @@ class SubscriptionManager: ObservableObject {
             case .success(let verification):
                 switch verification {
                 case .verified(let transaction):
-                    let syncSuccess = await syncWithBackend(transaction: transaction)
+                    do {
+                        let token = try await supabase.validAccessToken()
+                        let planType = PlanType.fromAppleProductId(transaction.productID).rawValue
+                        let expiration = transaction.expirationDate?.ISO8601Format()
 
-                    if syncSuccess {
-                        await transaction.finish()
-                        await supabase.fetchUserProfile()
+                        try await AccessAPI.notifyApplePurchase(
+                            accessToken: token,
+                            planType: planType,
+                            planName: "Plano \(planType.capitalized)",
+                            expirationDate: expiration,
+                            originalTransactionId: String(transaction.originalID),
+                            transactionId: String(transaction.id)
+                        )
+                    } catch {
+                        AppLogger.error("❌ [IAP] notifyApplePurchase falhou: \(error)")
                     }
 
-                    // ✅ use refreshAccess para evitar concorrência
+                    await transaction.finish()
                     refreshAccess()
                     purchaseState = .success
 
@@ -338,17 +237,48 @@ class SubscriptionManager: ObservableObject {
         do {
             try await AppStore.sync()
 
-            if let _ = await checkAppleSubscription() {
-                for await result in Transaction.currentEntitlements {
-                    if case .verified(let transaction) = result,
-                       productIds.contains(transaction.productID) {
-                        _ = await syncWithBackend(transaction: transaction)
-                        break
-                    }
-                }
+            // Achar melhor transação para notificar
+            var best: Transaction?
+            var bestTier = -1
+            var bestExp: Date = .distantPast
 
-                refreshAccess()
-                purchaseState = .success
+            for await result in Transaction.currentEntitlements {
+                guard case .verified(let t) = result else { continue }
+                guard productIds.contains(t.productID) else { continue }
+                guard t.revocationDate == nil else { continue }
+
+                let tier = PlanType.fromAppleProductId(t.productID).tierLevel
+                let exp = t.expirationDate ?? .distantFuture
+
+                if tier > bestTier || (tier == bestTier && exp > bestExp) {
+                    best = t
+                    bestTier = tier
+                    bestExp = exp
+                }
+            }
+
+            if let t = best {
+                do {
+                    let token = try await supabase.validAccessToken()
+                    let planType = PlanType.fromAppleProductId(t.productID).rawValue
+                    let expiration = t.expirationDate?.ISO8601Format()
+
+                    try await AccessAPI.notifyApplePurchase(
+                        accessToken: token,
+                        planType: planType,
+                        planName: "Plano \(planType.capitalized)",
+                        expirationDate: expiration,
+                        originalTransactionId: String(t.originalID),
+                        transactionId: String(t.id)
+                    )
+                    
+                    refreshAccess()
+                    purchaseState = .success
+                    
+                } catch {
+                    purchaseState = .failed("Falha ao sincronizar restauração. Tente novamente.")
+                    errorMessage = error.localizedDescription
+                }
             } else {
                 purchaseState = .failed("Nenhuma assinatura anterior encontrada.")
                 errorMessage = "Nenhuma assinatura anterior encontrada."
@@ -361,50 +291,7 @@ class SubscriptionManager: ObservableObject {
     }
 
     // MARK: - Sync backend (igual ao seu)
-    private func syncWithBackend(transaction: Transaction) async -> Bool {
-        guard let userId = supabase.currentUser?.id.uuidString else { return false }
 
-        let payload: [String: Any] = [
-            "user_id": userId,
-            "transaction_id": String(transaction.id),
-            "original_transaction_id": String(transaction.originalID),
-            "product_id": transaction.productID,
-            "purchase_date": ISO8601DateFormatter().string(from: transaction.purchaseDate),
-            "expiration_date": transaction.expirationDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
-            "jws_token": transaction.jsonRepresentation.base64EncodedString(),
-            "environment": transaction.environment.rawValue
-        ]
-
-        return await sendToBackend(payload: payload, retries: 3)
-    }
-
-    private func sendToBackend(payload: [String: Any], retries: Int) async -> Bool {
-        guard retries > 0 else { return false }
-        guard let url = URL(string: receiptEndpoint) else { return false }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        if let accessToken = supabase.currentSession?.accessToken {
-            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        }
-
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            let (_, response) = try await URLSession.shared.data(for: request)
-
-            if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
-                return true
-            }
-
-            try await Task.sleep(nanoseconds: 2_000_000_000)
-            return await sendToBackend(payload: payload, retries: retries - 1)
-        } catch {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            return await sendToBackend(payload: payload, retries: retries - 1)
-        }
-    }
 
     // MARK: - Listener
     private func listenForTransactions() -> Task<Void, Error> {
@@ -418,16 +305,31 @@ class SubscriptionManager: ObservableObject {
     private func handleTransactionUpdate(_ result: VerificationResult<Transaction>) async {
         switch result {
         case .verified(let transaction):
-            let syncSuccess = await syncWithBackend(transaction: transaction)
-            if syncSuccess { await transaction.finish() }
+            do {
+                let token = try await supabase.validAccessToken()
+                let planType = PlanType.fromAppleProductId(transaction.productID).rawValue
+                let expiration = transaction.expirationDate?.ISO8601Format()
 
-            // ✅ usa refreshAccess para não “brigar” com checks em andamento
+                try await AccessAPI.notifyApplePurchase(
+                    accessToken: token,
+                    planType: planType,
+                    planName: "Plano \(planType.capitalized)",
+                    expirationDate: expiration,
+                    originalTransactionId: String(transaction.originalID),
+                    transactionId: String(transaction.id)
+                )
+            } catch {
+                AppLogger.error("❌ [IAP] notify em Transaction.updates falhou: \(error)")
+            }
+
+            await transaction.finish()
             refreshAccess()
 
         case .unverified(_, let error):
             AppLogger.error("[StoreKit] Transação não verificada: \(error)")
         }
     }
+
 
     // MARK: - Helpers
     private func finalizeAccess(_ state: AccessState, status: AccessStatus) {
@@ -440,9 +342,11 @@ class SubscriptionManager: ObservableObject {
         self.isLoading = false
         self.didFinishInitialAccessCheck = true
 
-        if status == .hasAccess || status == .noAccess {
+        // Atualiza "última verificação" sempre que o RESULTADO for determinístico
+        // OU quando o state atual tiver acesso (pra suportar fallback em erro).
+        if status == .hasAccess || status == .noAccess || state.hasAccess {
             self.lastVerifiedAt = Date()
-            self.lastVerifiedHadAccess = (status == .hasAccess)
+            self.lastVerifiedHadAccess = state.hasAccess
         }
 
         saveAccessStateToCache(state)
@@ -456,25 +360,30 @@ class SubscriptionManager: ObservableObject {
         errorMessage = nil
     }
 
-    var hasComputedAccess: Bool {
-        if accessStatus == .hasAccess { return true }
+    var effectiveHasAccess: Bool {
+        // Se o estado atual diz que tem acesso, confie nisso.
+        if accessState.hasAccess { return true }
+
+        // Se o backend confirmou que NÃO tem, bloqueia.
         if accessStatus == .noAccess { return false }
 
+        // Se está unknown, aplica grace (somente se já teve acesso recentemente)
         if accessStatus == .unknown {
-            guard lastVerifiedHadAccess else { return false }
-
-            if let lastVerified = lastVerifiedAt {
-                let hoursSince = Date().timeIntervalSince(lastVerified) / 3600
-                return hoursSince < offlineGraceHours
-            }
-            return false
+            guard lastVerifiedHadAccess, let lastVerifiedAt else { return false }
+            let hours = Date().timeIntervalSince(lastVerifiedAt) / 3600
+            return hours < offlineGraceHours
         }
 
         return false
     }
 
+    // Mantido para compatibilidade com MainTabView, mas usando a nova lógica corretiva
+    var hasComputedAccess: Bool {
+        effectiveHasAccess
+    }
+
     var shouldShowPaywall: Bool {
-        didFinishInitialAccessCheck && !hasComputedAccess && !isLoading
+        didFinishInitialAccessCheck && !effectiveHasAccess && !isLoading
     }
 
     var recommendedProduct: Product? {

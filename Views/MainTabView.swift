@@ -7,6 +7,7 @@ struct MainTabView: View {
     @EnvironmentObject var supabase: SupabaseManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
 
+
     init() {
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithOpaqueBackground()
@@ -17,7 +18,7 @@ struct MainTabView: View {
 
     private var isBlocked: Bool {
         subscriptionManager.didFinishInitialAccessCheck &&
-        !subscriptionManager.hasComputedAccess
+        !subscriptionManager.effectiveHasAccess
     }
 
     var body: some View {
@@ -37,7 +38,7 @@ struct MainTabView: View {
         .tint(.appPrimary)
 
         // 🔒 Bloqueia totalmente interação se não tiver acesso computado
-        .allowsHitTesting(!isBlocked)
+        .allowsHitTesting(!isBlocked && !isPaywallPresented)
 
         // MARK: - Overlay
         .overlay {
@@ -72,6 +73,7 @@ struct MainTabView: View {
                             .foregroundStyle(.white)
 
                         Button("Assinar agora") {
+                            guard !subscriptionManager.isLoading else { return }
                             isPaywallPresented = true
                         }
                         .padding(.horizontal, 20)
@@ -90,6 +92,9 @@ struct MainTabView: View {
         .onChange(of: subscriptionManager.didFinishInitialAccessCheck) { _, _ in
             updatePaywallState()
         }
+        .onChange(of: subscriptionManager.isLoading) { _, _ in
+            updatePaywallState()
+        }
 
         // Fecha sheet se deslogar
         .onChange(of: supabase.isAuthenticated) { _, isAuth in
@@ -99,9 +104,12 @@ struct MainTabView: View {
         }
 
         // Estado inicial
+        // Estado inicial
+        // Estado inicial
         .onAppear {
             updatePaywallState()
         }
+
 
         // MARK: - Sheet
         .sheet(isPresented: $isPaywallPresented) {
@@ -117,6 +125,9 @@ struct MainTabView: View {
             isPaywallPresented = false
             return
         }
+
+        // ✅ não abre/fecha sheet durante loading
+        guard !subscriptionManager.isLoading else { return }
 
         // ✅ Regra única: se precisa mostrar paywall, abre. Se não, fecha.
         isPaywallPresented = subscriptionManager.shouldShowPaywall
