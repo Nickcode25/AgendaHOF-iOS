@@ -17,6 +17,14 @@ class SubscriptionManager: ObservableObject {
         case noAccess
         case indeterminate
     }
+    
+    private struct PremiumFlagRow: Decodable {
+        let isPremium: Bool
+        
+        enum CodingKeys: String, CodingKey {
+            case isPremium = "is_premium"
+        }
+    }
 
     @Published var accessState: AccessState = .noAccess
     @Published var accessStatus: AccessStatus = .unknown
@@ -43,12 +51,15 @@ class SubscriptionManager: ObservableObject {
     private var transactionListener: Task<Void, Error>?
 
     private let offlineGraceHours: Double = 24
+    private let deterministicNoAccessProtectionHours: Double = 72
+    private let requiredConsecutiveNoAccessChecks: Int = 4
 
     // ✅ EVITA CONCORRÊNCIA / “BRIGA” DE ESTADOS
     private var accessCheckTask: Task<Void, Never>?
     private var lastRefreshStartedAt: Date?
     private var noAccessConfirmationPending = false
     private var noAccessConfirmationTask: Task<Void, Never>?
+    private var consecutiveNoAccessChecks = 0
 
     private init() {
         transactionListener = listenForTransactions()
@@ -114,6 +125,11 @@ class SubscriptionManager: ObservableObject {
 
         do {
             let token = try await supabase.validAccessToken()
+
+            // 🔍 Log de diagnóstico obrigatório para rastrear race condition
+            let hasSession = supabase.currentSession != nil
+            AppLogger.log("🔍 [Access] hasSession=\(hasSession) | tokenLen=\(token.count) | calling /api/access", category: .business)
+
             let response = try await AccessAPI.fetchAccess(accessToken: token)
 
             if response.hasAccess {
@@ -127,38 +143,33 @@ class SubscriptionManager: ObservableObject {
                     status: .hasAccess
                 )
             } else {
-                AppLogger.log("⚠️ [Access] Backend retornou sem acesso. Executando fallback local...", category: .business)
-                let localResolution = await resolveLocalSupabaseAccess()
-                switch localResolution {
-                case .hasAccess(let fallbackState):
-                    clearPendingNoAccessConfirmation()
-                    AppLogger.log("✅ [Access] Fallback local confirmou acesso ativo.", category: .business)
-                    finalizeAccess(fallbackState, status: .hasAccess)
-                case .noAccess:
-                    applyDeterministicNoAccess(context: "Backend sem acesso")
-                case .indeterminate:
-                    AppLogger.warning("[Access] Estado local indeterminado após resposta sem acesso do backend. Mantendo estado atual.")
-                    if let knownAccessState = bestKnownAccessStateForUncertainCheck() {
-                        finalizeAccess(knownAccessState, status: .unknown)
-                    } else {
-                        finalizeAccess(accessState, status: .unknown)
-                    }
-                    clearPendingNoAccessConfirmation()
-                }
+                // ✅ Backend respondeu com sucesso e negou o acesso.
+                // Não aplicar fallback local — o backend é autoritativo aqui.
+                // Grace de cobrança (3 dias) deve ser computada pelo BACKEND em /api/access.
+                AppLogger.log("🔒 [Access] Backend negou acesso. Bloqueando imediatamente (sem fallback local).", category: .business)
+                clearPendingNoAccessConfirmation()
+                finalizeAccess(.noAccess, status: .noAccess)
             }
 
+        } catch let urlError as URLError where urlError.code == .userAuthenticationRequired {
+            // 🚨 401 / sessão ausente: NUNCA aplicar fallback/grace — é problema de autenticação, não de rede.
+            AppLogger.warning("[Access] 401 em /api/access (sessão ausente/expirada). Tentando refreshSession + retry 1x.")
+            await handle401WithRetry()
+
         } catch {
+            // ✅ Somente erros de REDE/timeout/offline chegam aqui.
+            // Grace offline é legítima: o usuário estava autenticado e há falha de conectividade.
             if Task.isCancelled { return }
-            AppLogger.error("❌ [Access] Erro na API de acesso: \(error)")
+            AppLogger.warning("[Access] Erro de rede ao verificar acesso. Aplicando proteção offline. \(error)")
 
             let localResolution = await resolveLocalSupabaseAccess()
             switch localResolution {
             case .hasAccess(let fallbackState):
                 clearPendingNoAccessConfirmation()
-                AppLogger.log("✅ [Access] Fallback local confirmou acesso após erro de API.", category: .business)
+                AppLogger.log("✅ [Access] Fallback local confirmou acesso após erro de rede.", category: .business)
                 finalizeAccess(fallbackState, status: .hasAccess)
             case .noAccess:
-                applyDeterministicNoAccess(context: "Fallback local sem acesso após erro de API")
+                applyDeterministicNoAccess(context: "Fallback local sem acesso após erro de rede")
             case .indeterminate:
                 if let knownAccessState = bestKnownAccessStateForUncertainCheck() {
                     finalizeAccess(knownAccessState, status: .unknown)
@@ -172,15 +183,64 @@ class SubscriptionManager: ObservableObject {
         }
     }
 
+    // MARK: - 401 Handler: Retry com refreshSession, signOut se persistir
+
+    private func handle401WithRetry() async {
+        do {
+            // Tenta refrescar sessão (corrige race condition onde token ainda não estava disponível)
+            _ = try await supabase.client.auth.refreshSession()
+            AppLogger.log("🔄 [Access] Sessão refrescada. Retentando /api/access...", category: .auth)
+
+            let session = try await supabase.client.auth.session
+            let token = session.accessToken
+            AppLogger.log("🔍 [Access] Retry | tokenLen=\(token.count) | calling /api/access", category: .business)
+
+            let response = try await AccessAPI.fetchAccess(accessToken: token)
+
+            if response.hasAccess {
+                clearPendingNoAccessConfirmation()
+                let plan = PlanType(rawValue: response.planType ?? "basic") ?? .basic
+                finalizeAccess(
+                    .active(plan: plan,
+                            expiresAt: response.expiresAtDate,
+                            isCourtesy: false,
+                            source: .backend),
+                    status: .hasAccess
+                )
+                AppLogger.log("✅ [Access] Retry bem-sucedido. Acesso liberado.", category: .business)
+            } else {
+                // Backend confirmou sem acesso após retry — bloquear imediatamente.
+                AppLogger.log("🔒 [Access] Retry: backend negou acesso. Bloqueando.", category: .business)
+                clearPendingNoAccessConfirmation()
+                finalizeAccess(.noAccess, status: .noAccess)
+            }
+        } catch {
+            // Refresh falhou ou segundo 401 — sessão definitivamente inválida.
+            AppLogger.error("❌ [Access] 401 persistente após retry/refresh. Fazendo signOut forçado. \(error)")
+            await supabase.performSignOutDueToInvalidSession()
+            finalizeAccess(.noAccess, status: .noAccess)
+        }
+    }
+
     private func bestKnownAccessStateForUncertainCheck() -> AccessState? {
         if accessState.hasAccess { return accessState }
         if previousAccessState.hasAccess { return previousAccessState }
         if let cachedState = loadAccessStateFromCache(), cachedState.hasAccess { return cachedState }
         return nil
     }
+    
+    private func bestKnownPlanForFallback() -> PlanType {
+        if accessState.hasAccess { return accessState.planType }
+        if previousAccessState.hasAccess { return previousAccessState.planType }
+        if let cachedState = loadAccessStateFromCache(), cachedState.hasAccess {
+            return cachedState.planType
+        }
+        return .premium
+    }
 
     private func applyDeterministicNoAccess(context: String) {
         if shouldConfirmNoAccessBeforeBlocking() {
+            consecutiveNoAccessChecks = 0
             noAccessConfirmationPending = true
             AppLogger.warning("[Access] \(context). Confirmando novamente antes de abrir paywall.")
 
@@ -194,8 +254,45 @@ class SubscriptionManager: ObservableObject {
             return
         }
 
+        if shouldProtectKnownPaidUserFromUnexpectedNoAccess() {
+            noAccessConfirmationPending = true
+            consecutiveNoAccessChecks = 0
+            AppLogger.warning("[Access] \(context). Mantendo acesso temporariamente (proteção anti falso negativo).")
+            
+            if let knownAccessState = bestKnownAccessStateForUncertainCheck() {
+                finalizeAccess(knownAccessState, status: .unknown)
+            } else {
+                finalizeAccess(accessState, status: .unknown)
+            }
+            
+            scheduleNoAccessConfirmationRefresh(delayNanoseconds: 300_000_000_000)
+            return
+        }
+        
+        consecutiveNoAccessChecks += 1
+        
+        if consecutiveNoAccessChecks < requiredConsecutiveNoAccessChecks {
+            noAccessConfirmationPending = true
+            AppLogger.warning("[Access] \(context). Sem acesso ainda não confirmado de forma determinística. Tentativa \(consecutiveNoAccessChecks)/\(requiredConsecutiveNoAccessChecks).")
+            
+            if let knownAccessState = bestKnownAccessStateForUncertainCheck() {
+                finalizeAccess(knownAccessState, status: .unknown)
+            } else {
+                finalizeAccess(accessState, status: .unknown)
+            }
+            
+            scheduleNoAccessConfirmationRefresh(delayNanoseconds: 90_000_000_000)
+            return
+        }
+
         clearPendingNoAccessConfirmation()
         finalizeAccess(.noAccess, status: .noAccess)
+    }
+    
+    private func shouldProtectKnownPaidUserFromUnexpectedNoAccess() -> Bool {
+        guard lastVerifiedHadAccess, let lastVerifiedAt else { return false }
+        let protectionWindow = deterministicNoAccessProtectionHours * 3600
+        return Date().timeIntervalSince(lastVerifiedAt) < protectionWindow
     }
 
     private func shouldConfirmNoAccessBeforeBlocking() -> Bool {
@@ -203,6 +300,9 @@ class SubscriptionManager: ObservableObject {
             // Segunda confirmação já em andamento; pode aplicar noAccess.
             return false
         }
+        
+        // Em dispositivo novo (sem cache), evita bloqueio imediato por falso negativo no primeiro check.
+        if !didFinishInitialAccessCheck { return true }
 
         // Se havia acesso conhecido recentemente, exige dupla confirmação.
         if accessState.hasAccess || previousAccessState.hasAccess { return true }
@@ -216,12 +316,12 @@ class SubscriptionManager: ObservableObject {
         return false
     }
 
-    private func scheduleNoAccessConfirmationRefresh() {
+    private func scheduleNoAccessConfirmationRefresh(delayNanoseconds: UInt64 = 1_200_000_000) {
         noAccessConfirmationTask?.cancel()
         noAccessConfirmationTask = Task { [weak self] in
             guard let self else { return }
             defer { self.noAccessConfirmationTask = nil }
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
             if Task.isCancelled { return }
             self.refreshAccess(silent: true, force: true)
         }
@@ -229,6 +329,7 @@ class SubscriptionManager: ObservableObject {
 
     private func clearPendingNoAccessConfirmation() {
         noAccessConfirmationPending = false
+        consecutiveNoAccessChecks = 0
         noAccessConfirmationTask?.cancel()
         noAccessConfirmationTask = nil
     }
@@ -295,10 +396,61 @@ class SubscriptionManager: ObservableObject {
                 return .hasAccess(trialState)
             }
             
+            // Fallback legado para contas Stripe/IAP híbridas:
+            // alguns fluxos atualizam `is_premium` antes/de forma divergente de `user_subscriptions`.
+            if profile.isPremium {
+                let fallbackPlan = bestKnownPlanForFallback()
+                AppLogger.log("✅ [Access] Fallback local via user_profiles.is_premium=true.", category: .business)
+                return .hasAccess(
+                    .active(
+                        plan: fallbackPlan,
+                        expiresAt: nil,
+                        isCourtesy: false,
+                        source: .backend
+                    )
+                )
+            }
+            
+            // Fallback adicional para Staff:
+            // quando o Staff herda acesso do Owner, valida `is_premium` no perfil do dono.
+            if staffCheck.isStaff,
+               let ownerUserId = staffCheck.targetUserId,
+               ownerUserId != currentUser.id.uuidString,
+               let ownerIsPremium = await fetchPremiumFlag(for: ownerUserId),
+               ownerIsPremium {
+                let fallbackPlan = bestKnownPlanForFallback()
+                AppLogger.log("✅ [Access] Fallback Staff via owner user_profiles.is_premium=true.", category: .business)
+                return .hasAccess(
+                    .active(
+                        plan: fallbackPlan,
+                        expiresAt: nil,
+                        isCourtesy: false,
+                        source: .backend
+                    )
+                )
+            }
+            
             return .noAccess
         } catch {
             AppLogger.error("❌ [Access] Erro no fallback local: \(error)")
             return .indeterminate
+        }
+    }
+    
+    private func fetchPremiumFlag(for userId: String) async -> Bool? {
+        do {
+            let rows: [PremiumFlagRow] = try await supabase.client
+                .from("user_profiles")
+                .select("is_premium")
+                .eq("id", value: userId)
+                .limit(1)
+                .execute()
+                .value
+            
+            return rows.first?.isPremium
+        } catch {
+            AppLogger.warning("[Access] Não foi possível validar is_premium para userId \(userId): \(error.localizedDescription)")
+            return nil
         }
     }
 

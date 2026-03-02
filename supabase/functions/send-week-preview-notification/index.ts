@@ -39,14 +39,27 @@ serve(async (req) => {
 
     console.log(`✅ Found ${deviceTokens?.length || 0} active device tokens`)
 
-    // Get all user profiles (preview for all users, not just owners)
+    // Filter: only send to owner accounts
     const userIds = [...new Set(deviceTokens?.map(t => t.user_id) || [])]
+    const { data: profiles, error: profilesError } = await supabase
+      .from('user_profiles')
+      .select('id, role')
+      .in('id', userIds)
+      .eq('role', 'owner')
 
-    console.log(`✅ Processing ${userIds.length} users`)
+    if (profilesError) {
+      console.error('❌ Error fetching user profiles:', profilesError)
+      throw profilesError
+    }
 
-    // Group tokens by user
+    const ownerIds = new Set(profiles?.map(p => p.id) || [])
+    const ownerDeviceTokens = deviceTokens?.filter(t => ownerIds.has(t.user_id)) || []
+
+    console.log(`✅ Found ${ownerDeviceTokens.length} device tokens for ${ownerIds.size} owners (staff excluded)`)
+
+    // Group tokens by user (owners only)
     const userDevices = new Map<string, any[]>()
-    for (const token of deviceTokens || []) {
+    for (const token of ownerDeviceTokens) {
       const userId = token.user_id
       if (!userDevices.has(userId)) {
         userDevices.set(userId, [])

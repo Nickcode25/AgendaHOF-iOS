@@ -315,6 +315,20 @@ class SupabaseManager: ObservableObject {
         AppLogger.log("✅ [Auth] Logout concluído", category: .auth)
     }
 
+    /// SignOut forçado por sessão inválida detectada pelo SubscriptionManager (401 persistente).
+    /// Não depende da flag userInitiatedSignOut — é um signOut de segurança.
+    func performSignOutDueToInvalidSession() async {
+        AppLogger.log("🔴 [Auth] SignOut forçado: sessão inválida detectada pelo SubscriptionManager", category: .auth)
+        try? await client.auth.signOut()
+        self.currentSession = nil
+        self.currentUser = nil
+        self.userProfile = nil
+        self.isAuthenticated = false
+        UserDefaults.standard.removeObject(forKey: "cached_supabase_user")
+        UserDefaults.standard.removeObject(forKey: "cached_access_state")
+        AppLogger.log("✅ [Auth] SignOut forçado concluído. Usuário será redirecionado para login.", category: .auth)
+    }
+
     func checkSession() async {
         // Evita checkSession concorrente (causa múltiplas chamadas de access em loop visual)
         if isCheckingSessionNow { return }

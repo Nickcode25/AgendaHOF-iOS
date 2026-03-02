@@ -167,7 +167,13 @@ struct ContentView: View {
             if isCheckingAuth {
                 LoadingView(text: "Carregando...")
             } else if supabase.isAuthenticated {
-                MainTabView()
+                // ✅ Bloqueia navegação até o resultado de /api/access estar disponível.
+                // Evita flash de conteúdo e bypass via race condition.
+                if subscriptionManager.didFinishInitialAccessCheck {
+                    MainTabView()
+                } else {
+                    LoadingView(text: "Verificando assinatura...")
+                }
             } else {
                 WelcomeView()
             }

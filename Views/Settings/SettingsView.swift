@@ -77,15 +77,16 @@ struct SettingsView: View {
                 }
             }
 
-            // Configurações
-            Section("Configurações") {
-                // Notificações
-                SettingsRow(
-                    icon: "bell.fill",
-                    iconColor: .red,
-                    title: "Notificações"
-                ) {
-                    showNotifications = true
+            // Configurações (apenas owner)
+            if supabase.isOwner {
+                Section("Configurações") {
+                    SettingsRow(
+                        icon: "bell.fill",
+                        iconColor: .red,
+                        title: "Notificações"
+                    ) {
+                        showNotifications = true
+                    }
                 }
             }
             
