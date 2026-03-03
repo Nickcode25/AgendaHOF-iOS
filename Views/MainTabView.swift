@@ -129,6 +129,9 @@ struct MainTabView: View {
         guard !subscriptionManager.isLoading else { return }
 
         // ✅ Regra única: se precisa mostrar paywall, abre. Se não, fecha.
+        if subscriptionManager.shouldShowPaywall && !isPaywallPresented {
+             AppLogger.log(SupabaseManager.shared.getAuthSnapshot(context: "Apresentando Paywall"), category: .auth)
+        }
         isPaywallPresented = subscriptionManager.shouldShowPaywall
     }
 }

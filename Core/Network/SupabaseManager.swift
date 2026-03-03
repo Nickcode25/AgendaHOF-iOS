@@ -13,9 +13,26 @@ class SupabaseManager: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     
-    // ✅ NOVO: Flag para identificar logout explícito
+    // MARK: - Auth Snapshot Helper
+    func getAuthSnapshot(context: String = "") -> String {
+        let hasSession = (currentSession != nil)
+        let hasUser = (currentUser != nil)
+        let isAuth = isAuthenticated
+        let accessStatus = SubscriptionManager.shared.accessStatus.rawValue
+        let hasEffectiveAccess = SubscriptionManager.shared.effectiveHasAccess
+        
+        let reason = SubscriptionManager.shared.accessState.backendReason ?? "nil"
+        let status = SubscriptionManager.shared.accessState.backendStatus ?? "nil"
+        let source = SubscriptionManager.shared.accessState.source.rawValue
+        
+        return "[Auth Snapshot] \(context) | hasSession:\(hasSession), hasUser:\(hasUser), isAuth:\(isAuth), access:\(accessStatus), effectiveAccess:\(hasEffectiveAccess) | reason:\(reason), status:\(status), source:\(source)"
+    }
+    
     private var userInitiatedSignOut = false
     private var isCheckingSessionNow = false
+    
+    // ✅ NOVO: Para evitar duplicidade com scenePhase.active no boot
+    private(set) var lastInitialAuthDate: Date? = nil
 
     private init() {
         let url: URL
@@ -81,6 +98,7 @@ class SupabaseManager: ObservableObject {
             
         case .signedOut:
             AppLogger.log("🚪 [Auth] SignedOut event recebido", category: .auth)
+            AppLogger.log(getAuthSnapshot(context: "On SignedOut Event"), category: .auth)
             
             if userInitiatedSignOut {
                 // logout explícito: limpa tudo
@@ -102,16 +120,17 @@ class SupabaseManager: ObservableObject {
             self.isAuthenticated = false
             
         case .initialSession:
-            // ✅ Sessão inicial - apenas atualizar dados sem mudar estado de auth
+            // ✅ Sessão inicial - apenas atualizar dados silenciosamente
             if let session = session {
                 self.currentSession = session
                 self.currentUser = session.user
-                self.isAuthenticated = true // ✅ Marcar como autenticado
+                self.isAuthenticated = true
+                self.lastInitialAuthDate = Date() // Marca o timestamp do boot
                 await loadUserProfile()
-                AppLogger.log("🔵 [Auth] Sessão inicial carregada", category: .auth)
+                // AppLogger.log("🔵 [Auth] Sessão inicial carregada", category: .auth) // Removido por redundância
             }
             
-        case .passwordRecovery, .userUpdated:
+        case .passwordRecovery, .userUpdated, .mfaChallengeVerified:
             // ✅ Eventos que não devem afetar autenticação
             if let session = session {
                 self.currentSession = session
@@ -126,22 +145,53 @@ class SupabaseManager: ObservableObject {
     // MARK: - Auth Methods
 
     /// Sempre retorna um access token válido (refresca a sessão se precisar).
+    /// Usa getSession() para evitar sessão stale após retornar do background.
     func validAccessToken() async throws -> String {
-        // 1) tenta pegar a sessão atual pelo client (fonte confiável)
-        let session = try await client.auth.session
-
-        // 2) se tiver expirada (ou quase), refresca
-        // Margin de 60s para evitar race condition
         let margin: TimeInterval = 60
-        
+
+        let session = try await safeSession(maxAttempts: 2)
         let expirationDate = Date(timeIntervalSince1970: session.expiresAt)
+
         if expirationDate.timeIntervalSinceNow < margin {
             AppLogger.log("🔄 [Auth] Token próximo de expirar. Renovando...", category: .auth)
-            let refreshedSession = try await client.auth.refreshSession()
-            return refreshedSession.accessToken
+
+            _ = try await client.auth.refreshSession()
+
+            // pega a sessão novamente após refresh
+            let refreshed = try await safeSession(maxAttempts: 2)
+            return refreshed.accessToken
         }
 
         return session.accessToken
+    }
+
+    private func safeSession(maxAttempts: Int = 2) async throws -> Session {
+        var lastError: Error?
+
+        for attempt in 1...maxAttempts {
+            do {
+                // 1) tenta ler a sessão atual
+                let session = try await client.auth.session
+                return session
+            } catch {
+                lastError = error
+
+                AppLogger.warning("⚠️ [Auth] Falha ao obter session (attempt \(attempt)/\(maxAttempts)): \(error.localizedDescription)")
+
+                // 2) tenta refresh leve (se falhar por rede, vai cair no catch e tentar novamente)
+                do {
+                    _ = try await client.auth.refreshSession()
+                } catch {
+                    lastError = error
+                }
+
+                // 3) pequeno delay para evitar race pós-background
+                try? await Task.sleep(nanoseconds: attempt == 1 ? 250_000_000 : 500_000_000)
+                continue
+            }
+        }
+
+        throw lastError ?? URLError(.userAuthenticationRequired)
     }
 
     func signIn(email: String, password: String) async throws {
@@ -311,6 +361,7 @@ class SupabaseManager: ObservableObject {
         // Limpar cache local
         UserDefaults.standard.removeObject(forKey: "cached_supabase_user")
         UserDefaults.standard.removeObject(forKey: "cached_access_state")
+        AppointmentsCache.clearAll()
         
         AppLogger.log("✅ [Auth] Logout concluído", category: .auth)
     }
@@ -319,6 +370,10 @@ class SupabaseManager: ObservableObject {
     /// Não depende da flag userInitiatedSignOut — é um signOut de segurança.
     func performSignOutDueToInvalidSession() async {
         AppLogger.log("🔴 [Auth] SignOut forçado: sessão inválida detectada pelo SubscriptionManager", category: .auth)
+        
+        userInitiatedSignOut = true
+        defer { userInitiatedSignOut = false }
+        
         try? await client.auth.signOut()
         self.currentSession = nil
         self.currentUser = nil
@@ -326,44 +381,56 @@ class SupabaseManager: ObservableObject {
         self.isAuthenticated = false
         UserDefaults.standard.removeObject(forKey: "cached_supabase_user")
         UserDefaults.standard.removeObject(forKey: "cached_access_state")
+        AppointmentsCache.clearAll()
         AppLogger.log("✅ [Auth] SignOut forçado concluído. Usuário será redirecionado para login.", category: .auth)
     }
 
     func checkSession() async {
-        // Evita checkSession concorrente (causa múltiplas chamadas de access em loop visual)
         if isCheckingSessionNow { return }
         isCheckingSessionNow = true
         defer { isCheckingSessionNow = false }
 
-        // ✅ MUDANÇA CRÍTICA: Método muito mais tolerante a erros
         do {
-            let session = try await client.auth.session
-            
-            // ✅ Sessão válida encontrada
+            let session = try await safeSession(maxAttempts: 2)
+
             self.currentSession = session
             self.currentUser = session.user
-            saveUserToCache(session.user) // ✅ Atualizar cache
-            
-            // ✅ Carregar perfil apenas se necessário
+            saveUserToCache(session.user)
+
             if self.userProfile == nil || self.userProfile?.id != session.user.id.uuidString {
                 await loadUserProfile()
             }
-            
-            // ✅ Marcar como autenticado
+
             self.isAuthenticated = true
-            
-            // ✅ Verificar acesso em background (não bloquear restauração de sessão)
-            SubscriptionManager.shared.refreshAccess(silent: true)
-            AppLogger.log("✅ [Auth] Sessão restaurada. Revalidação de assinatura em background.", category: .auth)
-            
+            AppLogger.log("✅ [Auth] Sessão restaurada via safeSession().", category: .auth)
+
         } catch {
-            // ✅ MUDANÇA CRÍTICA: Tratar erros com muito mais cuidado
             await handleSessionError(error)
         }
     }
     
     // ✅ NOVO: Método separado para tratar erros de sessão
     private func handleSessionError(_ error: Error) async {
+        if let urlError = error as? URLError {
+            let isNetworkError = [
+                .timedOut,
+                .networkConnectionLost,
+                .notConnectedToInternet,
+                .cannotConnectToHost,
+                .cannotFindHost,
+                .dnsLookupFailed
+            ].contains(urlError.code)
+            
+            if isNetworkError {
+                AppLogger.warning("⚠️ [Auth] Erro transitório de rede ao checar sessão. Mantendo estado atual. (\(urlError.localizedDescription))")
+                // ✅ não eleva auth com base só em cache de User
+                if self.currentSession != nil {
+                     self.isAuthenticated = true
+                }
+                return
+            }
+        }
+    
         let errorString = error.localizedDescription.lowercased()
         
         // ✅ Lista mais específica de erros que realmente significam "sessão inválida"
@@ -380,12 +447,6 @@ class SupabaseManager: ObservableObject {
         
         let isDefiniteAuthError = definiteAuthErrors.contains { errorString.contains($0) }
         
-        // ✅ TAMBÉM verificar código HTTP, mas com CUIDADO
-        let nsError = error as NSError
-        // 401 pode ser "Token Expired" (que deveria ter refresh) OU "Unauthorized" genérico
-        // Se for 401 e NÃO for um dos erros definitivos acima, pode ser apenas falha no refresh
-        // devido a rede instável. NÃO fazer logout imediato.
-
         if isDefiniteAuthError {
             AppLogger.log("🔴 [Auth] Erro de autenticação definitivo detectado: \(error.localizedDescription)", category: .auth)
             
@@ -431,8 +492,8 @@ class SupabaseManager: ObservableObject {
                 // ✅ TENTAR RESTAURAR USUÁRIO DO CACHE (Para suportar reiniciar app offline)
                 if let cachedUser = loadUserFromCache() {
                     self.currentUser = cachedUser
-                    self.isAuthenticated = true
-                    AppLogger.log("✅ [Auth] Usuário restaurado do cache local (Offline Mode)", category: .auth)
+                    // ✅ Não setamos isAuthenticated = true (o acesso é delegado ao SubscriptionManager)
+                    AppLogger.log("✅ [Auth] Usuário restaurado do cache local para visualização offline", category: .auth)
                     
                     // Disparar verificação de acesso em background
                     SubscriptionManager.shared.refreshAccess(silent: true)
@@ -454,7 +515,7 @@ class SupabaseManager: ObservableObject {
                         // Última chance: se falhar login e tiver user cacheado (caso raro onde signIn falha mas cache existe)
                         if let cachedUser = loadUserFromCache() {
                              self.currentUser = cachedUser
-                             self.isAuthenticated = true
+                             // ✅ Não setamos isAuthenticated = true
                              return
                         }
                         self.isAuthenticated = false

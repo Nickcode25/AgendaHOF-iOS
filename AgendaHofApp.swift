@@ -195,14 +195,32 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 let now = Date()
-                // Evita rajada de revalidações (ex: app voltando de permissões / sheets)
+                
+                // 1) Evita rodar se acabou de receber initialSession no boot (debounce de 2s)
+                if let bootDate = supabase.lastInitialAuthDate, now.timeIntervalSince(bootDate) < 2 {
+                    AppLogger.log("⏭️ [Lifecycle] Pulando checkSession no active (initialSession recente)", category: .auth)
+                    return
+                }
+
+                // 2) Evita rajada de revalidações normais (ex: app voltando de permissões / sheets)
                 guard now.timeIntervalSince(lastForegroundValidation) > 15 else { return }
                 lastForegroundValidation = now
 
                 Task {
                     AppLogger.log("🔄 [Lifecycle] App voltou para active. Revalidando sessão/acesso...", category: .auth)
-
+                    AppLogger.log(SupabaseManager.shared.getAuthSnapshot(context: "ScenePhase Active (Pré-check)"), category: .auth)
+                    
                     await supabase.checkSession()
+
+                    // ✅ Patch 4: Sync da agenda no active (especialmente se o app ficou suspenso)
+                    if supabase.isAuthenticated {
+                        await AppointmentService.shared.refreshCurrentMonthIfNeeded(selectedDate: Date(), force: true)
+                    }
+
+                    // ✅ garante que /api/access rode após checkSession, sem rajada
+                    SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+                    
+                    AppLogger.log(SupabaseManager.shared.getAuthSnapshot(context: "ScenePhase Active (Pós-check disparado)"), category: .auth)
                 }
             }
         }

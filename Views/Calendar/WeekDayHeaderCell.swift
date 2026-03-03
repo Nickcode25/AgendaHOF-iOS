@@ -66,7 +66,7 @@ struct WeekDayHeaderCell: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview(traits: .sizeThatFitsLayout) {
     HStack(spacing: 0) {
         // Hoje (selecionado)
         WeekDayHeaderCell(
@@ -98,6 +98,5 @@ struct WeekDayHeaderCell: View {
             onTap: {}
         )
     }
-    .previewLayout(.sizeThatFits)
     .padding()
 }

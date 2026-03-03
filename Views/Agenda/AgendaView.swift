@@ -4,6 +4,9 @@ struct AgendaView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @StateObject private var viewModel = AgendaViewModel()
     @StateObject private var professionalService = ProfessionalService()
+    @ObservedObject private var network = NetworkMonitor.shared
+    
+    @State private var lastAutoSyncAt: Date = .distantPast
 
 
 
@@ -38,8 +41,14 @@ struct AgendaView: View {
                         Spacer()
                     }
                 } else {
-                    // Vista direta sem paginação lateral (agora num ZStack principal)
-                    ZStack(alignment: .bottomTrailing) { // Alinhamento para o FAB
+                    VStack(spacing: 0) {
+                        // ── Offline Banner ──────────────────────────────────
+                        if viewModel.appointmentService.isOfflineMode {
+                            offlineBanner
+                        }
+
+                        // Vista direta sem paginação lateral
+                        ZStack(alignment: .bottomTrailing) {
                         
                         // Conteúdo (Calendário)
                         ZStack {
@@ -66,6 +75,7 @@ struct AgendaView: View {
                         }
 
                         // Floating Action Button (FAB) - Menu
+                        let isOffline = viewModel.appointmentService.isOfflineMode
                         Menu {
                             Button {
                                 viewModel.activeSheet = .newAppointment()
@@ -85,24 +95,47 @@ struct AgendaView: View {
                                 Label("Bloqueio Recorrente", systemImage: "clock.badge.xmark")
                             }
                         } label: {
-                            Image(systemName: "plus")
+                            Image(systemName: isOffline ? "wifi.slash" : "plus")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 56, height: 56)
                                 .background(
                                     Circle()
-                                        .fill(Color.appPrimary)
+                                        .fill(isOffline ? Color.gray : Color.appPrimary)
                                         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 4)
                                 )
                         }
+                        .disabled(isOffline)
                         .padding(.trailing, 24)
                         .padding(.bottom, 24)
-                    }
+                        } // end ZStack
+                    } // end VStack
                 }
             }
         }
         .background(Color(.systemGroupedBackground))
         .navigationBarHidden(true)
+        // ── Auto-refresh when coming back online ─────────────────────────
+        .onChange(of: network.isOnline) { _, isOnline in
+            guard isOnline else { return }
+
+            let now = Date()
+            guard now.timeIntervalSince(lastAutoSyncAt) > 3 else { return } // debounce 3s
+            lastAutoSyncAt = now
+
+            Task {
+                AppLogger.log("🌐 [Agenda] Online detectado. Auto-sync do mês...", category: .business)
+
+                await viewModel.appointmentService.refreshCurrentMonthIfNeeded(
+                    selectedDate: viewModel.selectedDate,
+                    force: true
+                )
+
+                await MainActor.run {
+                    viewModel.appointments = viewModel.appointmentService.appointments
+                }
+            }
+        }
         .sheet(item: $viewModel.activeSheet) { sheet in
             switch sheet {
             case .newAppointment(let start, let end):
@@ -150,6 +183,39 @@ struct AgendaView: View {
         .refreshable {
             await viewModel.loadData()
         }
+    }
+}
+
+// MARK: - Offline Banner
+
+extension AgendaView {
+    @ViewBuilder var offlineBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .font(.caption.bold())
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Você está offline — exibindo agenda salva")
+                    .font(.caption.bold())
+                if let dt = viewModel.appointmentService.cachedUpdatedAt {
+                    Text("Atualizado: \(dt.formatted(date: .numeric, time: .shortened))")
+                        .font(.caption2)
+                        .opacity(0.8)
+                }
+            }
+            Spacer()
+            Button {
+                Task { await viewModel.loadData() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption.bold())
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.85))
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.3), value: viewModel.appointmentService.isOfflineMode)
     }
 }
 

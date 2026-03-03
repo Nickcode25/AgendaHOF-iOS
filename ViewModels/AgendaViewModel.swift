@@ -16,8 +16,8 @@ class AgendaViewModel: ObservableObject {
     @Published var activeSheet: SheetType?
 
     // MARK: - Private
-
-    private let appointmentService = AppointmentService()
+ 
+    let appointmentService = AppointmentService.shared
     private let supabase = SupabaseManager.shared
 
     // MARK: - View Modes

@@ -86,6 +86,8 @@ struct AccessState {
     let planType: PlanType
     let expirationDate: Date? // Data de expiração ou próxima cobrança
     let source: SubscriptionSource
+    let backendReason: String?
+    let backendStatus: String?
     
     /// Inicializador padrão para estado "sem acesso"
     static let noAccess = AccessState(
@@ -94,7 +96,9 @@ struct AccessState {
         isCourtesy: false,
         planType: .none,
         expirationDate: nil,
-        source: .none
+        source: .none,
+        backendReason: nil,
+        backendStatus: nil
     )
     
     /// Inicializador para Trial
@@ -105,7 +109,9 @@ struct AccessState {
             isCourtesy: false,
             planType: .trial,
             expirationDate: date,
-            source: .none
+            source: .none,
+            backendReason: "trial_active",
+            backendStatus: "trialing"
         )
     }
     
@@ -117,7 +123,23 @@ struct AccessState {
             isCourtesy: isCourtesy,
             planType: plan,
             expirationDate: expiresAt,
-            source: source
+            source: source,
+            backendReason: nil,
+            backendStatus: nil
+        )
+    }
+    
+    /// Inicializador customizado p/ backend fields
+    static func active(plan: PlanType, expiresAt: Date?, source: SubscriptionSource = .backend, backendReason: String?, backendStatus: String?) -> AccessState {
+        AccessState(
+            hasActiveSubscription: true,
+            isInTrial: false,
+            isCourtesy: false,
+            planType: plan,
+            expirationDate: expiresAt,
+            source: source,
+            backendReason: backendReason,
+            backendStatus: backendStatus
         )
     }
     
@@ -135,6 +157,8 @@ extension AccessState: Codable {
         case planType
         case expirationDate
         case source
+        case backendReason
+        case backendStatus
     }
 }
 

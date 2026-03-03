@@ -1,12 +1,124 @@
 import Foundation
+import Network
+
+// MARK: - NetworkMonitor
+// Declared here to avoid Xcode target membership issues with separately created files.
+// If NetworkMonitor.swift is already in the project target, remove this block.
+
+@MainActor
+final class NetworkMonitor: ObservableObject {
+    static let shared = NetworkMonitor()
+    @Published private(set) var isOnline: Bool = false
+
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "NetworkMonitor")
+
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.isOnline = (path.status == .satisfied)
+            }
+        }
+        monitor.start(queue: queue)
+    }
+}
+
+// MARK: - AppointmentsCache
+
+struct MonthlyAppointmentsCacheFile: Codable {
+    let ownerId: String
+    let monthKey: String
+    let updatedAt: Date
+    let appointments: [Appointment]
+}
+
+enum AppointmentsCache {
+    private static func cacheDirectory() throws -> URL {
+        let fm = FileManager.default
+        let appDir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("AgendaHOF")
+        try fm.createDirectory(at: appDir, withIntermediateDirectories: true, attributes: nil)
+        return appDir
+    }
+
+    private static func fileURL(ownerId: String, monthKey: String) throws -> URL {
+        try cacheDirectory().appendingPathComponent("appointments_\(ownerId)_\(monthKey).json")
+    }
+
+    static func save(ownerId: String, monthKey: String, appointments: [Appointment]) -> Date {
+        let now = Date()
+        let file = MonthlyAppointmentsCacheFile(
+            ownerId: ownerId,
+            monthKey: monthKey,
+            updatedAt: now,
+            appointments: appointments
+        )
+        
+        do {
+            let appDir = try cacheDirectory()
+            let fileName = "appointments_\(ownerId)_\(monthKey).json"
+            let fileURL = appDir.appendingPathComponent(fileName)
+            
+            let data = try JSONEncoder().encode(file)
+            try data.write(to: fileURL, options: [.atomic])
+            return now
+        } catch {
+            AppLogger.warning("⚠️ [Cache] Failed saving month \(monthKey): \(error)")
+            return now
+        }
+    }
+
+    static func load(ownerId: String, monthKey: String) -> MonthlyAppointmentsCacheFile? {
+        guard let url = try? fileURL(ownerId: ownerId, monthKey: monthKey),
+              let data = try? Data(contentsOf: url),
+              let file = try? JSONDecoder().decode(MonthlyAppointmentsCacheFile.self, from: data) else { return nil }
+        return file
+    }
+
+    static func clearAll() {
+        guard let dir = try? cacheDirectory(),
+              let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for f in files where f.lastPathComponent.hasPrefix("appointments_") {
+            try? FileManager.default.removeItem(at: f)
+        }
+        AppLogger.log("🗑️ [Cache] All monthly appointments caches cleared.", category: .business)
+    }
+
+    // Helpers
+    static func monthKey(for date: Date) -> String {
+        let c = Calendar.current
+        let y = c.component(.year, from: date)
+        let m = c.component(.month, from: date)
+        return String(format: "%04d-%02d", y, m)
+    }
+
+    static func monthRange(for date: Date) -> (start: Date, end: Date) {
+        let c = Calendar.current
+        let start = c.date(from: c.dateComponents([.year, .month], from: date))!
+        let startNextMonth = c.date(byAdding: .month, value: 1, to: start)!
+        let end = startNextMonth.addingTimeInterval(-1) // 23:59:59 do último dia
+        return (start, end)
+    }
+}
 
 @MainActor
 class AppointmentService: ObservableObject {
+    static let shared = AppointmentService()
     private let supabase = SupabaseManager.shared
 
     @Published var appointments: [Appointment] = []
     @Published var isLoading = false
     @Published var error: String?
+    @Published var isOfflineMode: Bool = false
+    @Published var cachedUpdatedAt: Date? = nil
+    @Published var cachedDateRange: (start: Date, end: Date)? = nil
+    
+    // Tracking para evitar sync duplicado
+    private var lastSyncedMonthKey: String? = nil
+    private var lastSyncedAt: Date? = nil
+    
+    // Filtros persistentes para sync de background
+    private var lastProfessionalId: String? = nil
+    private var lastProfessionalName: String? = nil
 
     // MARK: - Fetch by Date Range
 
@@ -21,93 +133,174 @@ class AppointmentService: ObservableObject {
             error = "Usuário não autenticado"
             return
         }
+        let ownerId = userId
 
         isLoading = true
         error = nil
         
-        // Log de diagnóstico
-        if let profId = professionalId {
-            AppLogger.log("📅 [Appointments] Filtro Profissional por ID: \(profId)", category: .business)
-        } else if let prof = professional {
-            AppLogger.log("📅 [Appointments] Filtro Profissional por Nome (fallback): \(prof)", category: .business)
-        }
+        // ✅ Captura os filtros para persistir no background sync
+        self.lastProfessionalId = professionalId
+        self.lastProfessionalName = professional
+        
+        let key = AppointmentsCache.monthKey(for: startDate)
+        let range = AppointmentsCache.monthRange(for: startDate)
+        let isOnline = NetworkMonitor.shared.isOnline
 
-        do {
-            let formatter = ISO8601DateFormatter()
-            let startString = formatter.string(from: startDate)
-            let endString = formatter.string(from: endDate)
-
-            var result: [Appointment]
-
-            // Buscar todos os agendamentos no intervalo
-            let allAppointmentsInDateRange: [Appointment] = try await supabase.client
-                .from("appointments")
-                .select()
-                .eq("user_id", value: userId)
-                .gte("start", value: startString)
-                .lte("start", value: endString)
-                .order("start", ascending: true)
-                .execute()
-                .value
-            
-            // ✅ PRIORIDADE: Filtrar por professional_id (mais preciso)
-            if let professionalId = professionalId {
-                result = allAppointmentsInDateRange.filter { appointment in
-                    appointment.professionalId == professionalId
-                }
-                AppLogger.log("✅ [Appointments] Filtrado por ID: \(result.count) agendamentos", category: .business)
-            }
-            // Fallback: Filtrar por nome (para compatibilidade)
-            else if let professional = professional {
-                result = allAppointmentsInDateRange.filter { appointment in
-                    appointment.professional.isRoughlyEqual(to: professional)
-                }
+        if isOnline {
+            do {
+                // 1) Sincroniza o mês inteiro no cache
+                let monthApps = try await syncMonthCache(ownerId: ownerId, userId: userId, monthKey: key, range: range)
                 
-                // Log se encontrou divergências
-                let exactMatches = allAppointmentsInDateRange.filter { $0.professional == professional }
-                if result.count > exactMatches.count {
-                    AppLogger.warning("⚠️ [Appointments] Encontrados \(result.count - exactMatches.count) agendamentos com divergência de nome para \(professional)")
-                }
-            } else {
-                result = allAppointmentsInDateRange
-            }
-            
-            appointments = result
+                // 2) Filtra apenas o necessário para a UI
+                let filtered = filter(appointments: monthApps, from: startDate, to: endDate, profId: professionalId, prof: professional)
+                
+                self.appointments = filtered
+                self.isOfflineMode = false
+                // self.cachedUpdatedAt ja foi setado pelo syncMonthCache
+                self.cachedDateRange = (startDate, endDate)
+                
+                // 3) Atualiza widgets com o mês todo
+                await updateWidgetData(monthAppointments: monthApps)
 
-            // ✅ WIDGET: Salvar agendamentos futuros para os widgets
-            await updateWidgetData()
-        } catch is CancellationError {
-            // Ignorar erros de cancelamento (pull-to-refresh interrompido)
-            print("Busca de agendamentos cancelada")
-        } catch {
-            self.error = error.localizedDescription
-            AppLogger.error("[Appointments] Erro ao buscar: \(error)")
+            } catch is CancellationError {
+                AppLogger.log("🔄 [Appointments] Busca cancelada", category: .business)
+            } catch {
+                AppLogger.warning("⚠️ [Appointments] Erro online: \(error). Fallback cache.")
+                loadFromCache(ownerId: ownerId, startDate: startDate, endDate: endDate, key: key, professionalId: professionalId, professional: professional)
+            }
+        } else {
+            loadFromCache(ownerId: ownerId, startDate: startDate, endDate: endDate, key: key, professionalId: professionalId, professional: professional)
         }
 
         isLoading = false
     }
 
+    @MainActor
+    func refreshCurrentMonthIfNeeded(selectedDate: Date, force: Bool = false) async {
+        guard NetworkMonitor.shared.isOnline, let userId = supabase.effectiveUserId else { return }
+        
+        let key = AppointmentsCache.monthKey(for: selectedDate)
+        if !force, lastSyncedMonthKey == key, let last = lastSyncedAt, Date().timeIntervalSince(last) < 60 {
+            return
+        }
+        
+        lastSyncedMonthKey = key
+        lastSyncedAt = Date()
+        
+        let range = AppointmentsCache.monthRange(for: selectedDate)
+        let ownerId = userId // Garante consistência de nomenclatura
+        
+        do {
+            // Sincroniza sem trocar a lista da UI imediatamente (evita pulo se a UI estiver vendo um dia)
+            let monthApps = try await syncMonthCache(ownerId: ownerId, userId: userId, monthKey: key, range: range)
+            
+            // Se a UI está carregada e o range atual faz parte deste mês, atualizamos a lista mantendo o range e filtros
+            if let currentRange = cachedDateRange, 
+               AppointmentsCache.monthKey(for: currentRange.start) == key {
+                let updated = filter(appointments: monthApps, 
+                                     from: currentRange.start, 
+                                     to: currentRange.end, 
+                                     profId: lastProfessionalId, 
+                                     prof: lastProfessionalName)
+                self.appointments = updated
+            } else if cachedDateRange == nil {
+                // Se não tinha range (ex: boot sem dados), define o mês como range padrão para não ficar vazio
+                self.cachedDateRange = (range.start, range.end)
+                self.appointments = filter(appointments: monthApps, from: range.start, to: range.end, profId: lastProfessionalId, prof: lastProfessionalName)
+            }
+            
+            self.isOfflineMode = false
+            // O syncMonthCache já setou cachedUpdatedAt
+            
+            await updateWidgetData(monthAppointments: monthApps)
+            AppLogger.log("🌐 [Appointments] Sync silencioso do mês \(key) concluído.", category: .business)
+        } catch {
+            AppLogger.warning("⚠️ [Appointments] Falha no sync silencioso: \(error)")
+        }
+    }
+
+    // MARK: - Internal Helpers
+    
+    private func syncMonthCache(ownerId: String, userId: String, monthKey: String, range: (start: Date, end: Date)) async throws -> [Appointment] {
+        let fmt = ISO8601DateFormatter()
+        let startString = fmt.string(from: range.start)
+        let endString = fmt.string(from: range.end)
+
+        let monthApps: [Appointment] = try await supabase.client
+            .from("appointments")
+            .select()
+            .eq("user_id", value: userId)
+            .gte("start", value: startString)
+            .lte("start", value: endString)
+            .order("start", ascending: true)
+            .execute()
+            .value
+
+        let updatedAt = AppointmentsCache.save(ownerId: ownerId, monthKey: monthKey, appointments: monthApps)
+        self.cachedUpdatedAt = updatedAt
+        return monthApps
+    }
+
+    private func filter(appointments: [Appointment], from start: Date, to end: Date, profId: String?, prof: String?) -> [Appointment] {
+        var result = appointments.filter { $0.start >= start && $0.start <= end }
+        
+        if let profId = profId {
+            result = result.filter { $0.professionalId == profId }
+        } else if let prof = prof {
+            result = result.filter { $0.professional.isRoughlyEqual(to: prof) }
+        }
+        
+        return result
+    }
+
+    // MARK: - Cache Fallback
+
+    private func loadFromCache(ownerId: String, startDate: Date, endDate: Date, key: String, professionalId: String?, professional: String?) {
+        if let cached = AppointmentsCache.load(ownerId: ownerId, monthKey: key) {
+            let filtered = filter(appointments: cached.appointments, from: startDate, to: endDate, profId: professionalId, prof: professional)
+            appointments = filtered
+            cachedUpdatedAt = cached.updatedAt
+            cachedDateRange = (startDate, endDate)
+            isOfflineMode = true
+            AppLogger.log("📦 [Cache] Carregados \(filtered.count) agendamentos do cache mensal (\(key)).", category: .business)
+        } else {
+            appointments = []
+            cachedUpdatedAt = nil
+            cachedDateRange = nil
+            isOfflineMode = true
+            AppLogger.warning("⚠️ [Cache] Sem dados em cache para o mês \(key).")
+        }
+    }
+
     // MARK: - Widget Integration
 
     /// Atualizar dados dos widgets com agendamentos futuros
-    private func updateWidgetData() async {
+    @MainActor
+    private func updateWidgetData(monthAppointments: [Appointment]) async {
         let now = Date()
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: now)
+        // Widget mostra até 14 dias para frente
         guard let twoWeeksLater = calendar.date(byAdding: .day, value: 14, to: todayStart) else { return }
 
-        // Filtrar apenas agendamentos futuros (hoje em diante) e não cancelados
-        let upcomingAppointments = appointments.filter { appointment in
-            appointment.start >= todayStart &&
-            appointment.start <= twoWeeksLater &&
-            appointment.status != .cancelled
+        let upcoming = monthAppointments.filter { 
+            $0.start >= todayStart && $0.start <= twoWeeksLater && $0.status != .cancelled 
         }.sorted { $0.start < $1.start }
-
+        
         // Limitar a 20 agendamentos (suficiente para widgets)
-        let limitedAppointments = Array(upcomingAppointments.prefix(20))
+        let limited = Array(upcoming.prefix(20))
+        
+        WidgetDataManager.shared.saveAppointments(limited)
+    }
 
-        // Salvar para os widgets
-        WidgetDataManager.shared.saveAppointments(limitedAppointments)
+
+
+    // MARK: - Write guard
+
+    /// Returns an error string if writes should be blocked right now.
+    func offlineWriteError() -> String? {
+        guard !NetworkMonitor.shared.isOnline else { return nil }
+        return "Sem internet no momento. Conecte-se para salvar alterações."
     }
 
     // MARK: - Fetch for Day
@@ -156,7 +349,7 @@ class AppointmentService: ObservableObject {
     // MARK: - Create
 
     func createAppointment(_ appointment: Appointment.Insert) async throws -> Appointment {
-        // #if DEBUG block removed for cleanup
+        if let offlineErr = offlineWriteError() { throw NSError(domain: "Offline", code: -1, userInfo: [NSLocalizedDescriptionKey: offlineErr]) }
 
         let result: Appointment = try await supabase.client
             .from("appointments")
@@ -166,10 +359,6 @@ class AppointmentService: ObservableObject {
             .execute()
             .value
 
-        // #if DEBUG block removed for cleanup
-
-        // 🔔 Atualizar notificações
-        // 🔔 Atualizar notificações
         Task { await NotificationManager.shared.refreshNotifications() }
 
         return result
@@ -178,14 +367,14 @@ class AppointmentService: ObservableObject {
     // MARK: - Update
 
     func updateAppointment(id: String, updates: [String: AnyEncodable]) async throws {
+        if let offlineErr = offlineWriteError() { throw NSError(domain: "Offline", code: -1, userInfo: [NSLocalizedDescriptionKey: offlineErr]) }
+
         try await supabase.client
             .from("appointments")
             .update(updates)
             .eq("id", value: id)
             .execute()
-            
-        // 🔔 Atualizar notificações
-        // 🔔 Atualizar notificações
+
         Task { await NotificationManager.shared.refreshNotifications() }
     }
 
@@ -204,14 +393,14 @@ class AppointmentService: ObservableObject {
     // MARK: - Delete
 
     func deleteAppointment(id: String) async throws {
+        if let offlineErr = offlineWriteError() { throw NSError(domain: "Offline", code: -1, userInfo: [NSLocalizedDescriptionKey: offlineErr]) }
+
         try await supabase.client
             .from("appointments")
             .delete()
             .eq("id", value: id)
             .execute()
-            
-        // 🔔 Atualizar notificações
-        // 🔔 Atualizar notificações
+
         Task { await NotificationManager.shared.refreshNotifications() }
     }
 
