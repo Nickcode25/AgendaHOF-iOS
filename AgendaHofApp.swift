@@ -161,18 +161,25 @@ struct ContentView: View {
 
     @State private var isCheckingAuth = true
     @State private var lastForegroundValidation: Date = .distantPast
+    @State private var accessGateFallbackArmed = false
+    @State private var accessGateFallbackTask: Task<Void, Never>?
+    
+    private let accessGateFallbackDelayNanoseconds: UInt64 = 4_000_000_000
+    
+    private var canRenderAuthenticatedUI: Bool {
+        if subscriptionManager.didFinishInitialAccessCheck { return true }
+        return accessGateFallbackArmed && subscriptionManager.canUseTrustedAccessForLoadingFallback
+    }
 
     var body: some View {
         Group {
             if isCheckingAuth {
                 LoadingView(text: "Carregando...")
             } else if supabase.isAuthenticated {
-                // ✅ Bloqueia navegação até o resultado de /api/access estar disponível.
-                // Evita flash de conteúdo e bypass via race condition.
-                if subscriptionManager.didFinishInitialAccessCheck {
+                if canRenderAuthenticatedUI {
                     MainTabView()
                 } else {
-                    LoadingView(text: "Verificando assinatura...")
+                    accessLoadingStateView
                 }
             } else {
                 WelcomeView()
@@ -207,18 +214,32 @@ struct ContentView: View {
                 lastForegroundValidation = now
 
                 Task {
+                    let activeFlowStartedAt = Date()
                     AppLogger.log("🔄 [Lifecycle] App voltou para active. Revalidando sessão/acesso...", category: .auth)
                     AppLogger.log(SupabaseManager.shared.getAuthSnapshot(context: "ScenePhase Active (Pré-check)"), category: .auth)
                     
                     await supabase.checkSession()
+                    let checkSessionElapsedMs = Int(Date().timeIntervalSince(activeFlowStartedAt) * 1000)
+                    AppLogger.log("⏱️ [Lifecycle] checkSession(active) concluído em \(checkSessionElapsedMs)ms", category: .auth)
 
-                    // ✅ Patch 4: Sync da agenda no active (especialmente se o app ficou suspenso)
+                    // ✅ Prioridade: dispara validação de assinatura imediatamente após checkSession
+                    // para não atrasar a liberação da UI.
                     if supabase.isAuthenticated {
-                        await AppointmentService.shared.refreshCurrentMonthIfNeeded(selectedDate: Date(), force: true)
+                        SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+                        let accessDispatchElapsedMs = Int(Date().timeIntervalSince(activeFlowStartedAt) * 1000)
+                        AppLogger.log("⚡ [Lifecycle] refreshAccess(active) disparado em \(accessDispatchElapsedMs)ms", category: .auth)
+                        restartAccessGateFallbackTimerIfNeeded()
                     }
 
-                    // ✅ garante que /api/access rode após checkSession, sem rajada
-                    SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+                    // ✅ Sync da agenda roda em paralelo e não deve bloquear validação de assinatura.
+                    if supabase.isAuthenticated {
+                        Task {
+                            let agendaSyncStartedAt = Date()
+                            await AppointmentService.shared.refreshCurrentMonthIfNeeded(selectedDate: Date(), force: true)
+                            let agendaSyncElapsedMs = Int(Date().timeIntervalSince(agendaSyncStartedAt) * 1000)
+                            AppLogger.log("⏱️ [Lifecycle] refreshCurrentMonthIfNeeded(active) concluiu em \(agendaSyncElapsedMs)ms", category: .business)
+                        }
+                    }
                     
                     AppLogger.log(SupabaseManager.shared.getAuthSnapshot(context: "ScenePhase Active (Pós-check disparado)"), category: .auth)
                 }
@@ -227,7 +248,20 @@ struct ContentView: View {
 
         // 🚀 Inicialização
         .task {
+            let bootFlowStartedAt = Date()
             await supabase.checkSession()
+            let bootCheckSessionElapsedMs = Int(Date().timeIntervalSince(bootFlowStartedAt) * 1000)
+            AppLogger.log("⏱️ [Lifecycle] checkSession(boot) concluído em \(bootCheckSessionElapsedMs)ms", category: .auth)
+
+            // ✅ Garante validação inicial de assinatura mesmo quando o check no `scenePhase.active`
+            // é pulado pelo debounce de boot (initialSession recente).
+            if supabase.isAuthenticated {
+                SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+                let bootAccessDispatchElapsedMs = Int(Date().timeIntervalSince(bootFlowStartedAt) * 1000)
+                AppLogger.log("⚡ [Lifecycle] refreshAccess(boot) disparado em \(bootAccessDispatchElapsedMs)ms", category: .auth)
+                restartAccessGateFallbackTimerIfNeeded()
+            }
+
             isCheckingAuth = false
 
             if supabase.isAuthenticated {
@@ -237,15 +271,86 @@ struct ContentView: View {
 
         // 🔔 Setup notificações após login
         .onChange(of: supabase.isAuthenticated) { _, isAuthenticated in
+            restartAccessGateFallbackTimerIfNeeded()
+            
             if isAuthenticated {
                 Task {
                     await setupNotificationsAfterLogin()
                 }
             }
         }
+        .onChange(of: subscriptionManager.didFinishInitialAccessCheck) { _, _ in
+            restartAccessGateFallbackTimerIfNeeded()
+        }
+        .onAppear {
+            restartAccessGateFallbackTimerIfNeeded()
+        }
+        .onDisappear {
+            accessGateFallbackTask?.cancel()
+            accessGateFallbackTask = nil
+        }
     }
 
     // MARK: - Helpers
+    
+    @ViewBuilder
+    private var accessLoadingStateView: some View {
+        if accessGateFallbackArmed {
+            ZStack {
+                Color(.systemBackground).ignoresSafeArea()
+                
+                VStack(spacing: 14) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    
+                    Text("Verificando assinatura...")
+                        .font(.headline)
+                    
+                    Text("Conexão lenta detectada. Estamos tentando novamente.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                    
+                    Button("Tentar novamente agora") {
+                        AppLogger.warning("🔁 [Lifecycle] Retry manual da verificação de assinatura.")
+                        SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+                        restartAccessGateFallbackTimerIfNeeded()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.top, 4)
+                }
+            }
+        } else {
+            LoadingView(text: "Verificando assinatura...")
+        }
+    }
+    
+    private func restartAccessGateFallbackTimerIfNeeded() {
+        accessGateFallbackTask?.cancel()
+        accessGateFallbackTask = nil
+        accessGateFallbackArmed = false
+        
+        guard supabase.isAuthenticated, !subscriptionManager.didFinishInitialAccessCheck else { return }
+        
+        accessGateFallbackTask = Task {
+            try? await Task.sleep(nanoseconds: accessGateFallbackDelayNanoseconds)
+            if Task.isCancelled { return }
+            
+            await MainActor.run {
+                guard supabase.isAuthenticated, !subscriptionManager.didFinishInitialAccessCheck else { return }
+                
+                accessGateFallbackArmed = true
+                let trustedFallback = subscriptionManager.canUseTrustedAccessForLoadingFallback
+                AppLogger.warning("⏳ [Lifecycle] Timeout na verificação de assinatura. trustedFallback=\(trustedFallback)")
+                
+                if !trustedFallback {
+                    // Mantém bloqueio para evitar brecha, mas força nova tentativa para sair do estado preso.
+                    SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+                }
+            }
+        }
+    }
 
     private func migrateAndScheduleNotifications() async {
         let defaults = UserDefaults.standard

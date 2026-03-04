@@ -110,14 +110,15 @@ class SupabaseManager: ObservableObject {
             }
             
             // 🔥 Logout não iniciado pelo usuário:
-            // não “expulsa” a pessoa à força, mas evita estado inconsistente.
-            self.currentSession = nil
-            self.currentUser = nil
-            self.userProfile = nil
+            // tenta recuperar sessão silenciosamente para evitar "expulsão" por condição transitória.
+            AppLogger.warning("⚠️ [Auth] SignedOut inesperado. Tentando recuperação silenciosa...")
+            if await attemptSilentSessionRecoveryFromStoredCredentials(context: "authStateChanges.signedOut") {
+                AppLogger.log("✅ [Auth] Sessão recuperada após signedOut inesperado.", category: .auth)
+                return
+            }
             
-            // Aqui você tem 2 opções:
-            // (A) Recomendado: marcar como deslogado e mostrar tela de login
-            self.isAuthenticated = false
+            AppLogger.error("❌ [Auth] Não foi possível recuperar sessão após signedOut inesperado. Finalizando logout.")
+            await performSignOutDueToInvalidSession()
             
         case .initialSession:
             // ✅ Sessão inicial - apenas atualizar dados silenciosamente
@@ -374,6 +375,10 @@ class SupabaseManager: ObservableObject {
         userInitiatedSignOut = true
         defer { userInitiatedSignOut = false }
         
+        // Best effort para manter push/local notifications consistentes com o estado de logout.
+        await PushNotificationManager.shared.deactivateDeviceToken()
+        await NotificationManager.shared.cancelAllScheduledNotifications()
+        
         try? await client.auth.signOut()
         self.currentSession = nil
         self.currentUser = nil
@@ -381,6 +386,10 @@ class SupabaseManager: ObservableObject {
         self.isAuthenticated = false
         UserDefaults.standard.removeObject(forKey: "cached_supabase_user")
         UserDefaults.standard.removeObject(forKey: "cached_access_state")
+        UserDefaults.standard.removeObject(forKey: "cached_access_state_date")
+        UserDefaults.standard.removeObject(forKey: "cached_access_status")
+        UserDefaults.standard.removeObject(forKey: "cached_last_verified_at")
+        UserDefaults.standard.removeObject(forKey: "cached_last_verified_had_access")
         AppointmentsCache.clearAll()
         AppLogger.log("✅ [Auth] SignOut forçado concluído. Usuário será redirecionado para login.", category: .auth)
     }
@@ -451,19 +460,8 @@ class SupabaseManager: ObservableObject {
             AppLogger.log("🔴 [Auth] Erro de autenticação definitivo detectado: \(error.localizedDescription)", category: .auth)
             
             // ✅ TENTATIVA DE RE-AUTENTICAÇÃO SILENCIOSA
-            if UserDefaults.standard.bool(forKey: Constants.rememberMeKey),
-               let savedEmail = UserDefaults.standard.string(forKey: Constants.savedEmailKey),
-               let savedPassword = KeychainManager.shared.getPassword(for: savedEmail) {
-                
-                AppLogger.log("🔄 [Auth] Tentando re-autenticação silenciosa...", category: .auth)
-                
-                do {
-                    try await signIn(email: savedEmail, password: savedPassword)
-                    AppLogger.log("✅ [Auth] Re-autenticação silenciosa bem-sucedida!", category: .auth)
-                    return // ✅ Sucesso - não fazer logout
-                } catch {
-                    AppLogger.error("❌ [Auth] Falha na re-autenticação silenciosa: \(error)")
-                }
+            if await attemptSilentSessionRecoveryFromStoredCredentials(context: "checkSession.definiteAuthError") {
+                return // ✅ Sucesso - não fazer logout
             }
             
             // ✅ Só fazer logout se re-auth falhou E não temos sessão local
@@ -501,30 +499,60 @@ class SupabaseManager: ObservableObject {
                 }
                 
                 // ✅ Não temos sessão - tentar re-auth silenciosa antes de desistir
-                if UserDefaults.standard.bool(forKey: Constants.rememberMeKey),
-                   let savedEmail = UserDefaults.standard.string(forKey: Constants.savedEmailKey),
-                   let savedPassword = KeychainManager.shared.getPassword(for: savedEmail) {
-                    
-                    AppLogger.log("🔄 [Auth] Sem sessão local mas tentando re-login...", category: .auth)
-                    
-                    do {
-                        try await signIn(email: savedEmail, password: savedPassword)
-                        AppLogger.log("✅ [Auth] Re-login bem-sucedido!", category: .auth)
-                    } catch {
-                        AppLogger.error("❌ [Auth] Re-login falhou: \(error)")
-                        // Última chance: se falhar login e tiver user cacheado (caso raro onde signIn falha mas cache existe)
-                        if let cachedUser = loadUserFromCache() {
-                             self.currentUser = cachedUser
-                             // ✅ Não setamos isAuthenticated = true
-                             return
-                        }
-                        self.isAuthenticated = false
+                if await attemptSilentSessionRecoveryFromStoredCredentials(context: "checkSession.noLocalSession") {
+                    return
+                }
+                
+                if UserDefaults.standard.bool(forKey: Constants.rememberMeKey) {
+                    AppLogger.error("❌ [Auth] Re-login silencioso falhou sem sessão local.")
+                    // Última chance: se falhar login e tiver user cacheado (caso raro onde signIn falha mas cache existe)
+                    if let cachedUser = loadUserFromCache() {
+                         self.currentUser = cachedUser
+                         // ✅ Não setamos isAuthenticated = true
+                         return
                     }
+                    self.isAuthenticated = false
                 } else {
                     AppLogger.log("🔵 [Auth] Sem sessão e sem credenciais salvas", category: .auth)
                     self.isAuthenticated = false
                 }
             }
+        }
+    }
+    
+    /// Tenta recuperar sessão usando credenciais "Lembrar-me", sem chamar fluxo completo de signIn
+    /// para evitar recursão com `SubscriptionManager.checkAccess()`.
+    func attemptSilentSessionRecoveryFromStoredCredentials(context: String) async -> Bool {
+        guard UserDefaults.standard.bool(forKey: Constants.rememberMeKey),
+              let savedEmail = UserDefaults.standard.string(forKey: Constants.savedEmailKey),
+              let savedPassword = KeychainManager.shared.getPassword(for: savedEmail) else {
+            AppLogger.warning("⚠️ [Auth] Recuperação silenciosa indisponível (\(context)): sem credenciais salvas.")
+            return false
+        }
+
+        let normalizedEmail = savedEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        AppLogger.log("🔄 [Auth] Tentando recuperação silenciosa de sessão (\(context))...", category: .auth)
+        
+        do {
+            let session = try await client.auth.signIn(
+                email: normalizedEmail,
+                password: savedPassword
+            )
+            
+            self.currentSession = session
+            self.currentUser = session.user
+            saveUserToCache(session.user)
+            
+            if self.userProfile == nil || self.userProfile?.id != session.user.id.uuidString {
+                await loadUserProfile()
+            }
+            
+            self.isAuthenticated = true
+            AppLogger.log("✅ [Auth] Recuperação silenciosa bem-sucedida (\(context)).", category: .auth)
+            return true
+        } catch {
+            AppLogger.error("❌ [Auth] Recuperação silenciosa falhou (\(context)): \(error)")
+            return false
         }
     }
 

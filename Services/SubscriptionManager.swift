@@ -53,6 +53,7 @@ class SubscriptionManager: ObservableObject {
     private let offlineGraceHours: Double = 24
     private let deterministicNoAccessProtectionHours: Double = 72
     private let requiredConsecutiveNoAccessChecks: Int = 4
+    private let trustedLoadingFallbackHours: Double = 6
 
     // ✅ EVITA CONCORRÊNCIA / “BRIGA” DE ESTADOS
     private var accessCheckTask: Task<Void, Never>?
@@ -113,6 +114,7 @@ class SubscriptionManager: ObservableObject {
 
     // MARK: - Verificação Backend-First (Internal)
     private func checkAccessInternal(showLoader: Bool) async {
+        let checkStartedAt = Date()
         let nonce = UUID()
         accessCheckNonce = nonce
 
@@ -125,6 +127,12 @@ class SubscriptionManager: ObservableObject {
                 isLoading = false
             }
             didFinishInitialAccessCheck = true
+            
+            let elapsedMs = Int(Date().timeIntervalSince(checkStartedAt) * 1000)
+            AppLogger.log(
+                "⏱️ [Access] checkAccessInternal concluído em \(elapsedMs)ms | status=\(self.accessStatus.rawValue) | hasAccess=\(self.accessState.hasAccess)",
+                category: .business
+            )
         }
 
         do {
@@ -309,6 +317,25 @@ class SubscriptionManager: ObservableObject {
                 }
                 
                 scheduleNoAccessConfirmationRefresh(delayNanoseconds: 2_000_000_000)
+                return
+            }
+
+            // Última tentativa antes de expulsar o usuário:
+            // recuperar sessão via credenciais "Lembrar-me" (quando disponível).
+            let recoveredSession = await supabase.attemptSilentSessionRecoveryFromStoredCredentials(
+                context: "SubscriptionManager.handle401WithRetry"
+            )
+            if recoveredSession {
+                guard accessCheckNonce == nonce else { return }
+                AppLogger.warning("♻️ [Access] Sessão recuperada silenciosamente após 401 persistente. Evitando signOut.")
+                
+                if let known = bestKnownAccessStateForUncertainCheck() {
+                    finalizeAccess(known, status: .unknown)
+                } else {
+                    finalizeAccess(accessState, status: .unknown)
+                }
+                
+                scheduleNoAccessConfirmationRefresh(delayNanoseconds: 1_000_000_000)
                 return
             }
 
@@ -785,6 +812,22 @@ class SubscriptionManager: ObservableObject {
         }
 
         return false
+    }
+    
+    /// Uso exclusivo de UX: permite sair do "Verificando assinatura..." após timeout
+    /// somente quando houver evidência local forte de acesso recente.
+    var canUseTrustedAccessForLoadingFallback: Bool {
+        if accessStatus == .hasAccess {
+            return true
+        }
+        
+        guard accessStatus == .unknown else { return false }
+        guard accessState.hasAccess else { return false }
+        guard lastVerifiedHadAccess, let lastVerifiedAt else { return false }
+        
+        let maxAge = trustedLoadingFallbackHours * 3600
+        let elapsed = Date().timeIntervalSince(lastVerifiedAt)
+        return elapsed >= 0 && elapsed <= maxAge
     }
 
     // Mantido para compatibilidade com MainTabView, mas usando a nova lógica corretiva

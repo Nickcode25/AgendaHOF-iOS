@@ -11,9 +11,11 @@ class PushNotificationManager: NSObject, ObservableObject {
     @Published var isRegistered = false
     
     private let supabase = SupabaseManager.shared
+    private let cachedDeviceTokenKey = "cached_push_device_token"
     
     private override init() {
         super.init()
+        self.deviceToken = UserDefaults.standard.string(forKey: cachedDeviceTokenKey)
     }
     
     // MARK: - Registration
@@ -48,6 +50,7 @@ class PushNotificationManager: NSObject, ObservableObject {
     func didRegisterForRemoteNotifications(deviceToken: Data) async {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         self.deviceToken = tokenString
+        UserDefaults.standard.set(tokenString, forKey: cachedDeviceTokenKey)
         
         AppLogger.log("📱 Device token recebido: \(tokenString.prefix(20))...", category: .notification)
         
@@ -106,7 +109,10 @@ class PushNotificationManager: NSObject, ObservableObject {
     
     /// Desativa o device token ao fazer logout
     func deactivateDeviceToken() async {
-        guard let token = deviceToken else { return }
+        guard let token = resolvedDeviceToken() else {
+            AppLogger.warning("⚠️ [Push] Nenhum device token disponível para desativar.")
+            return
+        }
         
         let environment: String
         #if DEBUG
@@ -133,6 +139,9 @@ class PushNotificationManager: NSObject, ObservableObject {
                 .eq("environment", value: environment)
                 .execute()
             
+            self.deviceToken = nil
+            self.isRegistered = false
+            UserDefaults.standard.removeObject(forKey: cachedDeviceTokenKey)
             AppLogger.log("📱 Device token desativado no Supabase (ambiente: \(environment))", category: .notification)
             
         } catch {
@@ -143,5 +152,14 @@ class PushNotificationManager: NSObject, ObservableObject {
     /// Chamado quando falha o registro de notificações push
     func didFailToRegisterForRemoteNotifications(error: Error) {
         AppLogger.error("❌ Falha ao registrar para push notifications", error: error)
+    }
+    
+    private func resolvedDeviceToken() -> String? {
+        if let inMemory = deviceToken, !inMemory.isEmpty { return inMemory }
+        if let cached = UserDefaults.standard.string(forKey: cachedDeviceTokenKey), !cached.isEmpty {
+            self.deviceToken = cached
+            return cached
+        }
+        return nil
     }
 }
