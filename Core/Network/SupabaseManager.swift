@@ -293,7 +293,8 @@ class SupabaseManager: ObservableObject {
                 AppLogger.log("✅ Perfil criado manualmente com sucesso!", category: .auth)
             } catch {
                 AppLogger.error("❌ Erro fatal ao criar perfil (Fallback): \(error)")
-                try? await client.auth.signOut()
+                // Evita revogar sessões de outros dispositivos em falhas locais de cadastro.
+                try? await client.auth.signOut(scope: .local)
                 self.currentSession = nil
                 self.currentUser = nil
                 self.isAuthenticated = false
@@ -339,7 +340,7 @@ class SupabaseManager: ObservableObject {
 
     func signOut() async throws {
         // ✅ CRÍTICO: Só este método deve fazer logout de verdade
-        AppLogger.log("🚪 [Auth] Usuario solicitou logout (EXPLICITO)", category: .auth)
+        AppLogger.log("🚪 [Auth] Usuario solicitou logout (EXPLICITO/LOCAL)", category: .auth)
         
         // Seta flag para permitir logout no handler
         userInitiatedSignOut = true
@@ -351,7 +352,8 @@ class SupabaseManager: ObservableObject {
         // 2. Cancelar todas as notificações locais agendadas
         await NotificationManager.shared.cancelAllScheduledNotifications()
         
-        try await client.auth.signOut()
+        // IMPORTANTE: logout local para não invalidar sessões em outros dispositivos da mesma conta.
+        try await client.auth.signOut(scope: .local)
         
         // ✅ Limpar tudo após logout bem-sucedido
         self.currentSession = nil
@@ -370,7 +372,7 @@ class SupabaseManager: ObservableObject {
     /// SignOut forçado por sessão inválida detectada pelo SubscriptionManager (401 persistente).
     /// Não depende da flag userInitiatedSignOut — é um signOut de segurança.
     func performSignOutDueToInvalidSession() async {
-        AppLogger.log("🔴 [Auth] SignOut forçado: sessão inválida detectada pelo SubscriptionManager", category: .auth)
+        AppLogger.log("🔴 [Auth] SignOut forçado local: sessão inválida detectada pelo SubscriptionManager", category: .auth)
         
         userInitiatedSignOut = true
         defer { userInitiatedSignOut = false }
@@ -379,7 +381,8 @@ class SupabaseManager: ObservableObject {
         await PushNotificationManager.shared.deactivateDeviceToken()
         await NotificationManager.shared.cancelAllScheduledNotifications()
         
-        try? await client.auth.signOut()
+        // Logout local defensivo: evita efeito cascata em múltiplos dispositivos.
+        try? await client.auth.signOut(scope: .local)
         self.currentSession = nil
         self.currentUser = nil
         self.userProfile = nil

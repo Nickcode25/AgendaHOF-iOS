@@ -94,8 +94,8 @@ class ResetPasswordViewModel: ObservableObject {
                 showError = true
                 isLoading = false
 
-                // Fazer logout pois criamos uma sessão mas não vamos continuar
-                try? await supabase.client.auth.signOut()
+                // Fazer logout local pois criamos uma sessão temporária só para reset.
+                try? await supabase.client.auth.signOut(scope: .local)
                 return
             }
 
@@ -135,19 +135,25 @@ class ResetPasswordViewModel: ObservableObject {
                 #endif
             }
 
-            // 5. Fazer logout da sessão atual (usuário precisará fazer login novamente)
+            // 5. Encerrar a sessão temporária criada para o reset.
+            // Se "logoutAllDevices" estiver ativo, revoga sessões globais por segurança.
+            #if DEBUG
             if logoutAllDevices {
-                #if DEBUG
-                print("🔐 [ResetPassword] Passo 6: Fazendo logout da sessão atual...")
-                #endif
-
-                // Fazer logout da sessão que criamos
-                try? await supabase.client.auth.signOut()
-
-                #if DEBUG
-                print("✅ [ResetPassword] Passo 6: Logout concluído!")
-                #endif
+                print("🔐 [ResetPassword] Passo 6: Fazendo logout GLOBAL (todos dispositivos)...")
+            } else {
+                print("🔐 [ResetPassword] Passo 6: Fazendo logout LOCAL (somente este dispositivo)...")
             }
+            #endif
+
+            if logoutAllDevices {
+                try? await supabase.client.auth.signOut(scope: .global)
+            } else {
+                try? await supabase.client.auth.signOut(scope: .local)
+            }
+
+            #if DEBUG
+            print("✅ [ResetPassword] Passo 6: Logout concluído!")
+            #endif
 
             #if DEBUG
             print("🎉 [ResetPassword] Reset de senha concluído com sucesso!")
