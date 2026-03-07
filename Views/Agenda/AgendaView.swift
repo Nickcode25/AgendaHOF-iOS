@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AgendaView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = AgendaViewModel()
     @StateObject private var professionalService = ProfessionalService()
     @ObservedObject private var network = NetworkMonitor.shared
@@ -136,6 +137,13 @@ struct AgendaView: View {
                 }
             }
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+
+            Task {
+                _ = await viewModel.syncSelectedDateOnSaoPauloDayRolloverIfNeeded(trigger: "sceneActive")
+            }
+        }
         .sheet(item: $viewModel.activeSheet) { sheet in
             switch sheet {
             case .newAppointment(let start, let end):
@@ -178,6 +186,7 @@ struct AgendaView: View {
         }
         .task {
             await professionalService.fetchProfessionals()
+            _ = await viewModel.syncSelectedDateOnSaoPauloDayRolloverIfNeeded(trigger: "initialTask")
             await viewModel.loadData()
         }
         .refreshable {

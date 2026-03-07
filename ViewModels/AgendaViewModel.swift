@@ -19,6 +19,13 @@ class AgendaViewModel: ObservableObject {
  
     let appointmentService = AppointmentService.shared
     private let supabase = SupabaseManager.shared
+    private var lastObservedSaoPauloDayStart: Date?
+    private var saoPauloCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "pt_BR")
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        return calendar
+    }
 
     // MARK: - View Modes
 
@@ -124,6 +131,32 @@ class AgendaViewModel: ObservableObject {
     }
 
     // MARK: - Actions
+
+    /// Ajusta para "hoje" apenas quando detecta virada de dia entre ativações do app (fuso São Paulo).
+    /// Retorna `true` quando ajustou para hoje e já executou `loadData()`.
+    func syncSelectedDateOnSaoPauloDayRolloverIfNeeded(trigger: String = "unknown") async -> Bool {
+        let calendar = saoPauloCalendar
+        let now = Date()
+        let todayStart = calendar.startOfDay(for: now)
+
+        defer { lastObservedSaoPauloDayStart = todayStart }
+
+        guard let lastObservedDay = lastObservedSaoPauloDayStart else {
+            return false
+        }
+        guard lastObservedDay < todayStart else {
+            return false
+        }
+
+        AppLogger.log(
+            "🕛 [Agenda] Virada de dia detectada (\(trigger)). Ajustando para hoje (America/Sao_Paulo).",
+            category: .business
+        )
+
+        selectedDate = now
+        await loadData()
+        return true
+    }
 
     func loadData() async {
         isLoading = true

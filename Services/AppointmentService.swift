@@ -164,12 +164,44 @@ class AppointmentService: ObservableObject {
 
             } catch is CancellationError {
                 AppLogger.log("🔄 [Appointments] Busca cancelada", category: .business)
+                if NetworkMonitor.shared.isOnline {
+                    isOfflineMode = false
+                }
             } catch {
-                AppLogger.warning("⚠️ [Appointments] Erro online: \(error). Fallback cache.")
-                loadFromCache(ownerId: ownerId, startDate: startDate, endDate: endDate, key: key, professionalId: professionalId, professional: professional)
+                if isCancellationLike(error) {
+                    AppLogger.log("🔄 [Appointments] Busca cancelada (URLSession). Mantendo estado atual.", category: .business)
+                    if NetworkMonitor.shared.isOnline {
+                        isOfflineMode = false
+                    }
+                } else {
+                    let markOffline = shouldShowOfflineBanner(for: error)
+                    if markOffline {
+                        AppLogger.warning("⚠️ [Appointments] Erro de conectividade. Fallback cache em modo offline. \(error)")
+                    } else {
+                        AppLogger.warning("⚠️ [Appointments] Erro transitório online. Fallback cache sem entrar em offline. \(error)")
+                    }
+
+                    loadFromCache(
+                        ownerId: ownerId,
+                        startDate: startDate,
+                        endDate: endDate,
+                        key: key,
+                        professionalId: professionalId,
+                        professional: professional,
+                        markOffline: markOffline
+                    )
+                }
             }
         } else {
-            loadFromCache(ownerId: ownerId, startDate: startDate, endDate: endDate, key: key, professionalId: professionalId, professional: professional)
+            loadFromCache(
+                ownerId: ownerId,
+                startDate: startDate,
+                endDate: endDate,
+                key: key,
+                professionalId: professionalId,
+                professional: professional,
+                markOffline: true
+            )
         }
 
         isLoading = false
@@ -220,6 +252,68 @@ class AppointmentService: ObservableObject {
     }
 
     // MARK: - Internal Helpers
+
+    private func shouldShowOfflineBanner(for error: Error) -> Bool {
+        if !NetworkMonitor.shared.isOnline { return true }
+        return isConnectivityError(error)
+    }
+
+    private func isCancellationLike(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+
+        if let urlError = error as? URLError {
+            return urlError.code == .cancelled
+        }
+
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
+
+    private func isConnectivityError(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet,
+                 .networkConnectionLost,
+                 .timedOut,
+                 .cannotFindHost,
+                 .cannotConnectToHost,
+                 .dnsLookupFailed,
+                 .dataNotAllowed,
+                 .internationalRoamingOff,
+                 .callIsActive,
+                 .cannotLoadFromNetwork:
+                return true
+            default:
+                break
+            }
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet,
+                 NSURLErrorNetworkConnectionLost,
+                 NSURLErrorTimedOut,
+                 NSURLErrorCannotFindHost,
+                 NSURLErrorCannotConnectToHost,
+                 NSURLErrorDNSLookupFailed,
+                 NSURLErrorDataNotAllowed,
+                 NSURLErrorInternationalRoamingOff,
+                 NSURLErrorCallIsActive,
+                 NSURLErrorCannotLoadFromNetwork:
+                return true
+            default:
+                break
+            }
+        }
+
+        let msg = String(describing: error).lowercased()
+        return msg.contains("not connected to internet")
+            || msg.contains("internet connection appears to be offline")
+            || msg.contains("network connection")
+            || msg.contains("connection lost")
+            || msg.contains("timed out")
+    }
     
     private func syncMonthCache(ownerId: String, userId: String, monthKey: String, range: (start: Date, end: Date)) async throws -> [Appointment] {
         let fmt = ISO8601DateFormatter()
@@ -255,20 +349,34 @@ class AppointmentService: ObservableObject {
 
     // MARK: - Cache Fallback
 
-    private func loadFromCache(ownerId: String, startDate: Date, endDate: Date, key: String, professionalId: String?, professional: String?) {
+    private func loadFromCache(
+        ownerId: String,
+        startDate: Date,
+        endDate: Date,
+        key: String,
+        professionalId: String?,
+        professional: String?,
+        markOffline: Bool
+    ) {
         if let cached = AppointmentsCache.load(ownerId: ownerId, monthKey: key) {
             let filtered = filter(appointments: cached.appointments, from: startDate, to: endDate, profId: professionalId, prof: professional)
             appointments = filtered
             cachedUpdatedAt = cached.updatedAt
             cachedDateRange = (startDate, endDate)
-            isOfflineMode = true
-            AppLogger.log("📦 [Cache] Carregados \(filtered.count) agendamentos do cache mensal (\(key)).", category: .business)
+            isOfflineMode = markOffline
+            AppLogger.log("📦 [Cache] Carregados \(filtered.count) agendamentos do cache mensal (\(key)). offline=\(markOffline)", category: .business)
         } else {
-            appointments = []
-            cachedUpdatedAt = nil
-            cachedDateRange = nil
-            isOfflineMode = true
-            AppLogger.warning("⚠️ [Cache] Sem dados em cache para o mês \(key).")
+            if markOffline {
+                appointments = []
+                cachedUpdatedAt = nil
+                cachedDateRange = nil
+                isOfflineMode = true
+                AppLogger.warning("⚠️ [Cache] Sem dados em cache para o mês \(key) (modo offline).")
+            } else {
+                // Evita apagar a agenda quando o erro é transitório e o usuário segue online.
+                isOfflineMode = false
+                AppLogger.warning("⚠️ [Cache] Sem dados em cache para o mês \(key), mantendo dados atuais (online).")
+            }
         }
     }
 
