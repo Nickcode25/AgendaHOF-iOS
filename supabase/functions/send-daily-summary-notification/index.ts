@@ -100,29 +100,34 @@ serve(async (req) => {
             // Send notification to all devices for this user
             for (const device of devices) {
                 const isSandbox = device.environment === 'sandbox'
+                const shouldSendDailySummary = !(courseData.courseCount > 0 && summaryData.appointmentCount === 0)
 
-                try {
-                    await sendPushNotification(
-                        device.device_token,
-                        summaryData,
-                        isSandbox,
-                        jwt
-                    )
-                    successCount++
-                    console.log(`  ✅ Daily summary sent to device ${device.device_token.substring(0, 10)}...`)
-                } catch (error: any) {
-                    failCount++
-                    console.error(`  ❌ Failed to send daily summary to device:`, error.message)
+                if (shouldSendDailySummary) {
+                    try {
+                        await sendPushNotification(
+                            device.device_token,
+                            summaryData,
+                            isSandbox,
+                            jwt
+                        )
+                        successCount++
+                        console.log(`  ✅ Daily summary sent to device ${device.device_token.substring(0, 10)}...`)
+                    } catch (error: any) {
+                        failCount++
+                        console.error(`  ❌ Failed to send daily summary to device:`, error.message)
 
-                    // Cleanup stale tokens
-                    if (isStaleTokenError(error.message)) {
-                        console.log(`  🗑️ Deactivating stale token: ${device.device_token.substring(0, 10)}...`)
-                        await supabase
-                            .from('device_tokens')
-                            .update({ is_active: false })
-                            .eq('device_token', device.device_token)
+                        // Cleanup stale tokens
+                        if (isStaleTokenError(error.message)) {
+                            console.log(`  🗑️ Deactivating stale token: ${device.device_token.substring(0, 10)}...`)
+                            await supabase
+                                .from('device_tokens')
+                                .update({ is_active: false })
+                                .eq('device_token', device.device_token)
+                        }
+                        continue
                     }
-                    continue
+                } else {
+                    console.log(`  ⏭️ Daily summary skipped (courses=${courseData.courseCount}, patients=${summaryData.appointmentCount})`)
                 }
 
                 if (courseData.courseCount === 0) {
