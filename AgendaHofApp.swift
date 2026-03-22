@@ -143,10 +143,23 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let identifier = response.notification.request.identifier
         let userInfo = response.notification.request.content.userInfo
 
-        if let type = userInfo["type"] as? String, type == "financial_summary" {
-            AppLogger.log("📊 Notificação push de resumo financeiro recebida", category: .notification)
+        if let type = userInfo["type"] as? String {
+            switch type {
+            case "financial_summary":
+                AppLogger.log("Push financial summary recebida", category: .notification)
+            case "daily_summary":
+                AppLogger.log("Push daily summary recebida", category: .notification)
+            case "weekly_summary":
+                AppLogger.log("Push weekly summary recebida", category: .notification)
+            case "week_preview":
+                AppLogger.log("Push week preview recebida", category: .notification)
+            case "course_reminder":
+                AppLogger.log("Push course reminder recebida", category: .notification)
+            default:
+                AppLogger.log("Push recebida (tipo: \(type))", category: .notification)
+            }
         } else {
-            AppLogger.log("🔔 Notificação local recebida: \(identifier)", category: .notification)
+            AppLogger.log("Notificacao local recebida: \(identifier)", category: .notification)
         }
     }
 }

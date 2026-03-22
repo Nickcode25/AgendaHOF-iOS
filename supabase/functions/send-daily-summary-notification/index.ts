@@ -15,6 +15,7 @@ const APNS_TOPIC = Deno.env.get('APNS_BUNDLE_ID') || 'com.agendahof.swift' // Bu
 const APNS_ENDPOINT = Deno.env.get('APNS_ENDPOINT') || 'https://api.push.apple.com'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+const COURSE_PROCEDURE_NAME = 'Curso'
 
 console.log('🚀 Daily Summary Notification Function initialized')
 console.log('APNs Endpoint:', APNS_ENDPOINT)
@@ -90,28 +91,59 @@ serve(async (req) => {
         for (const [userId, devices] of userDevices.entries()) {
             console.log(`📅 Calculating today's appointments for user ${userId}`)
 
-            // Get today's appointments
+            // Get today's appointments and course reminders
             const summaryData = await calculateTodaysSummary(supabase, userId)
+            const courseData = await calculateTodaysCourses(supabase, userId)
 
-            console.log(`  📊 Today: ${summaryData.appointmentCount} appointments`)
+            console.log(`  📊 Today: ${summaryData.appointmentCount} appointments | ${courseData.courseCount} courses | streakDay: ${courseData.streakDay}`)
 
             // Send notification to all devices for this user
             for (const device of devices) {
+                const isSandbox = device.environment === 'sandbox'
+
                 try {
                     await sendPushNotification(
                         device.device_token,
                         summaryData,
-                        device.environment === 'sandbox',
+                        isSandbox,
                         jwt
                     )
                     successCount++
-                    console.log(`  ✅ Sent to device ${device.device_token.substring(0, 10)}...`)
+                    console.log(`  ✅ Daily summary sent to device ${device.device_token.substring(0, 10)}...`)
                 } catch (error: any) {
                     failCount++
-                    console.error(`  ❌ Failed to send to device:`, error.message)
+                    console.error(`  ❌ Failed to send daily summary to device:`, error.message)
 
                     // Cleanup stale tokens
-                    if (error.message.includes('410') || error.message.includes('404') || error.message.includes('Unregistered') || error.message.includes('BadDeviceToken')) {
+                    if (isStaleTokenError(error.message)) {
+                        console.log(`  🗑️ Deactivating stale token: ${device.device_token.substring(0, 10)}...`)
+                        await supabase
+                            .from('device_tokens')
+                            .update({ is_active: false })
+                            .eq('device_token', device.device_token)
+                    }
+                    continue
+                }
+
+                if (courseData.courseCount === 0) {
+                    continue
+                }
+
+                try {
+                    await sendCoursePushNotification(
+                        device.device_token,
+                        courseData,
+                        isSandbox,
+                        jwt
+                    )
+                    successCount++
+                    console.log(`  ✅ Course reminder sent to device ${device.device_token.substring(0, 10)}...`)
+                } catch (error: any) {
+                    failCount++
+                    console.error(`  ❌ Failed to send course reminder to device:`, error.message)
+
+                    // Cleanup stale tokens
+                    if (isStaleTokenError(error.message)) {
                         console.log(`  🗑️ Deactivating stale token: ${device.device_token.substring(0, 10)}...`)
                         await supabase
                             .from('device_tokens')
@@ -136,7 +168,7 @@ serve(async (req) => {
                 headers: { 'Content-Type': 'application/json' }
             }
         )
-    } catch (error) {
+    } catch (error: any) {
         console.error('❌ Fatal error:', error)
         return new Response(
             JSON.stringify({ error: error.message }),
@@ -190,6 +222,77 @@ async function calculateTodaysSummary(supabase: any, userId: string) {
         firstAppointment,
         todayStr
     }
+}
+
+/**
+ * Calculate today's course appointments and consecutive-day streak index
+ * for personalized reminders.
+ */
+async function calculateTodaysCourses(supabase: any, userId: string) {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    })
+
+    const todayStr = formatter.format(new Date())
+    const yesterdayStr = shiftDateByDays(todayStr, -1)
+    const twoDaysAgoStr = shiftDateByDays(todayStr, -2)
+
+    // Query only a 3-day window: today, yesterday, and two days ago.
+    const startWindow = `${twoDaysAgoStr}T00:00:00-03:00`
+    const endWindow = `${todayStr}T23:59:59-03:00`
+
+    const { data: courseAppointments, error: courseError } = await supabase
+        .from('appointments')
+        .select('start')
+        .eq('user_id', userId)
+        .gte('start', startWindow)
+        .lte('start', endWindow)
+        .neq('status', 'cancelled')
+        .eq('is_personal', true)
+        .eq('procedure', COURSE_PROCEDURE_NAME)
+
+    if (courseError) {
+        console.error('  ❌ Error fetching course appointments:', courseError)
+        throw courseError
+    }
+
+    const courseCountByDay: Record<string, number> = {}
+    for (const appointment of courseAppointments || []) {
+        if (!appointment.start) continue
+        const dayKey = formatter.format(new Date(appointment.start))
+        courseCountByDay[dayKey] = (courseCountByDay[dayKey] || 0) + 1
+    }
+
+    const courseCount = courseCountByDay[todayStr] || 0
+
+    // Day 1 = isolated or first day, Day 2 = second consecutive day, Day 3 = third+ day
+    let streakDay = 1
+    if (courseCount > 0 && (courseCountByDay[yesterdayStr] || 0) > 0) {
+        streakDay = 2
+        if ((courseCountByDay[twoDaysAgoStr] || 0) > 0) {
+            streakDay = 3
+        }
+    }
+
+    return {
+        courseCount,
+        streakDay,
+        todayStr
+    }
+}
+
+function shiftDateByDays(baseDate: string, days: number): string {
+    const date = new Date(`${baseDate}T12:00:00-03:00`)
+    date.setDate(date.getDate() + days)
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date)
 }
 
 /**
@@ -278,6 +381,70 @@ async function sendPushNotification(deviceToken: string, data: any, isSandbox: b
 }
 
 /**
+ * Send course reminder push notification via APNs
+ */
+async function sendCoursePushNotification(deviceToken: string, data: any, isSandbox: boolean, jwt: string) {
+    const endpoint = isSandbox
+        ? 'https://api.sandbox.push.apple.com'
+        : 'https://api.push.apple.com'
+
+    const reminderBody = getCourseReminderBody(data.streakDay)
+
+    const payload = {
+        aps: {
+            alert: {
+                title: '🎓 Hoje é dia de Curso!',
+                body: reminderBody
+            },
+            sound: 'default',
+            badge: 1
+        },
+        data: {
+            type: 'course_reminder',
+            courseCount: data.courseCount,
+            streakDay: data.streakDay,
+            date: data.todayStr
+        }
+    }
+
+    const response = await fetch(`${endpoint}/3/device/${deviceToken}`, {
+        method: 'POST',
+        headers: {
+            'authorization': `bearer ${jwt}`,
+            'apns-topic': APNS_TOPIC,
+            'apns-push-type': 'alert',
+            'apns-priority': '10',
+            'apns-expiration': '0'
+        },
+        body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`APNs error ${response.status}: ${errorText}`)
+    }
+}
+
+function getCourseReminderBody(streakDay: number): string {
+    if (streakDay >= 3) {
+        return 'Elevando o nível mais uma vez. Vamos!'
+    }
+
+    if (streakDay === 2) {
+        return 'Mais um dia impactando vidas. Inspire seus alunos!'
+    }
+
+    return 'Dia de compartilhar conhecimento. Vai com tudo!'
+}
+
+function isStaleTokenError(message: string): boolean {
+    return message.includes('410')
+        || message.includes('404')
+        || message.includes('Unregistered')
+        || message.includes('BadDeviceToken')
+}
+
+/**
  * Generate JWT token for APNs authentication using ES256 algorithm
  * Documentation: https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/establishing_a_token-based_connection_to_apns
  */
@@ -324,7 +491,7 @@ async function generateAPNsJWT(): Promise<string> {
         const jwt = await create(header, payload, cryptoKey)
 
         return jwt
-    } catch (error) {
+    } catch (error: any) {
         console.error('❌ Error generating APNs JWT:', error)
         throw new Error(`Failed to generate APNs JWT: ${error.message}`)
     }
