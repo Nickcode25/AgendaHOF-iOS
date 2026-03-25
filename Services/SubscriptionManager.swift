@@ -40,7 +40,11 @@ class SubscriptionManager: ObservableObject {
 
     private let supabase = SupabaseManager.shared
 
-    private let productIds: Set<String> = [
+    private let saleProductIds: Set<String> = [
+        "com.agendahof.premium"
+    ]
+
+    private let entitlementProductIds: Set<String> = [
         "com.agendahof.basic",
         "com.agendahof.pro",
         "com.agendahof.premium"
@@ -49,11 +53,16 @@ class SubscriptionManager: ObservableObject {
     private let receiptEndpoint = "https://zgdxszwjbbxepsvyjtrb.supabase.co/functions/v1/ios-receipt"
 
     private var transactionListener: Task<Void, Error>?
+    private var purchaseWatchdogTask: Task<Void, Never>?
+    private var lastAppleSyncAttemptAt: Date?
+    private var lastAppleSyncedTransactionId: String?
 
     private let offlineGraceHours: Double = 24
     private let deterministicNoAccessProtectionHours: Double = 72
     private let requiredConsecutiveNoAccessChecks: Int = 4
     private let trustedLoadingFallbackHours: Double = 6
+    private let appleSyncRetryInterval: TimeInterval = 120
+    private let purchaseWatchdogTimeoutNanoseconds: UInt64 = 45_000_000_000
 
     // ✅ EVITA CONCORRÊNCIA / “BRIGA” DE ESTADOS
     private var accessCheckTask: Task<Void, Never>?
@@ -75,6 +84,7 @@ class SubscriptionManager: ObservableObject {
         transactionListener?.cancel()
         accessCheckTask?.cancel()
         noAccessConfirmationTask?.cancel()
+        purchaseWatchdogTask?.cancel()
     }
 
     // MARK: - Public API (use essa)
@@ -144,12 +154,34 @@ class SubscriptionManager: ObservableObject {
 
             let response = try await AccessAPI.fetchAccess(accessToken: token)
 
+            if let appleOverride = await localAppleAccessOverrideStateIfNeeded(response: response) {
+                guard accessCheckNonce == nonce else { return }
+                clearPendingNoAccessConfirmation()
+                AppLogger.log(
+                    "🍎 [Access] Aplicando override local imediato por entitlement Apple ativo. plano=\(appleOverride.planType.rawValue)",
+                    category: .business
+                )
+                finalizeAccess(appleOverride, status: .hasAccess)
+                
+                syncAppleEntitlementInBackgroundIfNeeded(response: response, accessToken: token)
+                return
+            }
+
+            let didSyncAppleEntitlement = await reconcileAppleEntitlementWithBackendIfNeeded(
+                response: response,
+                accessToken: token
+            )
+            if didSyncAppleEntitlement {
+                AppLogger.log("✅ [Access] Entitlement sincronizado. Disparando refreshAccess em background.", category: .business)
+                refreshAccess(silent: true, force: true)
+            }
+
             if response.hasAccess {
                 guard accessCheckNonce == nonce else { return }
                 clearPendingNoAccessConfirmation()
-                let plan = PlanType(rawValue: (response.planType ?? "basic")) ?? .basic
+                let plan = parsePlanTypeForHasAccess(response.planType)
                 
-                let sourceEnum: SubscriptionSource = (response.source == "apple") ? .apple : .backend
+                let sourceEnum = mapSubscriptionSource(response.source)
                 let stateReason = response.reason ?? "unknown"
                 let stateStatus = response.status ?? "unknown"
                 
@@ -162,9 +194,9 @@ class SubscriptionManager: ObservableObject {
                     status: .hasAccess
                 )
             } else {
-                let plan = PlanType(rawValue: (response.planType ?? "none")) ?? .none
+                let plan = parsePlanTypeForNoAccess(response.planType)
                 
-                let sourceEnum: SubscriptionSource = (response.source == "apple") ? .apple : .backend
+                let sourceEnum = mapSubscriptionSource(response.source)
                 let stateReason = response.reason ?? "unknown"
                 let stateStatus = response.status ?? "unknown"
                 
@@ -218,6 +250,225 @@ class SubscriptionManager: ObservableObject {
             }
         }
     }
+    
+    private func syncAppleEntitlementInBackgroundIfNeeded(response: AccessResponse, accessToken: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            let didSyncAppleEntitlement = await self.reconcileAppleEntitlementWithBackendIfNeeded(
+                response: response,
+                accessToken: accessToken
+            )
+            if didSyncAppleEntitlement {
+                AppLogger.log("✅ [Access] Sync Apple em background concluído. Disparando refreshAccess.", category: .business)
+                self.refreshAccess(silent: true, force: true)
+            }
+        }
+    }
+
+    private func reconcileAppleEntitlementWithBackendIfNeeded(
+        response: AccessResponse,
+        accessToken: String
+    ) async -> Bool {
+        let plan = parsePlanTypeForNoAccess(response.planType)
+        let source = (response.source ?? "").lowercased()
+        let status = (response.status ?? "").lowercased()
+        let reason = (response.reason ?? "").lowercased()
+
+        // Conta explicitamente sem assinatura ativa: não reconciliar automaticamente
+        // para evitar que entitlement local de outro login "vaze" para esta conta.
+        let backendExplicitNoSubscription =
+            status == "no_subscription" ||
+            reason == "trial_expired_no_subscription" ||
+            reason == "no_subscription"
+        if backendExplicitNoSubscription {
+            AppLogger.warning("⚠️ [Access] Reconcile Apple ignorado: backend informou conta sem assinatura.")
+            return false
+        }
+
+        // Reconciliar quando backend ainda está sem acesso ou preso em trial,
+        // mas já existe entitlement ativo da Apple no dispositivo.
+        let needsReconcile = (!response.hasAccess) || plan == .trial || source == "none"
+        guard needsReconcile else { return false }
+
+        guard let transaction = await bestActiveAppleEntitlement() else {
+            AppLogger.warning("⚠️ [Access] Nenhum entitlement Apple ativo encontrado no dispositivo para reconciliar.")
+            return false
+        }
+
+        let transactionId = String(transaction.id)
+        if lastAppleSyncedTransactionId == transactionId {
+            return false
+        }
+
+        if let lastAttempt = lastAppleSyncAttemptAt,
+           Date().timeIntervalSince(lastAttempt) < appleSyncRetryInterval {
+            return false
+        }
+        lastAppleSyncAttemptAt = Date()
+
+        do {
+            let planType = normalizedPlanTypeRawValue(for: transaction.productID)
+            let expiration = transaction.expirationDate?.ISO8601Format()
+
+            try await AccessAPI.notifyApplePurchase(
+                accessToken: accessToken,
+                planType: planType,
+                planName: "Plano \(planType.capitalized)",
+                planAmount: await resolvePlanAmount(for: transaction.productID),
+                expirationDate: expiration,
+                originalTransactionId: String(transaction.originalID),
+                transactionId: transactionId
+            )
+
+            lastAppleSyncedTransactionId = transactionId
+            AppLogger.log("🍎 [Access] Entitlement Apple reconciliado com backend com sucesso.", category: .business)
+            return true
+        } catch {
+            AppLogger.warning("⚠️ [Access] Falha ao reconciliar entitlement Apple com backend: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func localAppleAccessOverrideStateIfNeeded(response: AccessResponse) async -> AccessState? {
+        guard let transaction = await bestActiveAppleEntitlement() else { return nil }
+
+        let applePlan = normalizeActivePlan(PlanType.fromAppleProductId(transaction.productID))
+        guard applePlan != .none else { return nil }
+
+        let backendPlan = response.hasAccess
+            ? parsePlanTypeForHasAccess(response.planType)
+            : parsePlanTypeForNoAccess(response.planType)
+        let backendSource = (response.source ?? "").lowercased()
+        let backendStatus = (response.status ?? "").lowercased()
+        let backendReason = (response.reason ?? "").lowercased()
+
+        if backendSource == SubscriptionSource.apple.rawValue, backendPlan == applePlan {
+            return nil
+        }
+
+        // Se o backend afirmou explicitamente que a conta não tem assinatura,
+        // não permitir override local para evitar "vazar" acesso entre contas.
+        let backendExplicitNoSubscription =
+            backendStatus == "no_subscription" ||
+            backendReason == "trial_expired_no_subscription" ||
+            backendReason == "no_subscription"
+        if backendExplicitNoSubscription {
+            AppLogger.warning("⚠️ [Access] Override local Apple ignorado: backend informou ausência de assinatura.")
+            return nil
+        }
+
+        let backendLikelyStale =
+            backendStatus == "cancelled" ||
+            backendReason == "cancelled_subscription" ||
+            backendPlan == .trial
+
+        let shouldOverride =
+            (!response.hasAccess && backendLikelyStale) ||
+            backendPlan == .trial ||
+            applePlan.tierLevel > backendPlan.tierLevel
+
+        guard shouldOverride else { return nil }
+
+        return .active(
+            plan: applePlan,
+            expiresAt: transaction.expirationDate,
+            source: .apple,
+            backendReason: response.reason ?? "apple_entitlement_override",
+            backendStatus: response.status ?? "apple_verified_local"
+        )
+    }
+
+    private func bestActiveAppleEntitlement() async -> Transaction? {
+        var best: Transaction?
+        var bestTier = -1
+        var bestExpiration: Date = .distantPast
+
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else { continue }
+            guard entitlementProductIds.contains(transaction.productID) else { continue }
+            guard transaction.revocationDate == nil else { continue }
+
+            if let expirationDate = transaction.expirationDate, expirationDate < Date() {
+                continue
+            }
+
+            let tier = normalizeActivePlan(PlanType.fromAppleProductId(transaction.productID)).tierLevel
+            let expiration = transaction.expirationDate ?? .distantFuture
+
+            if tier > bestTier || (tier == bestTier && expiration > bestExpiration) {
+                best = transaction
+                bestTier = tier
+                bestExpiration = expiration
+            }
+        }
+
+        return best
+    }
+
+    private func resolvePlanAmount(for productId: String) async -> Double? {
+        if let cachedProduct = storeProducts.first(where: { $0.id == productId }) {
+            return NSDecimalNumber(decimal: cachedProduct.price).doubleValue
+        }
+
+        do {
+            let products = try await Product.products(for: [productId])
+            if let product = products.first {
+                if !storeProducts.contains(where: { $0.id == product.id }) {
+                    storeProducts.append(product)
+                    storeProducts.sort { $0.price < $1.price }
+                }
+                return NSDecimalNumber(decimal: product.price).doubleValue
+            }
+        } catch {
+            AppLogger.warning("⚠️ [IAP] Não foi possível carregar preço do produto \(productId): \(error.localizedDescription)")
+        }
+
+        switch productId {
+        case "com.agendahof.premium":
+            return 129.90
+        default:
+            return nil
+        }
+    }
+
+    private func mapSubscriptionSource(_ rawSource: String?) -> SubscriptionSource {
+        switch rawSource?.lowercased() {
+        case "apple":
+            return .apple
+        case "backend", "stripe", "grace":
+            return .backend
+        default:
+            return .none
+        }
+    }
+
+    private func normalizeActivePlan(_ plan: PlanType) -> PlanType {
+        switch plan {
+        case .basic, .pro:
+            return .premium
+        default:
+            return plan
+        }
+    }
+
+    private func parsePlanTypeForHasAccess(_ rawPlanType: String?) -> PlanType {
+        let parsed = PlanType(rawValue: (rawPlanType ?? "premium")) ?? .premium
+        return normalizeActivePlan(parsed)
+    }
+
+    private func parsePlanTypeForNoAccess(_ rawPlanType: String?) -> PlanType {
+        let parsed = PlanType(rawValue: (rawPlanType ?? "none")) ?? .none
+        switch parsed {
+        case .basic, .pro, .premium:
+            return .none
+        default:
+            return parsed
+        }
+    }
+
+    private func normalizedPlanTypeRawValue(for productId: String) -> String {
+        normalizeActivePlan(PlanType.fromAppleProductId(productId)).rawValue
+    }
 
     // MARK: - 401 Handler: Retry com refreshSession, signOut se persistir
 
@@ -236,8 +487,8 @@ class SubscriptionManager: ObservableObject {
             if response.hasAccess {
                 guard accessCheckNonce == nonce else { return }
                 clearPendingNoAccessConfirmation()
-                let plan = PlanType(rawValue: response.planType ?? "basic") ?? .basic
-                let retrySource: SubscriptionSource = (response.source == "apple") ? .apple : .backend
+                let plan = parsePlanTypeForHasAccess(response.planType)
+                let retrySource = mapSubscriptionSource(response.source)
                 let retryReason = response.reason ?? "unknown"
                 let retryStatus = response.status ?? "unknown"
                 finalizeAccess(
@@ -250,8 +501,8 @@ class SubscriptionManager: ObservableObject {
                 )
                 AppLogger.log("✅ [Access] Retry bem-sucedido. Acesso liberado.", category: .business)
             } else {
-                let plan = PlanType(rawValue: (response.planType ?? "none")) ?? .none
-                let retrySource: SubscriptionSource = (response.source == "apple") ? .apple : .backend
+                let plan = parsePlanTypeForNoAccess(response.planType)
+                let retrySource = mapSubscriptionSource(response.source)
                 let retryReason = response.reason ?? "unknown"
                 let retryStatus = response.status ?? "unknown"
                 let noAccessObj = AccessState(
@@ -354,10 +605,10 @@ class SubscriptionManager: ObservableObject {
     }
     
     private func bestKnownPlanForFallback() -> PlanType {
-        if accessState.hasAccess { return accessState.planType }
-        if previousAccessState.hasAccess { return previousAccessState.planType }
+        if accessState.hasAccess { return normalizeActivePlan(accessState.planType) }
+        if previousAccessState.hasAccess { return normalizeActivePlan(previousAccessState.planType) }
         if let cachedState = loadAccessStateFromCache(), cachedState.hasAccess {
-            return cachedState.planType
+            return normalizeActivePlan(cachedState.planType)
         }
         return .premium
     }
@@ -498,7 +749,7 @@ class SubscriptionManager: ObservableObject {
             if let localState = SubscriptionLogic.evaluateSubscriptions(subscriptions) {
                 return .hasAccess(
                     .active(
-                        plan: localState.planType,
+                        plan: normalizeActivePlan(localState.planType),
                         expiresAt: localState.expirationDate,
                         isCourtesy: localState.isCourtesy,
                         source: .backend
@@ -534,7 +785,7 @@ class SubscriptionManager: ObservableObject {
                 AppLogger.log("✅ [Access] Fallback local via user_profiles.is_premium=true.", category: .business)
                 return .hasAccess(
                     .active(
-                        plan: fallbackPlan,
+                        plan: normalizeActivePlan(fallbackPlan),
                         expiresAt: nil,
                         isCourtesy: false,
                         source: .backend
@@ -553,7 +804,7 @@ class SubscriptionManager: ObservableObject {
                 AppLogger.log("✅ [Access] Fallback Staff via owner user_profiles.is_premium=true.", category: .business)
                 return .hasAccess(
                     .active(
-                        plan: fallbackPlan,
+                        plan: normalizeActivePlan(fallbackPlan),
                         expiresAt: nil,
                         isCourtesy: false,
                         source: .backend
@@ -591,9 +842,20 @@ class SubscriptionManager: ObservableObject {
     func loadProducts() async {
         guard storeProducts.isEmpty else { return }
 
+        let ids = saleProductIds.sorted().joined(separator: ", ")
+        AppLogger.log("🛍️ [StoreKit] Carregando produtos: \(ids)", category: .business)
+
         do {
-            let products = try await Product.products(for: productIds)
+            let products = try await Product.products(for: saleProductIds)
             storeProducts = products.sorted { $0.price < $1.price }
+
+            if storeProducts.isEmpty {
+                AppLogger.warning("⚠️ [StoreKit] Nenhum produto retornado para os IDs configurados.")
+                errorMessage = "Produto Premium indisponível no momento. Verifique App Store Connect/TestFlight e tente novamente."
+            } else {
+                let productIds = storeProducts.map(\.id).joined(separator: ", ")
+                AppLogger.log("✅ [StoreKit] Produtos carregados: \(productIds)", category: .business)
+            }
         } catch {
             AppLogger.error("[StoreKit] Erro ao carregar produtos: \(error)")
             errorMessage = "Não foi possível carregar os planos. Tente novamente."
@@ -603,7 +865,16 @@ class SubscriptionManager: ObservableObject {
     // MARK: - Compra / Restore (mantive igual ao seu)
     // MARK: - Compra / Restore
     func purchase(_ product: Product) async {
-        purchaseState = .purchasing
+        AppLogger.log("🧾 [StoreKit] Iniciando compra do produto: \(product.id) (\(product.displayPrice))", category: .business)
+
+        guard product.id == "com.agendahof.premium" else {
+            setPurchaseState(.failed("Produto inválido para compra."))
+            errorMessage = "Somente o plano Premium está disponível."
+            AppLogger.warning("⚠️ [StoreKit] Tentativa de compra bloqueada para produto não permitido: \(product.id)")
+            return
+        }
+
+        setPurchaseState(.purchasing)
         errorMessage = nil
 
         do {
@@ -612,15 +883,17 @@ class SubscriptionManager: ObservableObject {
             case .success(let verification):
                 switch verification {
                 case .verified(let transaction):
+                    AppLogger.log("✅ [StoreKit] Compra verificada. transactionId=\(transaction.id), productId=\(transaction.productID)", category: .business)
                     do {
                         let token = try await supabase.validAccessToken()
-                        let planType = PlanType.fromAppleProductId(transaction.productID).rawValue
+                        let planType = normalizedPlanTypeRawValue(for: transaction.productID)
                         let expiration = transaction.expirationDate?.ISO8601Format()
 
                         try await AccessAPI.notifyApplePurchase(
                             accessToken: token,
                             planType: planType,
                             planName: "Plano \(planType.capitalized)",
+                            planAmount: NSDecimalNumber(decimal: product.price).doubleValue,
                             expirationDate: expiration,
                             originalTransactionId: String(transaction.originalID),
                             transactionId: String(transaction.id)
@@ -631,33 +904,35 @@ class SubscriptionManager: ObservableObject {
 
                     await transaction.finish()
                     refreshAccess()
-                    purchaseState = .success
+                    setPurchaseState(.success)
 
                 case .unverified(_, let error):
                     AppLogger.error("[StoreKit] Compra não verificada: \(error)")
-                    purchaseState = .failed("Não foi possível verificar a compra. Tente novamente.")
+                    setPurchaseState(.failed("Não foi possível verificar a compra. Tente novamente."))
                     errorMessage = "Não foi possível verificar a compra."
                 }
 
             case .userCancelled:
-                purchaseState = .cancelled
+                AppLogger.warning("⚠️ [StoreKit] Compra retornou userCancelled. Isso também pode ocorrer quando o login sandbox é fechado/falha.")
+                setPurchaseState(.cancelled)
 
             case .pending:
-                purchaseState = .failed("Compra pendente de aprovação (ex: Ask to Buy).")
+                AppLogger.warning("⏳ [StoreKit] Compra pendente de aprovação.")
+                setPurchaseState(.failed("Compra pendente de aprovação (ex: Ask to Buy)."))
                 errorMessage = "Compra pendente de aprovação."
 
             @unknown default:
-                purchaseState = .failed("Erro desconhecido na compra.")
+                setPurchaseState(.failed("Erro desconhecido na compra."))
             }
 
         } catch {
-            purchaseState = .failed(error.localizedDescription)
+            setPurchaseState(.failed(error.localizedDescription))
             errorMessage = "Erro ao processar compra: \(error.localizedDescription)"
         }
     }
 
     func restorePurchases() async {
-        purchaseState = .restoring
+        setPurchaseState(.restoring)
         errorMessage = nil
 
         do {
@@ -670,10 +945,10 @@ class SubscriptionManager: ObservableObject {
 
             for await result in Transaction.currentEntitlements {
                 guard case .verified(let t) = result else { continue }
-                guard productIds.contains(t.productID) else { continue }
+                guard entitlementProductIds.contains(t.productID) else { continue }
                 guard t.revocationDate == nil else { continue }
 
-                let tier = PlanType.fromAppleProductId(t.productID).tierLevel
+                let tier = normalizeActivePlan(PlanType.fromAppleProductId(t.productID)).tierLevel
                 let exp = t.expirationDate ?? .distantFuture
 
                 if tier > bestTier || (tier == bestTier && exp > bestExp) {
@@ -686,32 +961,33 @@ class SubscriptionManager: ObservableObject {
             if let t = best {
                 do {
                     let token = try await supabase.validAccessToken()
-                    let planType = PlanType.fromAppleProductId(t.productID).rawValue
+                    let planType = normalizedPlanTypeRawValue(for: t.productID)
                     let expiration = t.expirationDate?.ISO8601Format()
 
                     try await AccessAPI.notifyApplePurchase(
                         accessToken: token,
                         planType: planType,
                         planName: "Plano \(planType.capitalized)",
+                        planAmount: await resolvePlanAmount(for: t.productID),
                         expirationDate: expiration,
                         originalTransactionId: String(t.originalID),
                         transactionId: String(t.id)
                     )
                     
                     refreshAccess()
-                    purchaseState = .success
+                    setPurchaseState(.success)
                     
                 } catch {
-                    purchaseState = .failed("Falha ao sincronizar restauração. Tente novamente.")
+                    setPurchaseState(.failed("Falha ao sincronizar restauração. Tente novamente."))
                     errorMessage = error.localizedDescription
                 }
             } else {
-                purchaseState = .failed("Nenhuma assinatura anterior encontrada.")
+                setPurchaseState(.failed("Nenhuma assinatura anterior encontrada."))
                 errorMessage = "Nenhuma assinatura anterior encontrada."
             }
 
         } catch {
-            purchaseState = .failed(error.localizedDescription)
+            setPurchaseState(.failed(error.localizedDescription))
             errorMessage = "Erro ao restaurar compras: \(error.localizedDescription)"
         }
     }
@@ -733,13 +1009,14 @@ class SubscriptionManager: ObservableObject {
         case .verified(let transaction):
             do {
                 let token = try await supabase.validAccessToken()
-                let planType = PlanType.fromAppleProductId(transaction.productID).rawValue
+                let planType = normalizedPlanTypeRawValue(for: transaction.productID)
                 let expiration = transaction.expirationDate?.ISO8601Format()
 
                 try await AccessAPI.notifyApplePurchase(
                     accessToken: token,
                     planType: planType,
                     planName: "Plano \(planType.capitalized)",
+                    planAmount: await resolvePlanAmount(for: transaction.productID),
                     expirationDate: expiration,
                     originalTransactionId: String(transaction.originalID),
                     transactionId: String(transaction.id)
@@ -792,7 +1069,45 @@ class SubscriptionManager: ObservableObject {
         saveLastVerifiedHadAccessToCache(lastVerifiedHadAccess)
     }
 
+    private func setPurchaseState(_ newState: PurchaseState) {
+        purchaseState = newState
+        switch newState {
+        case .purchasing:
+            armPurchaseWatchdog(expectedState: .purchasing)
+        case .restoring:
+            armPurchaseWatchdog(expectedState: .restoring)
+        default:
+            purchaseWatchdogTask?.cancel()
+            purchaseWatchdogTask = nil
+        }
+    }
+
+    private func armPurchaseWatchdog(expectedState: PurchaseState) {
+        purchaseWatchdogTask?.cancel()
+        let timeoutNanoseconds = self.purchaseWatchdogTimeoutNanoseconds
+        purchaseWatchdogTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+            guard let self, !Task.isCancelled else { return }
+
+            let stillPending: Bool
+            switch (expectedState, self.purchaseState) {
+            case (.purchasing, .purchasing), (.restoring, .restoring):
+                stillPending = true
+            default:
+                stillPending = false
+            }
+
+            guard stillPending else { return }
+            AppLogger.warning("⏱️ [StoreKit] Timeout de compra/restauração. Resetando estado para permitir nova tentativa.")
+            self.errorMessage = "A operação demorou mais que o esperado. Tente novamente."
+            self.purchaseState = .failed("A operação demorou mais que o esperado. Tente novamente.")
+            self.purchaseWatchdogTask = nil
+        }
+    }
+
     func resetPurchaseState() {
+        purchaseWatchdogTask?.cancel()
+        purchaseWatchdogTask = nil
         purchaseState = .idle
         errorMessage = nil
     }

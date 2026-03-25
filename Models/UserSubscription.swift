@@ -68,26 +68,26 @@ extension UserSubscription {
              
              if type.contains("basic") {
                  if amount >= 99.00 { return .premium }
-                 if amount >= 79.00 { return .pro }
+                 if amount >= 79.00 { return .premium }
              }
              
              if type.contains("premium") { return .premium }
-             if type.contains("pro") { return .pro }
-             if type.contains("basic") { return .basic }
+             if type.contains("pro") { return .premium }
+             if type.contains("basic") { return .premium }
         }
         
         // Prioridade 2: Pelo plan_name (Busca por texto)
         if let name = planName?.lowercased() {
             if name.contains("premium") || name.contains("completo") { return .premium }
-            if name.contains("pro") || name.contains("profissional") { return .pro }
-            if name.contains("basic") || name.contains("básico") || name.contains("basico") { return .basic }
+            if name.contains("pro") || name.contains("profissional") { return .premium }
+            if name.contains("basic") || name.contains("básico") || name.contains("basico") { return .premium }
         }
         
         // Prioridade 3: Pelo Preço (plan_amount)
         if let amount = planAmount {
             if amount >= 99.00 { return .premium }
-            if amount >= 79.00 { return .pro }
-            if amount > 0 { return .basic }
+            if amount >= 79.00 { return .premium }
+            if amount > 0 { return .premium }
         }
         
         // Fallbacks Legados (se os campos novos não existirem)
@@ -96,8 +96,8 @@ extension UserSubscription {
         if let pid = planId {
             switch pid {
             case "357d1216-1796-40ed-9098-bb7f5cd1a907": return .premium
-            case "10312af4-d757-4400-b7c0-f058ac9083d0": return .pro
-            case "40864483-0418-4713-8df3-31a003b4d15b": return .basic
+            case "10312af4-d757-4400-b7c0-f058ac9083d0": return .premium
+            case "40864483-0418-4713-8df3-31a003b4d15b": return .premium
             default: break
             }
         }
@@ -111,6 +111,6 @@ extension UserSubscription {
             return .premium
         }
         
-        return .basic
+        return .none
     }
 }

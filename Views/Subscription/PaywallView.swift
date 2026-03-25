@@ -8,11 +8,16 @@ struct PaywallView: View {
     @EnvironmentObject var supabase: SupabaseManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    private let autoDismissWhenNoLongerRequired: Bool
 
     @State private var selectedProduct: Product?
     @State private var showingAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
+
+    init(autoDismissWhenNoLongerRequired: Bool = true) {
+        self.autoDismissWhenNoLongerRequired = autoDismissWhenNoLongerRequired
+    }
 
     var body: some View {
         NavigationStack {
@@ -41,7 +46,7 @@ struct PaywallView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if !subscriptionManager.shouldShowPaywall {
+                    if !autoDismissWhenNoLongerRequired || !subscriptionManager.shouldShowPaywall {
                         Button { dismiss() } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.title2)
@@ -62,19 +67,29 @@ struct PaywallView: View {
             }
             // ✅ Se não precisa mais mostrar paywall, fecha
             .onChange(of: subscriptionManager.shouldShowPaywall) { _, shouldShow in
-                if !shouldShow {
+                if autoDismissWhenNoLongerRequired && !shouldShow {
                     dismiss()
                 }
             }
             // ✅ Seta recomendado (e carrega produtos só se necessário)
             .task {
+                switch subscriptionManager.purchaseState {
+                case .purchasing, .restoring:
+                    AppLogger.warning("⚠️ [Paywall] Estado de compra preso detectado ao abrir paywall. Resetando para idle.")
+                    subscriptionManager.resetPurchaseState()
+                default:
+                    break
+                }
+
                 await subscriptionManager.loadProducts()
                 if selectedProduct == nil {
                     selectedProduct = subscriptionManager.recommendedProduct
+                        ?? premiumProducts.first
+                        ?? subscriptionManager.storeProducts.first
                 }
             }
         }
-        .interactiveDismissDisabled()
+        .interactiveDismissDisabled(autoDismissWhenNoLongerRequired && subscriptionManager.shouldShowPaywall)
     }
 
     // MARK: - Background
@@ -122,30 +137,54 @@ struct PaywallView: View {
     private var loadingPlansView: some View {
         VStack(spacing: 16) {
             ProgressView().scaleEffect(1.2)
-            Text("Carregando planos...")
+            Text("Carregando assinatura premium...")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(height: 200)
     }
 
+    private var premiumProducts: [Product] {
+        subscriptionManager.storeProducts.filter { $0.id == "com.agendahof.premium" }
+    }
+
     // MARK: - Plans Section
 
     private var plansSection: some View {
         VStack(spacing: 12) {
-            let sortedProducts = subscriptionManager.storeProducts.sorted { p1, p2 in
-                let order = ["com.agendahof.premium": 0, "com.agendahof.pro": 1, "com.agendahof.basic": 2]
-                return (order[p1.id] ?? 3) < (order[p2.id] ?? 3)
-            }
+            if premiumProducts.isEmpty {
+                VStack(spacing: 12) {
+                    Text("Plano Premium indisponível no momento. Tente novamente em alguns instantes.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
 
-            ForEach(sortedProducts, id: \.id) { product in
-                PlanCard(
-                    product: product,
-                    isSelected: selectedProduct?.id == product.id,
-                    isRecommended: product.id == "com.agendahof.premium"
-                ) {
-                    withAnimation(.spring(response: 0.3)) {
-                        selectedProduct = product
+                    Button("Recarregar") {
+                        Task {
+                            subscriptionManager.storeProducts = []
+                            await subscriptionManager.loadProducts()
+                            if selectedProduct == nil {
+                                selectedProduct = subscriptionManager.recommendedProduct
+                                    ?? premiumProducts.first
+                                    ?? subscriptionManager.storeProducts.first
+                            }
+                        }
+                    }
+                    .font(.subheadline)
+                    .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 24)
+            } else {
+                ForEach(premiumProducts, id: \.id) { product in
+                    PlanCard(
+                        product: product,
+                        isSelected: selectedProduct?.id == product.id,
+                        isRecommended: true
+                    ) {
+                        withAnimation(.spring(response: 0.3)) {
+                            selectedProduct = product
+                        }
                     }
                 }
             }
@@ -156,7 +195,14 @@ struct PaywallView: View {
 
     private var purchaseButton: some View {
         Button {
-            guard let product = selectedProduct else { return }
+            guard let product = selectedProduct else {
+                alertTitle = "Produto indisponível"
+                alertMessage = "Não foi possível selecionar o plano Premium. Toque em Recarregar e tente novamente."
+                showingAlert = true
+                AppLogger.warning("⚠️ [Paywall] Assinar Agora tocado sem selectedProduct.")
+                return
+            }
+            AppLogger.log("🛍️ [Paywall] Assinar Agora tocado. Produto selecionado: \(product.id)", category: .business)
             Task { await subscriptionManager.purchase(product) }
         } label: {
             Group {
@@ -254,7 +300,9 @@ struct PaywallView: View {
             showingAlert = true
 
         case .cancelled:
-            subscriptionManager.resetPurchaseState()
+            alertTitle = "Compra não concluída"
+            alertMessage = "A Apple retornou cancelamento no fluxo de pagamento.\n\nSe você inseriu a conta sandbox e voltou para o app sem sucesso, geralmente é configuração/credencial sandbox no iPhone.\n\nRevise: conta Sandbox ativa no dispositivo, senha correta e aceites pendentes da Apple."
+            showingAlert = true
 
         default:
             break
@@ -278,8 +326,7 @@ struct PlanCard: View {
 
     private var planColor: Color {
         switch planType {
-        case .basic: return Color(hex: "6c757d")
-        case .pro: return Color(hex: "0d6efd")
+        case .basic, .pro: return Color(hex: "ff6b00")
         case .premium: return Color(hex: "ff6b00")
         default: return .gray
         }
@@ -287,8 +334,7 @@ struct PlanCard: View {
 
     private var planIcon: String {
         switch planType {
-        case .basic: return "star"
-        case .pro: return "star.fill"
+        case .basic, .pro: return "crown.fill"
         case .premium: return "crown.fill"
         default: return "questionmark"
         }
@@ -296,12 +342,10 @@ struct PlanCard: View {
 
     private var features: [String] {
         switch planType {
-        case .basic:
-            return ["Até 25 agendamentos/mês", "Agenda inteligente", "Cadastro de até 25 pacientes"]
-        case .pro:
-            return ["Agendamentos ilimitados", "Agenda inteligente", "Pacientes ilimitados", "Histórico de atendimentos", "Gestão de Profissionais", "Gestão de Procedimentos"]
+        case .basic, .pro:
+            return ["Acesso completo do Agenda HOF", "WhatsApp integrado", "Registro de vendas", "Controle de despesas", "Relatórios financeiros", "Controle de Estoque", "Gestão de Alunos", "Gestão de Cursos", "Gestão de Funcionários"]
         case .premium:
-            return ["Tudo do Plano Pro", "WhatsApp integrado", "Registro de vendas", "Controle de despesas", "Relatórios financeiros", "Controle de Estoque", "Gestão de Alunos", "Gestão de Cursos", "Gestão de Funcionários"]
+            return ["Acesso completo do Agenda HOF", "WhatsApp integrado", "Registro de vendas", "Controle de despesas", "Relatórios financeiros", "Controle de Estoque", "Gestão de Alunos", "Gestão de Cursos", "Gestão de Funcionários"]
         default:
             return []
         }

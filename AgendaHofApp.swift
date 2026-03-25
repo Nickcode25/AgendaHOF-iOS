@@ -27,6 +27,7 @@ struct AgendaHofApp: App {
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
     static let financialRefreshTaskId = "com.agendahof.financialRefresh"
+    private let isLegacyFinancialBGTaskEnabled = false
 
     func application(
         _ application: UIApplication,
@@ -35,7 +36,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().setBadgeCount(0)
 
-        registerBackgroundTasks()
+        if isLegacyFinancialBGTaskEnabled {
+            registerBackgroundTasks()
+        } else {
+            print("ℹ️ [BGTask] Atualização financeira via BGTask desativada (push Supabase ativo).")
+        }
         return true
     }
 
@@ -59,6 +64,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func scheduleFinancialRefresh() {
+        guard isLegacyFinancialBGTaskEnabled else { return }
+
         let request = BGAppRefreshTaskRequest(identifier: AppDelegate.financialRefreshTaskId)
 
         var calendar = Calendar.current
@@ -89,7 +96,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
             print("✅ [BGTask] Próxima atualização agendada para: \(formatter.string(from: targetDate))")
         } catch {
-            print("❌ [BGTask] Erro ao agendar tarefa: \(error.localizedDescription)")
+            if let nsError = error as NSError?,
+               nsError.domain == BGTaskScheduler.errorDomain,
+               let code = BGTaskScheduler.Error.Code(rawValue: nsError.code),
+               code == .unavailable {
+                print("ℹ️ [BGTask] Não agendado: indisponível neste ambiente/dispositivo.")
+            } else {
+                print("❌ [BGTask] Erro ao agendar tarefa: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -174,14 +188,24 @@ struct ContentView: View {
 
     @State private var isCheckingAuth = true
     @State private var lastForegroundValidation: Date = .distantPast
+    @State private var lastAuthBecameTrueAt: Date?
     @State private var accessGateFallbackArmed = false
     @State private var accessGateFallbackTask: Task<Void, Never>?
     
-    private let accessGateFallbackDelayNanoseconds: UInt64 = 4_000_000_000
+    private let accessGateFallbackDelayNanoseconds: UInt64 = 6_000_000_000
     
     private var canRenderAuthenticatedUI: Bool {
         if subscriptionManager.didFinishInitialAccessCheck { return true }
         return accessGateFallbackArmed && subscriptionManager.canUseTrustedAccessForLoadingFallback
+    }
+    
+    private var isStoreKitFlowInProgress: Bool {
+        switch subscriptionManager.purchaseState {
+        case .purchasing, .restoring:
+            return true
+        default:
+            return false
+        }
     }
 
     var body: some View {
@@ -198,7 +222,7 @@ struct ContentView: View {
                 WelcomeView()
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: supabase.isAuthenticated)
+        .id(supabase.isAuthenticated ? "root-authenticated" : "root-unauthenticated")
 
         .sheet(isPresented: $deepLinkManager.showResetPassword, onDismiss: {
             deepLinkManager.showResetPassword = false
@@ -216,9 +240,21 @@ struct ContentView: View {
             if newPhase == .active {
                 let now = Date()
                 
+                if isStoreKitFlowInProgress {
+                    AppLogger.log("⏭️ [Lifecycle] Pulando revalidação no active (StoreKit em andamento).", category: .auth)
+                    return
+                }
+                
                 // 1) Evita rodar se acabou de receber initialSession no boot (debounce de 2s)
                 if let bootDate = supabase.lastInitialAuthDate, now.timeIntervalSince(bootDate) < 2 {
                     AppLogger.log("⏭️ [Lifecycle] Pulando checkSession no active (initialSession recente)", category: .auth)
+                    return
+                }
+                
+                // 1.5) Evita corrida imediatamente após login manual:
+                // o app pode receber scenePhase.active no retorno de sheets/sistema.
+                if let loginDate = lastAuthBecameTrueAt, now.timeIntervalSince(loginDate) < 3 {
+                    AppLogger.log("⏭️ [Lifecycle] Pulando checkSession no active (login recém-concluído).", category: .auth)
                     return
                 }
 
@@ -284,6 +320,14 @@ struct ContentView: View {
 
         // 🔔 Setup notificações após login
         .onChange(of: supabase.isAuthenticated) { _, isAuthenticated in
+            if isAuthenticated {
+                lastAuthBecameTrueAt = Date()
+                // Evita nova revalidação instantânea em cascata de scenePhase.active.
+                lastForegroundValidation = Date()
+            } else {
+                lastAuthBecameTrueAt = nil
+            }
+            
             restartAccessGateFallbackTimerIfNeeded()
             
             if isAuthenticated {
@@ -375,7 +419,15 @@ struct ContentView: View {
     }
 
     private func setupNotificationsAfterLogin() async {
-        let granted = await NotificationManager.shared.requestAuthorization()
+        await NotificationManager.shared.checkAuthorizationStatus()
+        
+        let granted: Bool
+        if NotificationManager.shared.isAuthorized {
+            granted = true
+        } else {
+            granted = await NotificationManager.shared.requestAuthorization()
+        }
+        
         if granted {
             let defaults = UserDefaults.standard
             if defaults.object(forKey: "daily_summary_enabled") == nil {

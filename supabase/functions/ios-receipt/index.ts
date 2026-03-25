@@ -26,7 +26,7 @@ serve(async (req) => {
         console.log(`🔑 Transaction: ${transaction_id}`)
 
         // Validate product ID
-        const validProducts = ['com.agendahof.basic', 'com.agendahof.pro', 'com.agendahof.premium']
+        const validProducts = ['com.agendahof.premium']
         if (!validProducts.includes(product_id)) {
             console.error(`❌ Invalid product: ${product_id}`)
             return new Response(

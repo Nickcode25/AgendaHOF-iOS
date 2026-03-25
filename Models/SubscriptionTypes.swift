@@ -11,8 +11,7 @@ enum PlanType: String, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .basic: return "Básico"
-        case .pro: return "Pro"
+        case .basic, .pro: return "Premium"
         case .premium: return "Premium"
         case .courtesy: return "Cortesia"
         case .trial: return "Período de Testes"
@@ -161,4 +160,3 @@ extension AccessState: Codable {
         case backendStatus
     }
 }
-

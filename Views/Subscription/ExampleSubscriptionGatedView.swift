@@ -10,11 +10,10 @@ struct ExampleSubscriptionGatedView: View {
             // Badge do plano atual
             planBadge
             
-            // Funcionalidade exemplo 1: Disponível apenas para Pro/Premium
-            if subscriptionManager.accessState.planType == .pro || 
-               subscriptionManager.accessState.planType == .premium {
-                Button("Relatórios Avançados (Pro+)") {
-                    // Acessa funcionalidade Pro
+            // Funcionalidade exemplo 1: Disponível para Premium
+            if subscriptionManager.accessState.planType == .premium {
+                Button("Relatórios Avançados (Premium)") {
+                    // Acessa funcionalidade Premium
                 }
                 .buttonStyle(.borderedProminent)
             } else {
@@ -67,8 +66,7 @@ struct ExampleSubscriptionGatedView: View {
         let type = subscriptionManager.accessState.planType
         switch type {
         case .premium: return .purple
-        case .pro: return .blue
-        case .basic: return .green
+        case .pro, .basic: return .purple
         case .trial: return .orange
         case .courtesy: return .pink
         case .none: return .gray

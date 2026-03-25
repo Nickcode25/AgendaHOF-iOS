@@ -82,6 +82,7 @@ enum AccessAPI {
         accessToken: String,
         planType: String,
         planName: String,
+        planAmount: Double? = nil,
         expirationDate: String?,
         originalTransactionId: String,
         transactionId: String
@@ -98,14 +99,24 @@ enum AccessAPI {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        #if DEBUG
+        let iapEnvironment = "sandbox"
+        #else
+        let iapEnvironment = "production"
+        #endif
+
         var payload: [String: Any] = [
             "planType": planType,
             "planName": planName,
             "originalTransactionId": originalTransactionId,
-            "transactionId": transactionId
+            "transactionId": transactionId,
+            "environment": iapEnvironment
         ]
         if let expirationDate, !expirationDate.isEmpty {
             payload["expirationDate"] = expirationDate
+        }
+        if let planAmount {
+            payload["planAmount"] = planAmount
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)

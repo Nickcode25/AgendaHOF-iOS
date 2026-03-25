@@ -36,9 +36,6 @@ struct MainTabView: View {
         }
         .tint(.appPrimary)
 
-        // 🔒 Bloqueia totalmente interação se não tiver acesso computado
-        .allowsHitTesting(!isBlocked && !isPaywallPresented)
-
         // MARK: - Overlay
         .overlay {
             if subscriptionManager.isLoading {
@@ -57,6 +54,7 @@ struct MainTabView: View {
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
+                .allowsHitTesting(false)
 
             } else if isBlocked {
                 ZStack {
@@ -81,6 +79,7 @@ struct MainTabView: View {
                         .clipShape(Capsule())
                     }
                 }
+                .allowsHitTesting(true)
             }
         }
 
@@ -112,7 +111,7 @@ struct MainTabView: View {
 
         // MARK: - Sheet
         .sheet(isPresented: $isPaywallPresented) {
-            PaywallView()
+            PaywallView(autoDismissWhenNoLongerRequired: true)
                 .environmentObject(subscriptionManager)
                 .environmentObject(supabase)
         }

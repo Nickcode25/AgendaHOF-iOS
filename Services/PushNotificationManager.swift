@@ -22,26 +22,19 @@ class PushNotificationManager: NSObject, ObservableObject {
     
     /// Registra o app para receber notificações push
     func registerForPushNotifications() async {
-        do {
-            // Primeiro, solicitar autorização
-            let granted = try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .sound, .badge])
-            
-            guard granted else {
-                AppLogger.log("⚠️ Permissão de push notification negada pelo usuário", category: .notification)
-                return
-            }
-            
-            // Registrar para notificações remotas (deve ser na main thread)
-            await MainActor.run {
-                UIApplication.shared.registerForRemoteNotifications()
-            }
-            
-            AppLogger.log("✅ Solicitação de registro de push notification enviada", category: .notification)
-            
-        } catch {
-            AppLogger.error("Erro ao registrar para push notifications", error: error)
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        let isAuthorized = settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+            || settings.authorizationStatus == .ephemeral
+        
+        guard isAuthorized else {
+            AppLogger.log("⚠️ Push não registrado: notificações ainda não autorizadas", category: .notification)
+            return
         }
+        
+        // Registrar para notificações remotas (deve ser na main thread)
+        UIApplication.shared.registerForRemoteNotifications()
+        AppLogger.log("✅ Solicitação de registro de push notification enviada", category: .notification)
     }
     
     // MARK: - Token Management

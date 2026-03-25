@@ -199,6 +199,7 @@ class SupabaseManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
+        let startedAt = Date()
         let session = try await client.auth.signIn(
             email: email,
             password: password
@@ -206,20 +207,21 @@ class SupabaseManager: ObservableObject {
 
         self.currentSession = session
         self.currentUser = session.user
+        saveUserToCache(session.user)
         
-        await loadUserProfile()
-        
-        // ✅ Sempre permitir login
+        // ✅ Login não deve ficar preso aguardando profile/acesso remoto
         self.isAuthenticated = true
+        AppLogger.log("✅ [Auth] Sessão criada no signIn. Prosseguindo com carregamentos em background.", category: .auth)
         
-        await SubscriptionManager.shared.checkAccess()
-        
-        let accessState = SubscriptionManager.shared.accessState
-        if accessState.hasAccess {
-            AppLogger.log("✅ [Auth] Login bem-sucedido. Plano: \(accessState.planType.displayName) via \(accessState.source.displayName)", category: .auth)
-        } else {
-            AppLogger.log("✅ [Auth] Login bem-sucedido sem plano ativo. Paywall será exibido.", category: .auth)
+        Task { [weak self] in
+            guard let self else { return }
+            await self.loadUserProfile()
         }
+        
+        SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+        AppLogger.log("⏱️ [Auth] signIn concluído em \(elapsedMs)ms (sem bloquear por verificação de assinatura).", category: .auth)
     }
 
     func signUp(email: String, password: String, name: String, professionalName: String?, phone: String, phoneE164: String?, trialEndDate: String) async throws {
@@ -248,6 +250,7 @@ class SupabaseManager: ObservableObject {
 
         self.currentSession = session.session
         self.currentUser = session.user
+        saveUserToCache(session.user)
 
         try? await Task.sleep(nanoseconds: 2 * 1_000_000_000)
         
@@ -326,14 +329,9 @@ class SupabaseManager: ObservableObject {
             AppLogger.error("❌ [Auth] Erro ao criar profissional automático: \(error)")
         }
         
-        await SubscriptionManager.shared.checkAccess()
-        
-        let accessState = SubscriptionManager.shared.accessState
-        if accessState.hasAccess {
-            AppLogger.log("✅ [Auth] Cadastro concluído. Acesso liberado: \(accessState.planType.displayName)", category: .auth)
-        } else {
-            AppLogger.log("⚠️ [Auth] Cadastro concluído mas sem acesso (Trial falhou?)", category: .auth)
-        }
+        // ✅ Não bloquear conclusão do cadastro em checagem de assinatura
+        SubscriptionManager.shared.refreshAccess(silent: true, force: true)
+        AppLogger.log("✅ [Auth] Cadastro concluído. Verificação de assinatura disparada em background.", category: .auth)
         
         self.isAuthenticated = true
     }

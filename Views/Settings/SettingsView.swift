@@ -207,8 +207,9 @@ struct SettingsView: View {
             SupportView()
         }
         .sheet(isPresented: $showPaywall) {
-            PaywallView()
+            PaywallView(autoDismissWhenNoLongerRequired: false)
                 .environmentObject(subscriptionManager)
+                .environmentObject(supabase)
         }
     }
     
@@ -217,8 +218,7 @@ struct SettingsView: View {
     private var planColor: Color {
         switch subscriptionManager.accessState.planType {
         case .premium: return .purple
-        case .pro: return .blue
-        case .basic: return .green
+        case .pro, .basic: return .purple
         case .trial: return .orange
         case .courtesy: return .pink
         case .none: return .gray
@@ -228,8 +228,7 @@ struct SettingsView: View {
     private var planIcon: String {
         switch subscriptionManager.accessState.planType {
         case .premium: return "crown.fill"
-        case .pro: return "star.fill"
-        case .basic: return "star"
+        case .pro, .basic: return "crown.fill"
         case .trial: return "clock.fill"
         case .courtesy: return "gift.fill"
         case .none: return "xmark.circle"
