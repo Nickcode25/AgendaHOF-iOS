@@ -10,6 +10,7 @@ struct WeekDayHeaderCell: View {
     // MARK: - Properties
 
     let date: Date
+    let holiday: BrazilianHoliday?
     let isToday: Bool
     let isSelected: Bool
     let width: CGFloat
@@ -39,10 +40,14 @@ struct WeekDayHeaderCell: View {
         isCompact ? 24 : 36
     }
 
+    private var holidayFont: Font {
+        isCompact ? .system(size: 8, weight: .semibold) : .system(size: 9, weight: .semibold)
+    }
+
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: isCompact ? 2 : 4) {
+        VStack(spacing: isCompact ? 3 : 5) {
             // Dia da semana abreviado
             Text(weekdayText)
                 .font(weekdayFont)
@@ -57,6 +62,20 @@ struct WeekDayHeaderCell: View {
                     Circle()
                         .fill(isToday ? Color.appPrimary : Color.clear)
                 )
+
+            if let holiday {
+                Text(holiday.name)
+                    .font(holidayFont)
+                    .foregroundColor(holiday.kind.color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, isCompact ? 4 : 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(holiday.kind.color.opacity(0.14))
+                    )
+            }
         }
         .frame(width: width)
         .contentShape(Rectangle())
@@ -71,6 +90,7 @@ struct WeekDayHeaderCell: View {
         // Hoje (selecionado)
         WeekDayHeaderCell(
             date: Date(),
+            holiday: BrazilianHolidayCalendar.holiday(on: Date()),
             isToday: true,
             isSelected: true,
             width: 50,
@@ -81,6 +101,7 @@ struct WeekDayHeaderCell: View {
         // Dia normal
         WeekDayHeaderCell(
             date: Calendar.current.date(byAdding: .day, value: 1, to: Date())!,
+            holiday: BrazilianHolidayCalendar.holiday(on: Calendar.current.date(byAdding: .day, value: 1, to: Date())!),
             isToday: false,
             isSelected: false,
             width: 50,
@@ -91,6 +112,7 @@ struct WeekDayHeaderCell: View {
         // iPhone (compact)
         WeekDayHeaderCell(
             date: Date(),
+            holiday: BrazilianHolidayCalendar.holiday(on: Date()),
             isToday: true,
             isSelected: true,
             width: 40,

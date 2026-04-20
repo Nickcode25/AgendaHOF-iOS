@@ -9,6 +9,10 @@ struct CalendarDayView: View {
         Calendar.current.isDateInToday(viewModel.selectedDate)
     }
 
+    private var selectedHoliday: BrazilianHoliday? {
+        BrazilianHolidayCalendar.holiday(on: viewModel.selectedDate)
+    }
+
     @State private var dragStartPoint: CGPoint?
     @State private var isDragging = false
     @State private var ghostEventRawY: CGFloat = 0
@@ -17,71 +21,79 @@ struct CalendarDayView: View {
     private let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                HStack(alignment: .top, spacing: 0) {
-                    // Coluna de horas (fixa à esquerda)
-                    CalendarTimeColumn()
-                        .frame(width: CalendarConstants.timeColumnWidth)
-
-                    // Grid principal com agendamentos
-                    GeometryReader { geometry in
-                        ZStack(alignment: .topLeading) {
-                            // Linhas de hora (background)
-                            CalendarHourLines()
-
-                            // Camada de detecção de long press para CRIAR
-                            LongPressGestureView(
-                                onLongPressStart: { point in
-                                    startCreatingEvent(at: point, geometry: geometry)
-                                },
-                                onLongPressDrag: { point in
-                                    updateCreatingEvent(at: point, geometry: geometry)
-                                },
-                                onLongPressEnd: {
-                                    finishCreatingEvent()
-                                },
-                                isActive: $isDragging
-                            )
-
-                            // Bloqueios recorrentes (atrás dos agendamentos)
-                            recurringBlocksLayer(width: geometry.size.width)
-
-                            // Agendamentos posicionados com resolução de conflitos
-                            appointmentsLayer(width: geometry.size.width)
-                            
-                            // Evento Fantasma (Drag-to-Create)
-                            if isDragging {
-                                GhostEventView(
-                                    yPosition: ghostEventRawY,
-                                    height: ghostEventHeight,
-                                    width: geometry.size.width,
-                                    startTime: ghostStartTime,
-                                    endTime: ghostEndTime
-                                )
-                            }
-
-                            // Indicador de hora atual (linha vermelha)
-                            if isToday {
-                                CurrentTimeIndicator(isToday: isToday)
-                                    .padding(.leading, -4)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .frame(height: CalendarConstants.totalGridHeight)
-                }
-                .padding(.top, 8)
-                .id("calendarTop")
+        VStack(spacing: 0) {
+            if let selectedHoliday {
+                DayHolidayBanner(holiday: selectedHoliday)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
             }
-            .scrollDisabled(isDragging)
-            .background(Color(.systemGroupedBackground))
-            .onAppear {
-                if isToday {
-                    scrollToCurrentTime(proxy: proxy)
+
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    HStack(alignment: .top, spacing: 0) {
+                        // Coluna de horas (fixa à esquerda)
+                        CalendarTimeColumn()
+                            .frame(width: CalendarConstants.timeColumnWidth)
+
+                        // Grid principal com agendamentos
+                        GeometryReader { geometry in
+                            ZStack(alignment: .topLeading) {
+                                // Linhas de hora (background)
+                                CalendarHourLines()
+
+                                // Camada de detecção de long press para CRIAR
+                                LongPressGestureView(
+                                    onLongPressStart: { point in
+                                        startCreatingEvent(at: point, geometry: geometry)
+                                    },
+                                    onLongPressDrag: { point in
+                                        updateCreatingEvent(at: point, geometry: geometry)
+                                    },
+                                    onLongPressEnd: {
+                                        finishCreatingEvent()
+                                    },
+                                    isActive: $isDragging
+                                )
+
+                                // Bloqueios recorrentes (atrás dos agendamentos)
+                                recurringBlocksLayer(width: geometry.size.width)
+
+                                // Agendamentos posicionados com resolução de conflitos
+                                appointmentsLayer(width: geometry.size.width)
+                                
+                                // Evento Fantasma (Drag-to-Create)
+                                if isDragging {
+                                    GhostEventView(
+                                        yPosition: ghostEventRawY,
+                                        height: ghostEventHeight,
+                                        width: geometry.size.width,
+                                        startTime: ghostStartTime,
+                                        endTime: ghostEndTime
+                                    )
+                                }
+
+                                // Indicador de hora atual (linha vermelha)
+                                if isToday {
+                                    CurrentTimeIndicator(isToday: isToday)
+                                        .padding(.leading, -4)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .frame(height: CalendarConstants.totalGridHeight)
+                    }
+                    .padding(.top, 8)
+                    .id("calendarTop")
+                }
+                .scrollDisabled(isDragging)
+                .onAppear {
+                    if isToday {
+                        scrollToCurrentTime(proxy: proxy)
+                    }
                 }
             }
         }
+        .background(Color(.systemGroupedBackground))
     }
 
     // MARK: - Recurring Blocks Layer
@@ -276,6 +288,41 @@ struct CalendarDayView: View {
 }
 
 // MARK: - Ghost Event View
+
+private struct DayHolidayBanner: View {
+    let holiday: BrazilianHoliday
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "calendar.badge.exclamationmark")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(holiday.kind.color)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(holiday.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                Text(holiday.kind.displayName)
+                    .font(.caption2)
+                    .foregroundColor(holiday.kind.color)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(holiday.kind.color.opacity(0.14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(holiday.kind.color.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
 
 struct GhostEventView: View {
     let yPosition: CGFloat

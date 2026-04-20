@@ -95,7 +95,10 @@ serve(async (req) => {
             const summaryData = await calculateTodaysSummary(supabase, userId)
             const courseData = await calculateTodaysCourses(supabase, userId)
 
-            console.log(`  📊 Today: ${summaryData.appointmentCount} appointments | ${courseData.courseCount} courses | streakDay: ${courseData.streakDay}`)
+            const holidayLabel = summaryData.holiday
+                ? ` | holiday: ${summaryData.holiday.name} (${summaryData.holiday.kind})`
+                : ''
+            console.log(`  📊 Today: ${summaryData.appointmentCount} appointments | ${courseData.courseCount} courses | streakDay: ${courseData.streakDay}${holidayLabel}`)
 
             // Send notification to all devices for this user
             for (const device of devices) {
@@ -221,11 +224,13 @@ async function calculateTodaysSummary(supabase: any, userId: string) {
 
     const appointmentCount = appointments?.length || 0
     const firstAppointment = appointments?.[0] || null
+    const holiday = getBrazilianHolidayForDate(todayStr)
 
     return {
         appointmentCount,
         firstAppointment,
-        todayStr
+        todayStr,
+        holiday
     }
 }
 
@@ -251,13 +256,12 @@ async function calculateTodaysCourses(supabase: any, userId: string) {
 
     const { data: courseAppointments, error: courseError } = await supabase
         .from('appointments')
-        .select('start')
+        .select('start, procedure, title')
         .eq('user_id', userId)
         .gte('start', startWindow)
         .lte('start', endWindow)
         .neq('status', 'cancelled')
         .eq('is_personal', true)
-        .eq('procedure', COURSE_PROCEDURE_NAME)
 
     if (courseError) {
         console.error('  ❌ Error fetching course appointments:', courseError)
@@ -266,6 +270,13 @@ async function calculateTodaysCourses(supabase: any, userId: string) {
 
     const courseCountByDay: Record<string, number> = {}
     for (const appointment of courseAppointments || []) {
+        const isCourseByProcedure = normalizeCourseProcedure(appointment.procedure) === normalizeCourseProcedure(COURSE_PROCEDURE_NAME)
+        const isCourseByLegacyTitle = looksLikeLegacyCourseTitle(appointment.title)
+
+        if (!isCourseByProcedure && !isCourseByLegacyTitle) {
+            continue
+        }
+
         if (!appointment.start) continue
         const dayKey = formatter.format(new Date(appointment.start))
         courseCountByDay[dayKey] = (courseCountByDay[dayKey] || 0) + 1
@@ -298,6 +309,25 @@ function shiftDateByDays(baseDate: string, days: number): string {
         month: '2-digit',
         day: '2-digit'
     }).format(date)
+}
+
+function normalizeCourseProcedure(value?: string | null): string {
+    return (value ?? '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+}
+
+// Compatibilidade com registros antigos:
+// alguns cursos foram salvos como compromisso pessoal com quebra de linha no title.
+function looksLikeLegacyCourseTitle(title?: string | null): boolean {
+    if (!title) return false
+    const parts = title
+        .split('\n')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    return parts.length >= 2
 }
 
 /**
@@ -341,6 +371,131 @@ function getNotificationMessage(count: number, firstAppointment: any): string {
     return message
 }
 
+function getDailySummaryNotificationBody(data: any): string {
+    const count = data?.appointmentCount || 0
+
+    if (count === 0 && data?.holiday) {
+        return getHolidayNoAppointmentsMessage(data.holiday)
+    }
+
+    return getNotificationMessage(count, data?.firstAppointment)
+}
+
+function getHolidayNoAppointmentsMessage(holiday: { name: string; kind: string }): string {
+    const templates = [
+        `Hoje é feriado de ${holiday.name}! Agenda vazia por aqui: aproveite para recarregar as energias e curtir seu feriado. ✨`,
+        `Hoje é feriado de ${holiday.name} e sua agenda está livre. Dia perfeito para descansar e voltar ainda mais inspirada amanhã. 💛`,
+        `Hoje é feriado de ${holiday.name}, com agenda zerada: respire fundo, desacelere e aproveite esse tempo para você. 🌿`,
+        `Hoje é feriado de ${holiday.name} e não há atendimentos marcados. Aproveite o dia para cuidar de você e celebrar o feriado. ☀️`
+    ]
+
+    // Determinístico para evitar variar em duplicidade de dispositivos no mesmo dia.
+    const index = Math.abs(hashString(holiday.name)) % templates.length
+    return templates[index]
+}
+
+function hashString(value: string): number {
+    let hash = 0
+    for (let i = 0; i < value.length; i++) {
+        hash = ((hash << 5) - hash) + value.charCodeAt(i)
+        hash |= 0
+    }
+    return hash
+}
+
+function getBrazilianHolidayForDate(dateStr: string): { name: string; kind: 'nacional' | 'facultativo' | 'comemorativo' } | null {
+    const [yearStr, monthStr, dayStr] = dateStr.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    const day = Number(dayStr)
+
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+        return null
+    }
+
+    const key = formatDateKey(year, month, day)
+    const holidays = buildBrazilianHolidaysByDate(year)
+    return holidays[key] ?? null
+}
+
+function buildBrazilianHolidaysByDate(year: number): Record<string, { name: string; kind: 'nacional' | 'facultativo' | 'comemorativo' }> {
+    const holidays: Record<string, { name: string; kind: 'nacional' | 'facultativo' | 'comemorativo' }> = {}
+
+    const fixedHolidays: Array<{ month: number; day: number; name: string; kind: 'nacional' | 'facultativo' | 'comemorativo' }> = [
+        { month: 1, day: 1, name: 'Confraternização Universal', kind: 'nacional' },
+        { month: 4, day: 21, name: 'Tiradentes', kind: 'nacional' },
+        { month: 5, day: 1, name: 'Dia do Trabalho', kind: 'nacional' },
+        { month: 9, day: 7, name: 'Independência do Brasil', kind: 'nacional' },
+        { month: 10, day: 12, name: 'Nossa Senhora Aparecida', kind: 'nacional' },
+        { month: 11, day: 2, name: 'Finados', kind: 'nacional' },
+        { month: 11, day: 15, name: 'Proclamação da República', kind: 'nacional' },
+        { month: 11, day: 20, name: 'Consciência Negra', kind: 'nacional' },
+        { month: 12, day: 25, name: 'Natal', kind: 'nacional' }
+    ]
+
+    for (const holiday of fixedHolidays) {
+        holidays[formatDateKey(year, holiday.month, holiday.day)] = {
+            name: holiday.name,
+            kind: holiday.kind
+        }
+    }
+
+    const easterDate = calculateEasterDate(year)
+    const movableHolidays = [
+        { offsetDays: -47, name: 'Carnaval', kind: 'facultativo' as const },
+        { offsetDays: -2, name: 'Sexta-feira Santa', kind: 'nacional' as const },
+        { offsetDays: 0, name: 'Páscoa', kind: 'comemorativo' as const },
+        { offsetDays: 60, name: 'Corpus Christi', kind: 'facultativo' as const }
+    ]
+
+    for (const holiday of movableHolidays) {
+        const date = addDaysUTC(easterDate, holiday.offsetDays)
+        holidays[formatDateFromUTC(date)] = {
+            name: holiday.name,
+            kind: holiday.kind
+        }
+    }
+
+    return holidays
+}
+
+// Meeus/Jones/Butcher algorithm
+function calculateEasterDate(year: number): Date {
+    const a = year % 19
+    const b = Math.floor(year / 100)
+    const c = year % 100
+    const d = Math.floor(b / 4)
+    const e = b % 4
+    const f = Math.floor((b + 8) / 25)
+    const g = Math.floor((b - f + 1) / 3)
+    const h = (19 * a + b - d - g + 15) % 30
+    const i = Math.floor(c / 4)
+    const k = c % 4
+    const l = (32 + 2 * e + 2 * i - h - k) % 7
+    const m = Math.floor((a + 11 * h + 22 * l) / 451)
+    const month = Math.floor((h + l - 7 * m + 114) / 31)
+    const day = ((h + l - 7 * m + 114) % 31) + 1
+
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+}
+
+function addDaysUTC(date: Date, days: number): Date {
+    const next = new Date(date)
+    next.setUTCDate(next.getUTCDate() + days)
+    return next
+}
+
+function formatDateFromUTC(date: Date): string {
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
+function formatDateKey(year: number, month: number, day: number): string {
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 /**
  * Send push notification via APNs
  */
@@ -355,7 +510,7 @@ async function sendPushNotification(deviceToken: string, data: any, isSandbox: b
         aps: {
             alert: {
                 title: '📅 Resumo do Dia',
-                body: getNotificationMessage(data.appointmentCount, data.firstAppointment)
+                body: getDailySummaryNotificationBody(data)
             },
             sound: 'default',
             badge: 1
@@ -363,7 +518,8 @@ async function sendPushNotification(deviceToken: string, data: any, isSandbox: b
         data: {
             type: 'daily_summary',
             appointmentCount: data.appointmentCount,
-            date: data.todayStr
+            date: data.todayStr,
+            holidayName: data.holiday?.name ?? null
         }
     }
 

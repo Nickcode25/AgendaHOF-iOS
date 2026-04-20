@@ -82,6 +82,7 @@ struct CalendarWeekView: View {
             ForEach(weekDates, id: \.self) { date in
                 WeekDayHeaderCell(
                     date: date,
+                    holiday: BrazilianHolidayCalendar.holiday(on: date),
                     isToday: Calendar.current.isDateInToday(date),
                     isSelected: Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate),
                     width: dayColumnWidth,
@@ -92,7 +93,7 @@ struct CalendarWeekView: View {
                 }
             }
         }
-        .frame(height: sizeClass == .regular ? CalendarConstants.dayHeaderHeight : 50)
+        .frame(height: sizeClass == .regular ? CalendarConstants.dayHeaderHeight : CalendarConstants.compactDayHeaderHeight)
         .background(Color(.systemBackground))
         .overlay(
             Rectangle()
@@ -203,5 +204,4 @@ struct CalendarWeekView: View {
 
     return PreviewWrapper()
 }
-
 

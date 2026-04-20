@@ -28,6 +28,7 @@ enum CalendarConstants {
 
     static let timeColumnWidth: CGFloat = 50
     static let dayHeaderHeight: CGFloat = 60  // Altura do header dos dias (aumentada para acomodar o círculo)
+    static let compactDayHeaderHeight: CGFloat = 68
     static let weekDayColumnWidth: CGFloat = 120  // Largura fixa para cada coluna de dia
 
     // MARK: - Helpers de Escala Semanal (baseados em minutos)
@@ -132,6 +133,151 @@ enum CalendarConstants {
         calendar.timeZone = TimeZone.current
 
         return calendar.date(bySettingHour: finalHour, minute: finalMinutes, second: 0, of: baseDate) ?? baseDate
+    }
+}
+
+// MARK: - Feriados Brasil (cálculo local, sem API externa)
+
+struct BrazilianHoliday: Identifiable, Hashable {
+    enum Kind: String, Hashable {
+        case nacional
+        case facultativo
+        case comemorativo
+
+        var displayName: String {
+            switch self {
+            case .nacional:
+                return "Nacional"
+            case .facultativo:
+                return "Facultativo"
+            case .comemorativo:
+                return "Comemorativo"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .nacional:
+                return .green
+            case .facultativo:
+                return .orange
+            case .comemorativo:
+                return .blue
+            }
+        }
+    }
+
+    let date: Date
+    let name: String
+    let kind: Kind
+
+    var id: String {
+        "\(BrazilianHolidayCalendar.dateKey(for: date))-\(name)"
+    }
+}
+
+enum BrazilianHolidayCalendar {
+    private static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "pt_BR")
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        return calendar
+    }
+
+    static func holiday(on date: Date) -> BrazilianHoliday? {
+        let year = calendar.component(.year, from: date)
+        return holidaysByDate(for: year)[dateKey(for: date)]
+    }
+
+    static func holidays(in year: Int) -> [BrazilianHoliday] {
+        holidaysByDate(for: year)
+            .values
+            .sorted { $0.date < $1.date }
+    }
+
+    fileprivate static func dateKey(for date: Date) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    private static func holidaysByDate(for year: Int) -> [String: BrazilianHoliday] {
+        var holidays: [BrazilianHoliday] = []
+
+        let fixedHolidays: [(month: Int, day: Int, name: String, kind: BrazilianHoliday.Kind)] = [
+            (1, 1, "Confraternização Universal", .nacional),
+            (4, 21, "Tiradentes", .nacional),
+            (5, 1, "Dia do Trabalho", .nacional),
+            (9, 7, "Independência do Brasil", .nacional),
+            (10, 12, "Nossa Senhora Aparecida", .nacional),
+            (11, 2, "Finados", .nacional),
+            (11, 15, "Proclamação da República", .nacional),
+            (11, 20, "Consciência Negra", .nacional),
+            (12, 25, "Natal", .nacional)
+        ]
+
+        for holiday in fixedHolidays {
+            if let date = date(year: year, month: holiday.month, day: holiday.day) {
+                holidays.append(
+                    BrazilianHoliday(
+                        date: date,
+                        name: holiday.name,
+                        kind: holiday.kind
+                    )
+                )
+            }
+        }
+
+        if let easterDate = easterSunday(for: year) {
+            let movableHolidays: [(offset: Int, name: String, kind: BrazilianHoliday.Kind)] = [
+                (-47, "Carnaval", .facultativo),
+                (-2, "Sexta-feira Santa", .nacional),
+                (0, "Páscoa", .comemorativo),
+                (60, "Corpus Christi", .facultativo)
+            ]
+
+            for holiday in movableHolidays {
+                if let date = calendar.date(byAdding: .day, value: holiday.offset, to: easterDate) {
+                    holidays.append(
+                        BrazilianHoliday(
+                            date: date,
+                            name: holiday.name,
+                            kind: holiday.kind
+                        )
+                    )
+                }
+            }
+        }
+
+        return holidays.reduce(into: [:]) { map, holiday in
+            map[dateKey(for: holiday.date)] = holiday
+        }
+    }
+
+    private static func date(year: Int, month: Int, day: Int) -> Date? {
+        calendar.date(from: DateComponents(year: year, month: month, day: day))
+    }
+
+    /// Algoritmo de Meeus/Jones/Butcher para calcular a data da Páscoa.
+    private static func easterSunday(for year: Int) -> Date? {
+        let a = year % 19
+        let b = year / 100
+        let c = year % 100
+        let d = b / 4
+        let e = b % 4
+        let f = (b + 8) / 25
+        let g = (b - f + 1) / 3
+        let h = (19 * a + b - d - g + 15) % 30
+        let i = c / 4
+        let k = c % 4
+        let l = (32 + 2 * e + 2 * i - h - k) % 7
+        let m = (a + 11 * h + 22 * l) / 451
+        let month = (h + l - 7 * m + 114) / 31
+        let day = ((h + l - 7 * m + 114) % 31) + 1
+
+        return calendar.date(from: DateComponents(year: year, month: month, day: day))
     }
 }
 

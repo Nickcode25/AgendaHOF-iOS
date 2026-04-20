@@ -175,6 +175,8 @@ struct AppointmentDetailSheet: View {
     
     @State private var showDeleteConfirmation = false
     @State private var showEditSheet = false
+    @State private var showPatientProfile = false
+    @State private var showProcedureLaunch = false
     @State private var isLoading = false
 
     /// Fontes adaptativas - boas em ambos dispositivos
@@ -280,27 +282,15 @@ struct AppointmentDetailSheet: View {
                                 .foregroundColor(.green)
                                 .padding(.vertical, 4)
                         }
-                    } else if appointment.status == .confirmed {
-                         // Se já confirmado, opção de finalizar
-                        Button {
-                             Task {
-                                 await updateStatus(.done)
-                             }
-                        } label: {
-                            Label("Marcar como Realizado", systemImage: "checkmark.circle.fill")
-                                .font(bodyFont)
-                                .foregroundColor(.appPrimary)
-                                .padding(.vertical, 4)
-                        }
                     }
 
-                     // 2. Editar Agendamento
+                    // 2. Editar Agendamento
                     Button {
                         showEditSheet = true
                     } label: {
                         Label("Editar Agendamento", systemImage: "pencil")
                             .font(bodyFont)
-                            .foregroundColor(.appPrimary)
+                            .foregroundColor(.blue)
                             .padding(.vertical, 4)
                     }
 
@@ -312,16 +302,33 @@ struct AppointmentDetailSheet: View {
                             .font(bodyFont)
                             .padding(.vertical, 4)
                     }
-                    
-                    // Cancelar (mantendo como opção extra se não for excluir? O usuário pediu explicitamente Confirmar, Editar, Excluir. Vou manter Cancelar condicional ou removê-lo se redundante com Excluir? Geralmente cancelar mantém histórico, excluir remove. Vou manter Cancelar se o usuário não pediu para remover, mas ele pediu uma ORDEM específica. Vou colocar Cancelar junto ou abaixo se fizer sentido, mas vou priorizar a ordem pedida: Confirmar, Editar, Excluir.)
-                    // Vou colocar Cancelar antes de Excluir se o status permitir, ou apenas seguir a ordem pedida estritamente.
-                    // O usuário disse: "Confirmar agendamento, Editar agendamento, Excluir agendamento".
-                    // Vou seguir essa ordem. O "Cancelar" existente no código original era uma opção. Vou movê-lo para baixo ou removê-lo se o usuário quiser simplificar. Pela imagem, tem "Cancelar Agendamento" (X) e "Excluir". Vou manter Cancelar logo após Confirmar (como ação negativa de status) ou junto com Excluir.
-                    // Na dúvida, sigo a lista do usuário: Confirmar, Editar, Excluir. E deixo Cancelar como secundário ou removo se ele estiver substituindo.
-                    // Mas a imagem mostra "Cancelar" e "Excluir". Vou assumir que ele quer a lista visual limpa nessa ordem.
-                    // Vou adicionar "Cancelar" ao menu se status permitir, mas focar nos 3 pedidos.
-                    
 
+                    // 4. Lançar Procedimento (mesma funcionalidade da ficha do paciente)
+                    if fetchedPatient != nil, !appointment.isPersonalAppointment {
+                        Button {
+                            showProcedureLaunch = true
+                        } label: {
+                            Label("Lançar Procedimento", systemImage: "plus.circle.fill")
+                                .font(bodyFont)
+                                .foregroundColor(.appPrimary)
+                                .padding(.vertical, 4)
+                        }
+                    }
+                }
+
+                if fetchedPatient != nil, !appointment.isPersonalAppointment {
+                    Section {
+                        Button {
+                            showPatientProfile = true
+                        } label: {
+                            Label("Perfil do Paciente", systemImage: "person.crop.circle")
+                                .font(bodyFont)
+                                .fontWeight(.medium)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 4)
+                        }
+                    }
                 }
 
                 // 4. WhatsApp (Logo após a sequência)
@@ -367,6 +374,48 @@ struct AppointmentDetailSheet: View {
                 EditAppointmentView(appointment: appointment) {
                     onUpdate()
                     dismiss()
+                }
+            }
+            .fullScreenCover(isPresented: $showPatientProfile) {
+                if let patient = fetchedPatient {
+                    NavigationStack {
+                        PatientDetailView(patient: patient) {
+                            onUpdate()
+                        }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    showPatientProfile = false
+                                } label: {
+                                    Image(systemName: "chevron.left")
+                                        .font(.headline)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $showProcedureLaunch) {
+                if let patient = fetchedPatient {
+                    NavigationStack {
+                        PatientDetailView(
+                            patient: patient,
+                            onUpdate: {
+                                onUpdate()
+                            },
+                            openProcedureLaunchOnAppear: true
+                        )
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    showProcedureLaunch = false
+                                } label: {
+                                    Image(systemName: "chevron.left")
+                                        .font(.headline)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
