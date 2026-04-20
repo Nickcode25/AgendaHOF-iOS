@@ -832,7 +832,7 @@ class NotificationManager: ObservableObject {
                 .execute()
                 .value
             
-            return Dictionary(uniqueKeysWithValues: result.map { ($0.id, $0) })
+            return Dictionary(uniqueKeysWithValues: result.map { ($0.id.uuidString, $0) })
             
         } catch {
             print("❌ Erro ao buscar procedimentos (Notifications): \(error)")
