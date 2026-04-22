@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject var supabase: SupabaseManager
@@ -88,7 +89,7 @@ struct SettingsView: View {
                     )
                 }
                 
-                // Pacientes Inativos (+6 meses)
+                // Pacientes Inativos
                 NavigationLink {
                     InactivePatientsView()
                         .environmentObject(supabase)
@@ -96,7 +97,7 @@ struct SettingsView: View {
                     SettingsRowContent(
                         icon: "person.badge.clock.fill",
                         iconColor: Color(hex: "ff6b00"),
-                        title: "Pacientes Inativos (+6 meses)"
+                        title: "Pacientes Inativos"
                     )
                 }
             }
@@ -475,7 +476,7 @@ struct EditProfileView: View {
 
                 Section {
                     TextField("Telefone", text: $phone)
-                        .keyboardType(.phonePad)
+                        .keyboardType(.default)
                         .onChange(of: phone) { _, newValue in
                             phone = formatPhoneInput(newValue)
                             validatePhone()
@@ -715,6 +716,8 @@ struct ProceduresManagementView: View {
                             activeSheet = .edit(procedure)
                         } label: {
                             ProcedureRowView(procedure: procedure)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {
@@ -871,20 +874,18 @@ private struct ProcedureRowView: View {
             }
 
             HStack(spacing: 8) {
-                Label(procedure.durationFormatted, systemImage: "clock")
+                Label(procedure.returnIntervalFormatted ?? procedure.durationFormatted, systemImage: "clock")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 if procedure.enableReturnTracking == true {
                     ProcedureTag(text: "Retorno")
                 }
-
-                if !procedure.stockCategories.isEmpty {
-                    ProcedureTag(text: "Estoque")
-                }
             }
         }
         .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }
 
@@ -923,9 +924,15 @@ private struct ProcedureEditorView: View {
     let submitButtonTitle: String
     let onSave: (ProcedureDraft) async throws -> Void
 
+    private enum Field: Hashable {
+        case name
+        case returnIntervalValue
+    }
+
     @State private var draft: ProcedureDraft
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @FocusState private var focusedField: Field?
 
     init(
         title: String,
@@ -942,84 +949,38 @@ private struct ProcedureEditorView: View {
     var body: some View {
         Form {
             Section("Informações Básicas") {
-                TextField("Nome *", text: $draft.name)
+                TextField("Nome do Procedimento", text: $draft.name)
                     .textInputAutocapitalization(.words)
-
-                TextField("Categoria", text: $draft.category)
-                    .textInputAutocapitalization(.words)
-
-                TextField("Descrição", text: $draft.description, axis: .vertical)
-                    .lineLimit(2...4)
+                    .focused($focusedField, equals: .name)
             }
 
             Section("Valores") {
-                TextField("Preço *", text: $draft.price)
-                    .keyboardType(.decimalPad)
+                MoneyInputField(
+                    placeholder: "Valor à vista *",
+                    cents: $draft.cashValueCents
+                )
 
-                TextField("Valor à vista (opcional)", text: $draft.cashValue)
-                    .keyboardType(.decimalPad)
-
-                TextField("Valor no cartão (opcional)", text: $draft.cardValue)
-                    .keyboardType(.decimalPad)
-            }
-
-            Section("Atendimento") {
-                TextField("Duração em minutos (opcional)", text: $draft.durationMinutes)
-                    .keyboardType(.numberPad)
-            }
-
-            Section("Baixa de Estoque") {
-                if draft.stockCategories.isEmpty {
-                    Text("Nenhuma categoria vinculada.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-
-                ForEach($draft.stockCategories) { $stock in
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Categoria", text: $stock.category)
-                            .textInputAutocapitalization(.words)
-
-                        HStack {
-                            Stepper("Quantidade usada: \(stock.quantityUsed)", value: $stock.quantityUsed, in: 1...9999)
-
-                            Spacer()
-
-                            Button(role: .destructive) {
-                                removeStockCategory(id: stock.id)
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Button {
-                    draft.stockCategories.append(.init())
-                } label: {
-                    Label("Adicionar Categoria de Estoque", systemImage: "plus.circle")
-                }
+                MoneyInputField(
+                    placeholder: "Valor Parcelado (opcional)",
+                    cents: $draft.cardValueCents
+                )
             }
 
             Section("Retorno Inteligente") {
                 Toggle("Ativar controle de retorno", isOn: $draft.enableReturnTracking)
 
                 if draft.enableReturnTracking {
-                    TextField("Intervalo", text: $draft.returnIntervalValue)
-                        .keyboardType(.numberPad)
+                    TextField("Prazo ideal para retorno", text: $draft.returnIntervalValue)
+                        .keyboardType(.default)
+                        .focused($focusedField, equals: .returnIntervalValue)
 
-                    Picker("Unidade", selection: $draft.returnIntervalUnit) {
+                    Picker("", selection: $draft.returnIntervalUnit) {
                         ForEach(ProcedureReturnIntervalUnit.allCases, id: \.self) { unit in
                             Text(unit.displayLabel).tag(unit)
                         }
                     }
-
-                    TextField("Alertar antes (dias)", text: $draft.returnAlertBeforeDays)
-                        .keyboardType(.numberPad)
-
-                    TextField("Mensagem de retorno", text: $draft.returnMessageTemplate, axis: .vertical)
-                        .lineLimit(2...5)
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
             }
         }
@@ -1036,10 +997,25 @@ private struct ProcedureEditorView: View {
                 Button(submitButtonTitle) {
                     save()
                 }
-                .disabled(isSaving || draft.name.trimmed.isEmpty || draft.price.trimmed.isEmpty)
+                .disabled(isSaving || draft.name.trimmed.isEmpty || draft.cashValueCents == nil)
                 .fontWeight(.semibold)
             }
+
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Concluir") {
+                    focusedField = nil
+                    dismissKeyboard()
+                }
+            }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                focusedField = nil
+                dismissKeyboard()
+            }
+        )
         .loadingOverlay(isLoading: isSaving, text: "Salvando...")
         .alert("Erro ao salvar", isPresented: Binding(
             get: { errorMessage != nil },
@@ -1053,8 +1029,13 @@ private struct ProcedureEditorView: View {
         }
     }
 
-    private func removeStockCategory(id: UUID) {
-        draft.stockCategories.removeAll { $0.id == id }
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 
     private func save() {
@@ -1068,6 +1049,109 @@ private struct ProcedureEditorView: View {
             } catch {
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+}
+
+private struct MoneyInputField: UIViewRepresentable {
+    let placeholder: String
+    @Binding var cents: Int?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField(frame: .zero)
+        textField.placeholder = placeholder
+        textField.keyboardType = .default
+
+        let currencyLabel = UILabel()
+        currencyLabel.text = "R$ "
+        currencyLabel.textColor = .label
+        currencyLabel.font = textField.font ?? UIFont.preferredFont(forTextStyle: .body)
+        currencyLabel.sizeToFit()
+        textField.leftView = currencyLabel
+        textField.leftViewMode = .always
+
+        textField.delegate = context.coordinator
+        textField.text = ProcedureDraft.formattedMoney(fromCents: cents)
+
+        let toolbar = UIToolbar()
+        toolbar.sizeToFit()
+        toolbar.items = [
+            UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
+            UIBarButtonItem(
+                title: "Concluir",
+                style: .done,
+                target: context.coordinator,
+                action: #selector(Coordinator.doneTapped)
+            )
+        ]
+        textField.inputAccessoryView = toolbar
+        context.coordinator.textField = textField
+
+        return textField
+    }
+
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.textField = uiView
+        uiView.placeholder = placeholder
+
+        let formatted = ProcedureDraft.formattedMoney(fromCents: cents)
+        if uiView.text != formatted {
+            uiView.text = formatted
+        }
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: MoneyInputField
+        weak var textField: UITextField?
+
+        init(parent: MoneyInputField) {
+            self.parent = parent
+        }
+
+        @objc func doneTapped() {
+            textField?.resignFirstResponder()
+        }
+
+        func textField(
+            _ textField: UITextField,
+            shouldChangeCharactersIn range: NSRange,
+            replacementString string: String
+        ) -> Bool {
+            var currentCents = Int64(parent.cents ?? 0)
+
+            if string.isEmpty {
+                if range.length > 0 {
+                    currentCents /= 10
+                }
+            } else {
+                let typedDigits = string.compactMap(\.wholeNumberValue)
+                guard !typedDigits.isEmpty else { return false }
+
+                let currentText = textField.text ?? ""
+                if let replacementRange = Range(range, in: currentText),
+                   replacementRange == (currentText.startIndex..<currentText.endIndex) {
+                    currentCents = 0
+                }
+
+                for digit in typedDigits {
+                    let intDigit = Int64(digit)
+                    if currentCents > (Int64(Int.max) - intDigit) / 10 {
+                        currentCents = Int64(Int.max)
+                        break
+                    }
+                    currentCents = (currentCents * 10) + intDigit
+                }
+            }
+
+            let nextCents: Int? = currentCents > 0 ? Int(currentCents) : nil
+            parent.cents = nextCents
+            textField.text = ProcedureDraft.formattedMoney(fromCents: nextCents)
+            return false
         }
     }
 }
@@ -1087,16 +1171,15 @@ private struct StockCategoryDraft: Identifiable, Hashable {
 private struct ProcedureDraft: Hashable {
     var name: String = ""
     var description: String = ""
-    var price: String = ""
-    var cashValue: String = ""
-    var cardValue: String = ""
+    var cashValueCents: Int? = nil
+    var cardValueCents: Int? = nil
     var durationMinutes: String = ""
     var category: String = ""
     var stockCategories: [StockCategoryDraft] = []
     var enableReturnTracking: Bool = false
     var returnIntervalValue: String = "1"
     var returnIntervalUnit: ProcedureReturnIntervalUnit = .months
-    var returnAlertBeforeDays: String = "15"
+    var returnAlertBeforeDays: String = ""
     var returnMessageTemplate: String = ""
 
     init() {}
@@ -1104,9 +1187,8 @@ private struct ProcedureDraft: Hashable {
     init(procedure: Procedure) {
         name = procedure.name
         description = procedure.description ?? ""
-        price = Self.formatDecimal(procedure.price)
-        cashValue = procedure.cashValue.map(Self.formatDecimal) ?? ""
-        cardValue = procedure.cardValue.map(Self.formatDecimal) ?? ""
+        cashValueCents = Self.cents(fromStoredCurrencyValue: procedure.cashValue ?? procedure.price)
+        cardValueCents = procedure.cardValue.flatMap(Self.cents(fromStoredCurrencyValue:))
         durationMinutes = procedure.durationMinutes.map(String.init) ?? ""
         category = procedure.category ?? ""
         stockCategories = procedure.stockCategories.map {
@@ -1115,7 +1197,7 @@ private struct ProcedureDraft: Hashable {
         enableReturnTracking = procedure.enableReturnTracking ?? false
         returnIntervalValue = procedure.returnIntervalValue.map(String.init) ?? "1"
         returnIntervalUnit = procedure.returnIntervalUnit ?? .months
-        returnAlertBeforeDays = procedure.returnAlertBeforeDays.map(String.init) ?? "15"
+        returnAlertBeforeDays = procedure.returnAlertBeforeDays.map(String.init) ?? ""
         returnMessageTemplate = procedure.returnMessageTemplate ?? ""
     }
 
@@ -1123,12 +1205,12 @@ private struct ProcedureDraft: Hashable {
         let normalizedName = name.trimmed
         guard !normalizedName.isEmpty else { throw ProcedureDraftError.invalidName }
 
-        guard let parsedPrice = Self.parseRequiredDouble(price) else {
-            throw ProcedureDraftError.invalidPrice
+        guard let cashCents = cashValueCents else {
+            throw ProcedureDraftError.invalidCashValue
         }
 
-        let parsedCash = try Self.parseOptionalDouble(cashValue, error: .invalidCashValue)
-        let parsedCard = try Self.parseOptionalDouble(cardValue, error: .invalidCardValue)
+        let parsedCash = Self.double(fromCents: cashCents)
+        let parsedCard = cardValueCents.map(Self.double(fromCents:))
         let parsedDuration = try Self.parseOptionalInt(durationMinutes, error: .invalidDurationMinutes)
 
         let hasTracking = enableReturnTracking
@@ -1142,7 +1224,7 @@ private struct ProcedureDraft: Hashable {
         return ProcedureInsert(
             name: normalizedName,
             description: description.trimmed.isEmpty ? nil : description.trimmed,
-            price: parsedPrice,
+            price: parsedCash,
             cashValue: parsedCash,
             cardValue: parsedCard,
             durationMinutes: parsedDuration,
@@ -1188,23 +1270,9 @@ private struct ProcedureDraft: Hashable {
             .filter { !$0.category.isEmpty }
     }
 
-    private static func parseRequiredDouble(_ value: String) -> Double? {
-        let trimmed = value.trimmed
-        guard !trimmed.isEmpty else { return nil }
-        return parseDouble(trimmed)
-    }
-
-    private static func parseOptionalDouble(
-        _ value: String,
-        error: ProcedureDraftError
-    ) throws -> Double? {
-        let trimmed = value.trimmed
-        guard !trimmed.isEmpty else { return nil }
-
-        guard let parsed = parseDouble(trimmed) else {
-            throw error
-        }
-        return parsed
+    static func formattedMoney(fromCents cents: Int?) -> String {
+        guard let cents else { return "" }
+        return formatCurrency(fromCents: cents)
     }
 
     private static func parseOptionalInt(
@@ -1220,46 +1288,45 @@ private struct ProcedureDraft: Hashable {
         return parsed
     }
 
-    private static func parseDouble(_ value: String) -> Double? {
-        if let number = brNumberFormatter.number(from: value) {
-            return number.doubleValue
-        }
-        if let number = enNumberFormatter.number(from: value) {
-            return number.doubleValue
-        }
+    private static func cents(fromStoredCurrencyValue value: Double) -> Int? {
+        guard value.isFinite else { return nil }
 
-        let normalized = value.replacingOccurrences(of: ",", with: ".")
-        return Double(normalized)
+        var source = Decimal(value) * Decimal(100)
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &source, 0, .plain)
+
+        let number = NSDecimalNumber(decimal: rounded)
+        guard number != .notANumber else { return nil }
+
+        let int64Value = number.int64Value
+        guard int64Value >= 0, int64Value <= Int64(Int.max) else { return nil }
+        return Int(int64Value)
     }
 
-    private static func formatDecimal(_ value: Double) -> String {
-        brNumberFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    private static func double(fromCents cents: Int) -> Double {
+        let decimal = Decimal(cents) / Decimal(100)
+        return NSDecimalNumber(decimal: decimal).doubleValue
     }
 
-    private static let brNumberFormatter: NumberFormatter = {
+    private static func formatCurrency(fromCents cents: Int) -> String {
+        let decimal = Decimal(cents) / Decimal(100)
+        return brMoneyInputFormatter.string(from: NSDecimalNumber(decimal: decimal)) ?? "0,00"
+    }
+
+    private static let brMoneyInputFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "pt_BR")
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 0
-        return formatter
-    }()
-
-    private static let enNumberFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 0
+        formatter.minimumFractionDigits = 2
+        formatter.generatesDecimalNumbers = true
         return formatter
     }()
 }
 
 private enum ProcedureDraftError: LocalizedError {
     case invalidName
-    case invalidPrice
     case invalidCashValue
-    case invalidCardValue
     case invalidDurationMinutes
     case invalidReturnIntervalValue
     case invalidReturnAlertDays
@@ -1268,12 +1335,8 @@ private enum ProcedureDraftError: LocalizedError {
         switch self {
         case .invalidName:
             return "Informe o nome do procedimento."
-        case .invalidPrice:
-            return "Informe um preço válido."
         case .invalidCashValue:
-            return "Valor à vista inválido."
-        case .invalidCardValue:
-            return "Valor no cartão inválido."
+            return "Informe um valor à vista válido."
         case .invalidDurationMinutes:
             return "Duração inválida. Use apenas números inteiros."
         case .invalidReturnIntervalValue:

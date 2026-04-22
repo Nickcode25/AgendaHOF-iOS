@@ -83,6 +83,27 @@ struct Procedure: Identifiable, Codable, Hashable {
         }
         return "\(duration) min"
     }
+
+    var returnIntervalFormatted: String? {
+        guard enableReturnTracking == true,
+              let intervalValue = returnIntervalValue,
+              intervalValue > 0,
+              let intervalUnit = returnIntervalUnit else {
+            return nil
+        }
+
+        let unitLabel: String
+        switch intervalUnit {
+        case .days:
+            unitLabel = intervalValue == 1 ? "dia" : "dias"
+        case .weeks:
+            unitLabel = intervalValue == 1 ? "semana" : "semanas"
+        case .months:
+            unitLabel = intervalValue == 1 ? "mês" : "meses"
+        }
+
+        return "\(intervalValue) \(unitLabel)"
+    }
 }
 
 struct StockCategory: Codable, Hashable, Sendable {
