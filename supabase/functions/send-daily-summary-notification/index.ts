@@ -16,6 +16,28 @@ const APNS_ENDPOINT = Deno.env.get('APNS_ENDPOINT') || 'https://api.push.apple.c
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const COURSE_PROCEDURE_NAME = 'Curso'
+const DEFAULT_TIME_ZONE = 'America/Sao_Paulo'
+
+function resolveTimeZone(rawTimeZone?: string | null): string {
+    const candidate = (rawTimeZone || '').trim()
+    if (!candidate) return DEFAULT_TIME_ZONE
+
+    try {
+        new Intl.DateTimeFormat('pt-BR', { timeZone: candidate }).format(new Date())
+        return candidate
+    } catch {
+        return DEFAULT_TIME_ZONE
+    }
+}
+
+function formatDateInTimeZone(date: Date, timeZone: string): string {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date)
+}
 
 console.log('🚀 Daily Summary Notification Function initialized')
 console.log('APNs Endpoint:', APNS_ENDPOINT)
@@ -43,7 +65,7 @@ serve(async (req) => {
         // Get all active device tokens
         const { data: deviceTokens, error: tokensError } = await supabase
             .from('device_tokens')
-            .select('device_token, environment, user_id')
+            .select('*')
             .eq('is_active', true)
 
         if (tokensError) {
@@ -89,20 +111,32 @@ serve(async (req) => {
         const jwt = await generateAPNsJWT()
         // Process each user
         for (const [userId, devices] of userDevices.entries()) {
-            console.log(`📅 Calculating today's appointments for user ${userId}`)
-
-            // Get today's appointments and course reminders
-            const summaryData = await calculateTodaysSummary(supabase, userId)
-            const courseData = await calculateTodaysCourses(supabase, userId)
-
-            const holidayLabel = summaryData.holiday
-                ? ` | holiday: ${summaryData.holiday.name} (${summaryData.holiday.kind})`
-                : ''
-            console.log(`  📊 Today: ${summaryData.appointmentCount} appointments | ${courseData.courseCount} courses | streakDay: ${courseData.streakDay}${holidayLabel}`)
+            const summaryByTimeZone = new Map<string, any>()
+            const coursesByTimeZone = new Map<string, any>()
 
             // Send notification to all devices for this user
             for (const device of devices) {
                 const isSandbox = device.environment === 'sandbox'
+                const deviceTimeZone = resolveTimeZone(device.time_zone)
+
+                let summaryData = summaryByTimeZone.get(deviceTimeZone)
+                if (!summaryData) {
+                    console.log(`📅 Calculating today's appointments for user ${userId} (tz: ${deviceTimeZone})`)
+                    summaryData = await calculateTodaysSummary(supabase, userId, deviceTimeZone)
+                    summaryByTimeZone.set(deviceTimeZone, summaryData)
+                }
+
+                let courseData = coursesByTimeZone.get(deviceTimeZone)
+                if (!courseData) {
+                    courseData = await calculateTodaysCourses(supabase, userId, deviceTimeZone)
+                    coursesByTimeZone.set(deviceTimeZone, courseData)
+
+                    const holidayLabel = summaryData.holiday
+                        ? ` | holiday: ${summaryData.holiday.name} (${summaryData.holiday.kind})`
+                        : ''
+                    console.log(`  📊 Today (${deviceTimeZone}): ${summaryData.appointmentCount} appointments | ${courseData.courseCount} courses | streakDay: ${courseData.streakDay}${holidayLabel}`)
+                }
+
                 const shouldSendDailySummary = !(courseData.courseCount > 0 && summaryData.appointmentCount === 0)
 
                 if (shouldSendDailySummary) {
@@ -111,7 +145,8 @@ serve(async (req) => {
                             device.device_token,
                             summaryData,
                             isSandbox,
-                            jwt
+                            jwt,
+                            deviceTimeZone
                         )
                         successCount++
                         console.log(`  ✅ Daily summary sent to device ${device.device_token.substring(0, 10)}...`)
@@ -189,30 +224,25 @@ serve(async (req) => {
 })
 
 /**
- * Calculate today's appointments summary (São Paulo timezone)
+ * Calculate today's appointments summary in user timezone.
  */
-async function calculateTodaysSummary(supabase: any, userId: string) {
-    // Get today's date range in São Paulo timezone
+async function calculateTodaysSummary(supabase: any, userId: string, timeZone: string) {
     const now = new Date()
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Sao_Paulo',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    })
-    const todayStr = formatter.format(now)
-    const startOfDay = `${todayStr}T00:00:00-03:00`
-    const endOfDay = `${todayStr}T23:59:59-03:00`
+    const todayStr = formatDateInTimeZone(now, timeZone)
 
-    console.log(`  📅 Date range: ${startOfDay} to ${endOfDay}`)
+    // Query a broad UTC window and filter by user timezone locally.
+    // This avoids hardcoding offsets such as -03:00 and works for all Brazil timezones.
+    const windowStart = new Date(now.getTime() - (36 * 60 * 60 * 1000)).toISOString()
+    const windowEnd = new Date(now.getTime() + (36 * 60 * 60 * 1000)).toISOString()
 
-    // Fetch appointments for today (non-cancelled, non-personal, ordered by start time)
+    console.log(`  📅 UTC window: ${windowStart} to ${windowEnd} | day(${timeZone})=${todayStr}`)
+
     const { data: appointments, error: aptError } = await supabase
         .from('appointments')
         .select('patient_name, title, start, is_personal')
         .eq('user_id', userId)
-        .gte('start', startOfDay)
-        .lte('start', endOfDay)
+        .gte('start', windowStart)
+        .lte('start', windowEnd)
         .neq('status', 'cancelled')
         .or('is_personal.is.null,is_personal.eq.false')
         .order('start', { ascending: true })
@@ -222,8 +252,13 @@ async function calculateTodaysSummary(supabase: any, userId: string) {
         throw aptError
     }
 
-    const appointmentCount = appointments?.length || 0
-    const firstAppointment = appointments?.[0] || null
+    const todaysAppointments = (appointments || []).filter((appointment: any) => {
+        if (!appointment.start) return false
+        return formatDateInTimeZone(new Date(appointment.start), timeZone) === todayStr
+    })
+
+    const appointmentCount = todaysAppointments.length
+    const firstAppointment = todaysAppointments[0] || null
     const holiday = getBrazilianHolidayForDate(todayStr)
 
     return {
@@ -238,21 +273,14 @@ async function calculateTodaysSummary(supabase: any, userId: string) {
  * Calculate today's course appointments and consecutive-day streak index
  * for personalized reminders.
  */
-async function calculateTodaysCourses(supabase: any, userId: string) {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Sao_Paulo',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    })
+async function calculateTodaysCourses(supabase: any, userId: string, timeZone: string) {
+    const now = new Date()
+    const todayStr = formatDateInTimeZone(now, timeZone)
+    const yesterdayStr = shiftDateByDays(todayStr, -1, timeZone)
+    const twoDaysAgoStr = shiftDateByDays(todayStr, -2, timeZone)
 
-    const todayStr = formatter.format(new Date())
-    const yesterdayStr = shiftDateByDays(todayStr, -1)
-    const twoDaysAgoStr = shiftDateByDays(todayStr, -2)
-
-    // Query only a 3-day window: today, yesterday, and two days ago.
-    const startWindow = `${twoDaysAgoStr}T00:00:00-03:00`
-    const endWindow = `${todayStr}T23:59:59-03:00`
+    const startWindow = new Date(now.getTime() - (96 * 60 * 60 * 1000)).toISOString()
+    const endWindow = new Date(now.getTime() + (24 * 60 * 60 * 1000)).toISOString()
 
     const { data: courseAppointments, error: courseError } = await supabase
         .from('appointments')
@@ -278,7 +306,7 @@ async function calculateTodaysCourses(supabase: any, userId: string) {
         }
 
         if (!appointment.start) continue
-        const dayKey = formatter.format(new Date(appointment.start))
+        const dayKey = formatDateInTimeZone(new Date(appointment.start), timeZone)
         courseCountByDay[dayKey] = (courseCountByDay[dayKey] || 0) + 1
     }
 
@@ -300,15 +328,19 @@ async function calculateTodaysCourses(supabase: any, userId: string) {
     }
 }
 
-function shiftDateByDays(baseDate: string, days: number): string {
-    const date = new Date(`${baseDate}T12:00:00-03:00`)
-    date.setDate(date.getDate() + days)
-    return new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Sao_Paulo',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).format(date)
+function shiftDateByDays(baseDate: string, days: number, timeZone: string): string {
+    const [yearStr, monthStr, dayStr] = baseDate.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    const day = Number(dayStr)
+
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+        return baseDate
+    }
+
+    const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+    date.setUTCDate(date.getUTCDate() + days)
+    return formatDateInTimeZone(date, timeZone)
 }
 
 function normalizeCourseProcedure(value?: string | null): string {
@@ -333,10 +365,10 @@ function looksLikeLegacyCourseTitle(title?: string | null): boolean {
 /**
  * Format time from ISO string to HH:mm
  */
-function formatTime(isoString: string): string {
+function formatTime(isoString: string, timeZone: string): string {
     const date = new Date(isoString)
     return new Intl.DateTimeFormat('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
+        timeZone,
         hour: '2-digit',
         minute: '2-digit',
         hour12: false
@@ -346,39 +378,30 @@ function formatTime(isoString: string): string {
 /**
  * Get notification message based on appointment count and first appointment
  */
-function getNotificationMessage(count: number, firstAppointment: any): string {
+function getNotificationMessage(count: number, firstAppointment: any, timeZone: string): string {
     if (count === 0) {
         return "Você não tem agendamentos para hoje. Aproveite o dia!"
     }
 
-    if (count === 1) {
-        let message = "Você tem 1 agendamento para hoje."
-        if (firstAppointment) {
-            const displayName = firstAppointment.patient_name || firstAppointment.title || "Paciente"
-            const time = formatTime(firstAppointment.start)
-            message += ` Primeiro: ${displayName} às ${time}`
-        }
-        return message
-    }
+    const firstTime = firstAppointment?.start
+        ? formatTime(firstAppointment.start, timeZone)
+        : null
 
-    // Multiple appointments
-    let message = `Você tem ${count} agendamentos para hoje.`
-    if (firstAppointment) {
-        const displayName = firstAppointment.patient_name || firstAppointment.title || "Paciente"
-        const time = formatTime(firstAppointment.start)
-        message += ` Primeiro: ${displayName} às ${time}`
-    }
-    return message
+    const firstPatientSentence = firstTime
+        ? ` O primeiro paciente é às ${firstTime}.`
+        : ""
+
+    return `Você tem ${count} agendamentos para hoje.${firstPatientSentence}`
 }
 
-function getDailySummaryNotificationBody(data: any): string {
+function getDailySummaryNotificationBody(data: any, timeZone: string): string {
     const count = data?.appointmentCount || 0
 
     if (count === 0 && data?.holiday) {
         return getHolidayNoAppointmentsMessage(data.holiday)
     }
 
-    return getNotificationMessage(count, data?.firstAppointment)
+    return getNotificationMessage(count, data?.firstAppointment, timeZone)
 }
 
 function getHolidayNoAppointmentsMessage(holiday: { name: string; kind: string }): string {
@@ -499,7 +522,13 @@ function formatDateKey(year: number, month: number, day: number): string {
 /**
  * Send push notification via APNs
  */
-async function sendPushNotification(deviceToken: string, data: any, isSandbox: boolean, jwt: string) {
+async function sendPushNotification(
+    deviceToken: string,
+    data: any,
+    isSandbox: boolean,
+    jwt: string,
+    timeZone: string
+) {
     // JWT is now passed in to avoid rate limiting
 
     const endpoint = isSandbox
@@ -510,7 +539,7 @@ async function sendPushNotification(deviceToken: string, data: any, isSandbox: b
         aps: {
             alert: {
                 title: '📅 Resumo do Dia',
-                body: getDailySummaryNotificationBody(data)
+                body: getDailySummaryNotificationBody(data, timeZone)
             },
             sound: 'default',
             badge: 1
@@ -519,7 +548,8 @@ async function sendPushNotification(deviceToken: string, data: any, isSandbox: b
             type: 'daily_summary',
             appointmentCount: data.appointmentCount,
             date: data.todayStr,
-            holidayName: data.holiday?.name ?? null
+            holidayName: data.holiday?.name ?? null,
+            timeZone
         }
     }
 
